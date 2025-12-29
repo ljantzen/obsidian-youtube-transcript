@@ -1,0 +1,6 @@
+{
+  "apiKey": "",
+  "autoFetch": false,
+  "openaiKey": "",
+  "prompt": "Please process the following YouTube video transcript. Your task is to:\n\n1. Create an accurate and complete transcription with complete sentences\n2. Remove all self-promotion, calls to action, and promotional content (e.g., \"like and subscribe\", \"check out my channel\", \"visit my website\", etc.)\n3. Maintain the original meaning and context\n4. Ensure proper grammar and sentence structure\n5. Keep the content focused on the actual video content\n\nReturn only the cleaned transcript without any additional commentary or explanation."
+}

@@ -1,0 +1,27 @@
+/* YouTube Transcript Plugin Styles */
+
+.youtube-transcript-container {
+	padding: 1em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	margin: 1em 0;
+	background-color: var(--background-secondary);
+}
+
+.youtube-transcript-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 0.5em;
+}
+
+.youtube-transcript-title {
+	font-weight: bold;
+	font-size: 1.1em;
+	color: var(--text-normal);
+}
+
+.youtube-transcript-content {
+	color: var(--text-muted);
+	line-height: 1.6;
+}

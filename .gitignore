@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+*.log
+main.js
+main.js.map
+styles.css.map
+coverage/
+.nyc_output/
+*.test.js
+*.spec.js
