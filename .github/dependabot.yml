@@ -1,0 +1,44 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "ljantzen"  # Uncomment and add your GitHub username
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Group updates to reduce PR noise
+    groups:
+      # Group all dev dependencies together
+      dev-dependencies:
+        patterns:
+          - "@types/*"
+          - "@typescript-eslint/*"
+          - "esbuild"
+          - "typescript"
+          - "vitest"
+          - "@vitest/*"
+          - "happy-dom"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignore major version updates for critical dependencies
+    ignore:
+      # Don't auto-update Obsidian types (may break compatibility)
+      - dependency-name: "obsidian"
+        update-types: ["version-update:semver-major"]
+      # Don't auto-update TypeScript major versions (may require code changes)
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # Don't auto-update esbuild major versions
+      - dependency-name: "esbuild"
+        update-types: ["version-update:semver-major"]

@@ -1,0 +1,30 @@
+{
+	"name": "obsidian-youtube-transcript",
+	"version": "0.1.0",
+	"description": "Fetch and embed YouTube video transcripts in your Obsidian notes",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^16.11.6",
+		"@typescript-eslint/eslint-plugin": "5.29.0",
+		"@typescript-eslint/parser": "5.29.0",
+		"@vitest/coverage-v8": "^0.34.6",
+		"builtin-modules": "3.3.0",
+		"esbuild": "^0.27.2",
+		"happy-dom": "^20.0.11",
+		"obsidian": "latest",
+		"tslib": "2.4.0",
+		"typescript": "4.7.4",
+		"vitest": "^0.34.6"
+	}
+}
