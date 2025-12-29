@@ -189,6 +189,19 @@ After building, copy the following files to your plugin directory:
 - Ensure you have write permissions in the target directory
 - Check that the video title doesn't contain invalid filename characters (these are automatically sanitized)
 
+## Automation
+
+### Dependabot
+
+This repository uses [Dependabot](https://docs.github.com/en/code-security/dependabot) to automatically keep dependencies up to date:
+
+- **Schedule**: Weekly checks every Monday at 9:00 AM
+- **Updates**: Automatically creates PRs for dependency updates
+- **Grouping**: Dev dependencies are grouped together to reduce PR noise
+- **Safety**: Major version updates for critical dependencies (TypeScript, esbuild, obsidian) are ignored to prevent breaking changes
+
+Dependabot will create pull requests that you can review and merge when ready.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details

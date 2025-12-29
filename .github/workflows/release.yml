@@ -1,0 +1,84 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Verify build artifacts
+        run: |
+          if [ ! -f "main.js" ]; then
+            echo "Error: main.js not found"
+            exit 1
+          fi
+          if [ ! -f "manifest.json" ]; then
+            echo "Error: manifest.json not found"
+            exit 1
+          fi
+          echo "Required build artifacts present"
+          
+          # Check for optional files
+          if [ -f "styles.css" ]; then
+            echo "styles.css found"
+          fi
+          if [ -f "versions.json" ]; then
+            echo "versions.json found"
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            main.js
+            manifest.json
+            styles.css
+            versions.json
+          name: Release v${{ steps.get_version.outputs.version }}
+          fail_on_unmatched_files: false
+          body: |
+            ## YouTube Transcript Plugin v${{ steps.get_version.outputs.version }}
+            
+            ### Installation
+            1. Download all files from the assets below
+            2. Create a folder `obsidian-youtube-transcript` in your vault's `.obsidian/plugins/` directory
+            3. Place the downloaded files in that folder
+            4. Reload Obsidian and enable the plugin in Settings → Community plugins
+            
+            ### Files
+            - `main.js` - Plugin code
+            - `manifest.json` - Plugin manifest
+            - `styles.css` - Plugin styles (if present)
+            - `versions.json` - Version information (if present)
+            
+            See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for more information.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
