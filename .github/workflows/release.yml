@@ -4,10 +4,13 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      - '*.*.*'
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout code
@@ -28,7 +31,7 @@ jobs:
       - name: Extract version from tag
         id: get_version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
@@ -60,10 +63,10 @@ jobs:
             manifest.json
             styles.css
             versions.json
-          name: Release v${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
           fail_on_unmatched_files: false
           body: |
-            ## YouTube Transcript Plugin v${{ steps.get_version.outputs.version }}
+            ## YouTube Transcript Plugin ${{ steps.get_version.outputs.version }}
             
             ### Installation
             1. Download all files from the assets below
