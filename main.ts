@@ -94,7 +94,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             throw new Error("Transcript is empty");
           }
 
-          console.log("Transcript fetched, length:", transcript.length);
+          //console.log("Transcript fetched, length:", transcript.length);
 
           if (createNewFile) {
             // Get the active file to determine the directory
@@ -298,12 +298,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       );
     }
 
-    console.log("Transcript XML fetched, length:", transcriptXml.length);
+    //console.log("Transcript XML fetched, length:", transcriptXml.length);
     const parsedTranscript = await this.parseTranscript(
       transcriptXml,
       statusCallback,
     );
-    console.log("Transcript parsed, length:", parsedTranscript.length);
+    //console.log("Transcript parsed, length:", parsedTranscript.length);
     return { transcript: parsedTranscript, title: videoTitle };
   }
 
@@ -464,25 +464,20 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     const rawTranscript = transcriptParts.join(" ");
-    console.log(
-      "Raw transcript assembled, length:",
-      rawTranscript.length,
-      "parts:",
-      transcriptParts.length,
-    );
+    //console.log( "Raw transcript assembled, length:", rawTranscript.length, "parts:", transcriptParts.length,);
 
     // Process through OpenAI if API key is provided
     if (this.settings.openaiKey && this.settings.openaiKey.trim() !== "") {
-      console.log("Processing transcript with OpenAI...");
+      //console.log("Processing transcript with OpenAI...");
       const processed = await this.processWithOpenAI(
         rawTranscript,
         statusCallback,
       );
-      console.log("OpenAI processing complete, length:", processed.length);
+      //console.log("OpenAI processing complete, length:", processed.length);
       return processed;
     }
 
-    console.log("Returning raw transcript");
+    //console.log("Returning raw transcript");
     return rawTranscript;
   }
 
@@ -555,7 +550,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       const cursor = editor.getCursor();
-      console.log("Inserting transcript at cursor position:", cursor);
+      //console.log("Inserting transcript at cursor position:", cursor);
 
       // Format transcript as a blockquote
       // Split into reasonable line lengths for readability
@@ -576,15 +571,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       const formattedTranscript = "\n\n" + lines.join("\n") + "\n\n";
-      console.log(
-        "Formatted transcript length:",
-        formattedTranscript.length,
-        "lines:",
-        lines.length,
-      );
+      //console.log( "Formatted transcript length:", formattedTranscript.length, "lines:", lines.length,);
 
       editor.replaceRange(formattedTranscript, cursor);
-      console.log("Transcript inserted successfully");
+      //console.log("Transcript inserted successfully");
     } catch (error) {
       console.error("Error inserting transcript:", error);
       new Notice(`Error inserting transcript: ${error.message}`);
