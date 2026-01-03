@@ -7,12 +7,19 @@ import {
   App,
   Modal,
   requestUrl,
+  TFile,
 } from "obsidian";
 
 interface YouTubeTranscriptPluginSettings {
   autoFetch: boolean;
   openaiKey: string;
   prompt: string;
+  openaiTimeout: number; // Timeout in minutes
+}
+
+interface CaptionTrack {
+  languageCode: string;
+  baseUrl: string;
 }
 
 const DEFAULT_PROMPT = `Please process the following YouTube video transcript. Your task is to:
@@ -29,6 +36,7 @@ const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   autoFetch: false,
   openaiKey: "",
   prompt: DEFAULT_PROMPT,
+  openaiTimeout: 5, // Default 5 minutes
 };
 
 export default class YouTubeTranscriptPlugin extends Plugin {
@@ -38,7 +46,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     await this.loadSettings();
 
     // This creates an icon in the left ribbon.
-    this.addRibbonIcon("youtube", "YouTube Transcript", (evt: MouseEvent) => {
+    this.addRibbonIcon("youtube", "Youtube transcript", (evt: MouseEvent) => {
       // Called when the user clicks the icon.
       this.fetchTranscript();
     });
@@ -49,7 +57,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // This adds a simple command that can be triggered anywhere
     this.addCommand({
       id: "fetch-youtube-transcript",
-      name: "Fetch YouTube Transcript",
+      name: "Fetch YouTube transcript",
       callback: () => {
         this.fetchTranscript();
       },
@@ -67,13 +75,19 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.prompt = DEFAULT_PROMPT;
       await this.saveSettings();
     }
+
+    // Ensure timeout has a default value if missing (backward compatibility)
+    if (this.settings.openaiTimeout === undefined || this.settings.openaiTimeout <= 0) {
+      this.settings.openaiTimeout = DEFAULT_SETTINGS.openaiTimeout;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
     await this.saveData(this.settings);
   }
 
-  async fetchTranscript() {
+  fetchTranscript() {
     new YouTubeUrlModal(
       this.app,
       async (url: string, createNewFile: boolean) => {
@@ -123,8 +137,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               `Transcript fetched successfully! (${transcript.length} characters)`,
             );
           }
-        } catch (error: any) {
-          const errorMessage = error?.message || "Unknown error";
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
           new Notice(`Error fetching transcript: ${errorMessage}`);
           console.error("Transcript fetch error:", error);
         }
@@ -133,7 +148,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   }
 
   async createTranscriptFile(
-    activeFile: any,
+    activeFile: TFile,
     videoTitle: string,
     transcript: string,
   ) {
@@ -274,7 +289,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Prefer English, fallback to first available
     let captionTrack = captionTracks.find(
-      (track: any) => track.languageCode === "en",
+      (track: CaptionTrack) => track.languageCode === "en",
     );
     if (!captionTrack) {
       captionTrack = captionTracks[0];
@@ -354,7 +369,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Prefer English, fallback to first available
     let captionTrack = captionTracks.find(
-      (track: any) => track.languageCode === "en",
+      (track: CaptionTrack) => track.languageCode === "en",
     );
     if (!captionTrack) {
       captionTrack = captionTracks[0];
@@ -408,18 +423,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Try different possible tag names for transcript text
-    let textElements: HTMLCollectionOf<Element> = xmlDoc.getElementsByTagName(
-      "text",
-    ) as HTMLCollectionOf<Element>;
+    let textElements: HTMLCollectionOf<Element> =
+      xmlDoc.getElementsByTagName("text");
     if (textElements.length === 0) {
       // Try alternative tag names
-      textElements = xmlDoc.getElementsByTagName(
-        "transcript",
-      ) as HTMLCollectionOf<Element>;
+      textElements = xmlDoc.getElementsByTagName("transcript");
       if (textElements.length === 0) {
-        textElements = xmlDoc.getElementsByTagName(
-          "p",
-        ) as HTMLCollectionOf<Element>;
+        textElements = xmlDoc.getElementsByTagName("p");
       }
     }
 
@@ -498,7 +508,22 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const fullPrompt = `${prompt}\n\nTranscript:\n${transcript}`;
 
     try {
-      const response = await requestUrl({
+      // Add timeout wrapper using configured timeout
+      const timeoutMinutes = this.settings.openaiTimeout || 5;
+      const timeoutMs = timeoutMinutes * 60 * 1000;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `OpenAI request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
+              ),
+            ),
+          timeoutMs,
+        );
+      });
+
+      const requestPromise = requestUrl({
         url: "https://api.openai.com/v1/chat/completions",
         method: "POST",
         headers: {
@@ -517,6 +542,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         }),
       });
 
+      const response = await Promise.race([requestPromise, timeoutPromise]);
+
       if (response.status < 200 || response.status >= 300) {
         const errorData = response.json || {};
         throw new Error(
@@ -532,11 +559,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       return processedTranscript.trim();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("OpenAI processing error:", error);
-      throw new Error(
-        `Failed to process transcript with OpenAI: ${error.message}`,
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to process transcript with OpenAI: ${errorMessage}`);
     }
   }
 
@@ -545,7 +572,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const editor = view.editor;
       if (!editor) {
         console.error("Editor not available");
-        new Notice("Error: Editor not available");
+        new Notice("The editor is not available");
         return;
       }
 
@@ -583,11 +610,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 }
 
 class YouTubeUrlModal extends Modal {
-  onSubmit: (url: string, createNewFile: boolean) => void;
+  onSubmit: (url: string, createNewFile: boolean) => void | Promise<void>;
 
   constructor(
     app: App,
-    onSubmit: (url: string, createNewFile: boolean) => void,
+    onSubmit: (url: string, createNewFile: boolean) => void | Promise<void>,
   ) {
     super(app);
     this.onSubmit = onSubmit;
@@ -632,14 +659,14 @@ class YouTubeUrlModal extends Modal {
     cancelButton.onclick = () => this.close();
 
     const submitButton = buttonContainer.createEl("button", {
-      text: "Fetch Transcript",
+      text: "Fetch transcript",
     });
-    submitButton.setAttribute("style", "margin-left: 0.5em;");
+    submitButton.setCssProps({ "margin-left": "0.5em" });
     submitButton.onclick = () => {
       const url = input.value.trim();
       if (url) {
         const createNewFile = checkbox.checked;
-        this.onSubmit(url, createNewFile);
+        void this.onSubmit(url, createNewFile);
         this.close();
       }
     };
@@ -649,7 +676,7 @@ class YouTubeUrlModal extends Modal {
         const url = input.value.trim();
         if (url) {
           const createNewFile = checkbox.checked;
-          this.onSubmit(url, createNewFile);
+          void this.onSubmit(url, createNewFile);
           this.close();
         }
       }
@@ -677,10 +704,12 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "YouTube Transcript Settings" });
+    new Setting(containerEl)
+      .setName("YouTube transcript settings")
+      .setHeading();
 
     new Setting(containerEl)
-      .setName("OpenAI API Key")
+      .setName("OpenAI API key")
       .setDesc(
         "Your OpenAI API key for processing transcripts (optional but recommended)",
       )
@@ -696,7 +725,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     const promptSetting = new Setting(containerEl)
-      .setName("Processing Prompt")
+      .setName("Processing prompt")
       .setDesc("The prompt sent to OpenAI for processing the transcript");
 
     const textarea = promptSetting.controlEl.createEl("textarea", {
@@ -705,13 +734,32 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
         rows: "10",
       },
     });
-    textarea.style.width = "100%";
+    textarea.setCssProps({ width: "100%" });
     textarea.value = this.plugin.settings.prompt;
-    textarea.addEventListener("input", async (e) => {
+    textarea.addEventListener("input", (e) => {
       const target = e.target as HTMLTextAreaElement;
       this.plugin.settings.prompt = target.value;
-      await this.plugin.saveSettings();
+      this.plugin.saveSettings();
     });
+
+    new Setting(containerEl)
+      .setName("OpenAI timeout")
+      .setDesc(
+        "Timeout for OpenAI API requests in minutes (default: 5 minutes)",
+      )
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text
+          .setPlaceholder("5")
+          .setValue(this.plugin.settings.openaiTimeout.toString())
+          .onChange(async (value) => {
+            const timeout = parseInt(value, 10);
+            if (!isNaN(timeout) && timeout > 0) {
+              this.plugin.settings.openaiTimeout = timeout;
+              await this.plugin.saveSettings();
+            }
+          });
+      });
 
     containerEl.createEl("hr");
 
