@@ -11,7 +11,6 @@ import {
 } from "obsidian";
 
 interface YouTubeTranscriptPluginSettings {
-  autoFetch: boolean;
   openaiKey: string;
   prompt: string;
   openaiTimeout: number; // Timeout in minutes
@@ -35,7 +34,6 @@ const DEFAULT_PROMPT = `Please process the following YouTube video transcript. Y
 Return only the cleaned transcript without any additional commentary or explanation.`;
 
 const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
-  autoFetch: false,
   openaiKey: "",
   prompt: DEFAULT_PROMPT,
   openaiTimeout: 5, // Default 5 minutes
@@ -1008,20 +1006,5 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
-    containerEl.createEl("hr");
-
-    new Setting(containerEl)
-      .setName("Auto-fetch transcripts")
-      .setDesc(
-        "Automatically fetch transcripts when YouTube links are detected",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.autoFetch)
-          .onChange(async (value) => {
-            this.plugin.settings.autoFetch = value;
-            await this.plugin.saveSettings();
-          }),
-      );
   }
 }
