@@ -109,7 +109,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   fetchTranscript() {
     new YouTubeUrlModal(
       this.app,
-      async (url: string, createNewFile: boolean) => {
+      this,
+      async (
+        url: string,
+        createNewFile: boolean,
+        includeVideoUrl: boolean,
+        generateSummary: boolean,
+      ) => {
         try {
           const fetchingNotice = new Notice(
             "Fetching transcript from YouTube...",
@@ -136,7 +142,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           // Generate summary if enabled
           let summary: string | null = null;
           if (
-            this.settings.generateSummary &&
+            generateSummary &&
             this.settings.openaiKey &&
             this.settings.openaiKey.trim() !== ""
           ) {
@@ -167,6 +173,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               transcript,
               normalizedUrl,
               summary,
+              includeVideoUrl,
             );
             new Notice(
               `Transcript file created successfully! (${transcript.length} characters)`,
@@ -186,6 +193,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               title,
               normalizedUrl,
               summary,
+              includeVideoUrl,
             );
             new Notice(
               `Transcript fetched successfully! (${transcript.length} characters)`,
@@ -207,6 +215,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     transcript: string,
     videoUrl: string,
     summary: string | null,
+    includeVideoUrl: boolean,
   ) {
     // Sanitize the filename
     let sanitizedTitle = this.sanitizeFilename(videoTitle);
@@ -235,7 +244,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Build file content with URL, summary, and transcript
     const parts: string[] = [];
 
-    if (this.settings.includeVideoUrl) {
+    if (includeVideoUrl) {
       parts.push(`![${videoTitle}](${videoUrl})`);
     }
 
@@ -731,6 +740,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     videoTitle: string,
     videoUrl: string,
     summary: string | null,
+    includeVideoUrl: boolean,
   ) {
     try {
       const editor = view.editor;
@@ -764,7 +774,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Build formatted content with URL, summary, and transcript
       const parts: string[] = [];
 
-      if (this.settings.includeVideoUrl) {
+      if (includeVideoUrl) {
         parts.push(`![${videoTitle}](${videoUrl})`);
       }
 
@@ -788,14 +798,27 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 }
 
 class YouTubeUrlModal extends Modal {
-  onSubmit: (url: string, createNewFile: boolean) => void | Promise<void>;
+  onSubmit: (
+    url: string,
+    createNewFile: boolean,
+    includeVideoUrl: boolean,
+    generateSummary: boolean,
+  ) => void | Promise<void>;
+  plugin: YouTubeTranscriptPlugin;
 
   constructor(
     app: App,
-    onSubmit: (url: string, createNewFile: boolean) => void | Promise<void>,
+    plugin: YouTubeTranscriptPlugin,
+    onSubmit: (
+      url: string,
+      createNewFile: boolean,
+      includeVideoUrl: boolean,
+      generateSummary: boolean,
+    ) => void | Promise<void>,
   ) {
     super(app);
     this.onSubmit = onSubmit;
+    this.plugin = plugin;
   }
 
   onOpen() {
@@ -812,19 +835,61 @@ class YouTubeUrlModal extends Modal {
     });
 
     // Add checkbox for creating new file
-    const checkboxContainer = contentEl.createDiv({
+    const createNewFileContainer = contentEl.createDiv({
       attr: { style: "margin-bottom: 1em;" },
     });
-    const checkbox = checkboxContainer.createEl("input", {
+    const createNewFileCheckbox = createNewFileContainer.createEl("input", {
       type: "checkbox",
       attr: {
         id: "create-new-file-checkbox",
       },
     });
-    const checkboxLabel = checkboxContainer.createEl("label", {
+    const createNewFileLabel = createNewFileContainer.createEl("label", {
       text: "Create new file (based on video title)",
       attr: {
         for: "create-new-file-checkbox",
+        style: "margin-left: 0.5em; cursor: pointer;",
+      },
+    });
+
+    // Add checkbox for including video URL
+    const includeUrlContainer = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+    const includeUrlCheckbox = includeUrlContainer.createEl("input", {
+      type: "checkbox",
+      attr: {
+        id: "include-video-url-checkbox",
+      },
+    });
+    if (this.plugin.settings.includeVideoUrl) {
+      includeUrlCheckbox.checked = true;
+    }
+    const includeUrlLabel = includeUrlContainer.createEl("label", {
+      text: "Include video URL",
+      attr: {
+        for: "include-video-url-checkbox",
+        style: "margin-left: 0.5em; cursor: pointer;",
+      },
+    });
+
+    // Add checkbox for generating summary
+    const generateSummaryContainer = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+    const generateSummaryCheckbox = generateSummaryContainer.createEl("input", {
+      type: "checkbox",
+      attr: {
+        id: "generate-summary-checkbox",
+      },
+    });
+    if (this.plugin.settings.generateSummary) {
+      generateSummaryCheckbox.checked = true;
+    }
+    const generateSummaryLabel = generateSummaryContainer.createEl("label", {
+      text: "Generate summary (requires OpenAI API key)",
+      attr: {
+        for: "generate-summary-checkbox",
         style: "margin-left: 0.5em; cursor: pointer;",
       },
     });
@@ -843,8 +908,10 @@ class YouTubeUrlModal extends Modal {
     submitButton.onclick = () => {
       const url = input.value.trim();
       if (url) {
-        const createNewFile = checkbox.checked;
-        void this.onSubmit(url, createNewFile);
+        const createNewFile = createNewFileCheckbox.checked;
+        const includeVideoUrl = includeUrlCheckbox.checked;
+        const generateSummary = generateSummaryCheckbox.checked;
+        void this.onSubmit(url, createNewFile, includeVideoUrl, generateSummary);
         this.close();
       }
     };
@@ -853,8 +920,10 @@ class YouTubeUrlModal extends Modal {
       if (e.key === "Enter") {
         const url = input.value.trim();
         if (url) {
-          const createNewFile = checkbox.checked;
-          void this.onSubmit(url, createNewFile);
+          const createNewFile = createNewFileCheckbox.checked;
+          const includeVideoUrl = includeUrlCheckbox.checked;
+          const generateSummary = generateSummaryCheckbox.checked;
+          void this.onSubmit(url, createNewFile, includeVideoUrl, generateSummary);
           this.close();
         }
       }
@@ -940,34 +1009,6 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     containerEl.createEl("hr");
-
-    new Setting(containerEl)
-      .setName("Include video URL")
-      .setDesc(
-        "Include the video URL at the beginning of transcripts in the format ![video name](url)",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.includeVideoUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.includeVideoUrl = value;
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    new Setting(containerEl)
-      .setName("Generate summary")
-      .setDesc(
-        "Generate a short summary of the transcript using OpenAI (requires OpenAI API key)",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.generateSummary)
-          .onChange(async (value) => {
-            this.plugin.settings.generateSummary = value;
-            await this.plugin.saveSettings();
-          }),
-      );
 
     new Setting(containerEl)
       .setName("Auto-fetch transcripts")
