@@ -15,6 +15,8 @@ interface YouTubeTranscriptPluginSettings {
   openaiKey: string;
   prompt: string;
   openaiTimeout: number; // Timeout in minutes
+  includeVideoUrl: boolean;
+  generateSummary: boolean;
 }
 
 interface CaptionTrack {
@@ -37,6 +39,8 @@ const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   openaiKey: "",
   prompt: DEFAULT_PROMPT,
   openaiTimeout: 5, // Default 5 minutes
+  includeVideoUrl: false,
+  generateSummary: false,
 };
 
 export default class YouTubeTranscriptPlugin extends Plugin {
@@ -77,8 +81,23 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Ensure timeout has a default value if missing (backward compatibility)
-    if (this.settings.openaiTimeout === undefined || this.settings.openaiTimeout <= 0) {
+    if (
+      this.settings.openaiTimeout === undefined ||
+      this.settings.openaiTimeout <= 0
+    ) {
       this.settings.openaiTimeout = DEFAULT_SETTINGS.openaiTimeout;
+      await this.saveSettings();
+    }
+
+    // Ensure includeVideoUrl has a default value if missing (backward compatibility)
+    if (this.settings.includeVideoUrl === undefined) {
+      this.settings.includeVideoUrl = DEFAULT_SETTINGS.includeVideoUrl;
+      await this.saveSettings();
+    }
+
+    // Ensure generateSummary has a default value if missing (backward compatibility)
+    if (this.settings.generateSummary === undefined) {
+      this.settings.generateSummary = DEFAULT_SETTINGS.generateSummary;
       await this.saveSettings();
     }
   }
@@ -108,6 +127,29 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             throw new Error("Transcript is empty");
           }
 
+          // Normalize the URL to watch format
+          const videoId = this.extractVideoId(url);
+          const normalizedUrl = videoId
+            ? `https://www.youtube.com/watch?v=${videoId}`
+            : url;
+
+          // Generate summary if enabled
+          let summary: string | null = null;
+          if (
+            this.settings.generateSummary &&
+            this.settings.openaiKey &&
+            this.settings.openaiKey.trim() !== ""
+          ) {
+            fetchingNotice.setMessage("Generating summary...");
+            try {
+              summary = await this.generateSummary(transcript);
+            } catch (error: unknown) {
+              console.error("Summary generation error:", error);
+              // Continue without summary if generation fails
+              summary = null;
+            }
+          }
+
           //console.log("Transcript fetched, length:", transcript.length);
 
           if (createNewFile) {
@@ -119,7 +161,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               );
             }
 
-            await this.createTranscriptFile(activeFile, title, transcript);
+            await this.createTranscriptFile(
+              activeFile,
+              title,
+              transcript,
+              normalizedUrl,
+              summary,
+            );
             new Notice(
               `Transcript file created successfully! (${transcript.length} characters)`,
             );
@@ -132,7 +180,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               return;
             }
 
-            this.insertTranscript(activeView, transcript);
+            this.insertTranscript(
+              activeView,
+              transcript,
+              title,
+              normalizedUrl,
+              summary,
+            );
             new Notice(
               `Transcript fetched successfully! (${transcript.length} characters)`,
             );
@@ -151,6 +205,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     activeFile: TFile,
     videoTitle: string,
     transcript: string,
+    videoUrl: string,
+    summary: string | null,
   ) {
     // Sanitize the filename
     let sanitizedTitle = this.sanitizeFilename(videoTitle);
@@ -176,8 +232,24 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       counter++;
     }
 
+    // Build file content with URL, summary, and transcript
+    const parts: string[] = [];
+
+    if (this.settings.includeVideoUrl) {
+      parts.push(`![${videoTitle}](${videoUrl})`);
+    }
+
+    if (summary) {
+      parts.push(`## Summary\n\n${summary}`);
+      parts.push(`## Transcript \n\n`);
+    }
+
+    parts.push(transcript);
+
+    const fileContent = parts.join("\n\n");
+
     // Create the file
-    const file = await this.app.vault.create(newFilePath, transcript);
+    const file = await this.app.vault.create(newFilePath, fileContent);
 
     // Open the new file
     await this.app.workspace.openLinkText(newFilePath, "", false);
@@ -579,11 +651,87 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       console.error("OpenAI processing error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Failed to process transcript with OpenAI: ${errorMessage}`);
+      throw new Error(
+        `Failed to process transcript with OpenAI: ${errorMessage}`,
+      );
     }
   }
 
-  insertTranscript(view: MarkdownView, transcript: string) {
+  async generateSummary(transcript: string): Promise<string> {
+    if (!this.settings.openaiKey || this.settings.openaiKey.trim() === "") {
+      throw new Error("OpenAI API key is required to generate summary");
+    }
+
+    const summaryPrompt = `Please provide a concise summary (2-3 sentences) of the following YouTube video transcript. Focus on the main topics, key points, and overall message. Be brief and informative.\n\nTranscript:\n${transcript.substring(0, 8000)}`; // Limit transcript length for summary
+
+    try {
+      // Add timeout wrapper using configured timeout
+      const timeoutMinutes = this.settings.openaiTimeout || 5;
+      const timeoutMs = timeoutMinutes * 60 * 1000;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `OpenAI summary request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
+              ),
+            ),
+          timeoutMs,
+        );
+      });
+
+      const requestPromise = requestUrl({
+        url: "https://api.openai.com/v1/chat/completions",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.settings.openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: summaryPrompt,
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 200, // Limit summary length
+        }),
+      });
+
+      const response = await Promise.race([requestPromise, timeoutPromise]);
+
+      if (response.status < 200 || response.status >= 300) {
+        const errorData = response.json || {};
+        throw new Error(
+          `OpenAI API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
+        );
+      }
+
+      const data = response.json;
+      const summary = data.choices?.[0]?.message?.content;
+
+      if (!summary) {
+        throw new Error("No summary response from OpenAI");
+      }
+
+      return summary.trim();
+    } catch (error: unknown) {
+      console.error("OpenAI summary generation error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to generate summary: ${errorMessage}`);
+    }
+  }
+
+  insertTranscript(
+    view: MarkdownView,
+    transcript: string,
+    videoTitle: string,
+    videoUrl: string,
+    summary: string | null,
+  ) {
     try {
       const editor = view.editor;
       if (!editor) {
@@ -613,10 +761,24 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         lines.push(currentLine.trim());
       }
 
-      const formattedTranscript = "\n\n" + lines.join("\n") + "\n\n";
-      //console.log( "Formatted transcript length:", formattedTranscript.length, "lines:", lines.length,);
+      // Build formatted content with URL, summary, and transcript
+      const parts: string[] = [];
 
-      editor.replaceRange(formattedTranscript, cursor);
+      if (this.settings.includeVideoUrl) {
+        parts.push(`![${videoTitle}](${videoUrl})`);
+      }
+
+      if (summary) {
+        parts.push(`## Summary\n\n${summary}`);
+        parts.push(`## Transcript\n\n`);
+      }
+
+      parts.push(lines.join("\n"));
+
+      const formattedContent = "\n\n" + parts.join("\n\n") + "\n\n";
+      //console.log( "Formatted transcript length:", formattedContent.length, "lines:", lines.length,);
+
+      editor.replaceRange(formattedContent, cursor);
       //console.log("Transcript inserted successfully");
     } catch (error) {
       console.error("Error inserting transcript:", error);
@@ -778,6 +940,34 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     containerEl.createEl("hr");
+
+    new Setting(containerEl)
+      .setName("Include video URL")
+      .setDesc(
+        "Include the video URL at the beginning of transcripts in the format ![video name](url)",
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.includeVideoUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.includeVideoUrl = value;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Generate summary")
+      .setDesc(
+        "Generate a short summary of the transcript using OpenAI (requires OpenAI API key)",
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.generateSummary)
+          .onChange(async (value) => {
+            this.plugin.settings.generateSummary = value;
+            await this.plugin.saveSettings();
+          }),
+      );
 
     new Setting(containerEl)
       .setName("Auto-fetch transcripts")
