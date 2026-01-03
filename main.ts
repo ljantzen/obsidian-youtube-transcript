@@ -401,6 +401,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     return { transcript, title: videoTitle };
   }
 
+  decodeHtmlEntities(text: string): string {
+    // Create a temporary textarea element to decode HTML entities
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = text;
+    return textarea.value;
+  }
+
   async parseTranscript(
     transcriptXml: string,
     statusCallback?: (status: string) => void,
@@ -444,6 +451,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         text = element.firstChild.textContent || "";
       }
 
+      // Decode HTML entities (e.g., &quot; -> ", &#39; -> ')
+      if (text) {
+        text = this.decodeHtmlEntities(text);
+      }
+
       if (text && text.trim()) {
         transcriptParts.push(text.trim());
       }
@@ -454,7 +466,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const allTextNodes = xmlDoc.querySelectorAll("*");
       for (let i = 0; i < allTextNodes.length; i++) {
         const node = allTextNodes[i];
-        const text = node.textContent || "";
+        let text = node.textContent || "";
+        // Decode HTML entities
+        if (text) {
+          text = this.decodeHtmlEntities(text);
+        }
         // Skip if it's a parent element that contains other elements (to avoid duplicates)
         if (text && text.trim() && node.children.length === 0) {
           transcriptParts.push(text.trim());
