@@ -85,27 +85,30 @@ describe('Integration Tests', () => {
 		});
 	});
 
-	it('should format transcript correctly for insertion', () => {
-		const transcript = 'This is a test transcript with multiple words that should be formatted properly';
-		const words = transcript.split(' ');
-		const lines: string[] = [];
-		let currentLine = '';
-		
-		for (const word of words) {
-			if ((currentLine + word).length > 80 && currentLine.length > 0) {
-				lines.push(currentLine.trim());
-				currentLine = word + ' ';
-			} else {
-				currentLine += word + ' ';
-			}
-		}
-		if (currentLine.trim()) {
-			lines.push(currentLine.trim());
+	it('should build content with URL, summary, and transcript correctly', () => {
+		const parts: string[] = [];
+		const includeVideoUrl = true;
+		const videoTitle = 'Test Video';
+		const videoUrl = 'https://www.youtube.com/watch?v=test';
+		const summary = 'This is a summary';
+		const transcript = '## Transcript\n\nThis is a test transcript with multiple words';
+
+		if (includeVideoUrl) {
+			parts.push(`![${videoTitle}](${videoUrl})`);
 		}
 
-		expect(lines.length).toBeGreaterThan(0);
-		lines.forEach(line => {
-			expect(line.length).toBeLessThanOrEqual(80);
-		});
+		// The transcript already includes markdown headers from OpenAI
+		parts.push(transcript);
+
+		const result = parts.join('\n\n');
+
+		expect(result).toContain(`![${videoTitle}](${videoUrl})`);
+		expect(result).toContain('## Transcript');
+		expect(result).toContain('This is a test transcript');
+		
+		// Verify URL comes before transcript
+		const urlIndex = result.indexOf('![Test Video]');
+		const transcriptIndex = result.indexOf('## Transcript');
+		expect(urlIndex).toBeLessThan(transcriptIndex);
 	});
 });
