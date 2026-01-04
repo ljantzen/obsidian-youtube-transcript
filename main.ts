@@ -36,7 +36,7 @@ Return only the cleaned transcript without any additional commentary or explanat
 const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   openaiKey: "",
   prompt: DEFAULT_PROMPT,
-  openaiTimeout: 5, // Default 5 minutes
+  openaiTimeout: 1, // Default 1 minute (60 seconds)
   includeVideoUrl: false,
   generateSummary: false,
 };
@@ -119,13 +119,17 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             "Fetching transcript from YouTube...",
             0,
           );
-          const result = await this.getTranscript(url, (status: string) => {
-            // Update notice with processing status
-            fetchingNotice.setMessage(status);
-          });
+          const result = await this.getTranscript(
+            url,
+            generateSummary,
+            (status: string) => {
+              // Update notice with processing status
+              fetchingNotice.setMessage(status);
+            },
+          );
           fetchingNotice.hide();
 
-          const { transcript, title } = result;
+          const { transcript, title, summary } = result;
 
           if (!transcript || transcript.trim().length === 0) {
             throw new Error("Transcript is empty");
@@ -136,23 +140,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           const normalizedUrl = videoId
             ? `https://www.youtube.com/watch?v=${videoId}`
             : url;
-
-          // Generate summary if enabled
-          let summary: string | null = null;
-          if (
-            generateSummary &&
-            this.settings.openaiKey &&
-            this.settings.openaiKey.trim() !== ""
-          ) {
-            fetchingNotice.setMessage("Generating summary...");
-            try {
-              summary = await this.generateSummary(transcript);
-            } catch (error: unknown) {
-              console.error("Summary generation error:", error);
-              // Continue without summary if generation fails
-              summary = null;
-            }
-          }
 
           //console.log("Transcript fetched, length:", transcript.length);
 
@@ -246,11 +233,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       parts.push(`![${videoTitle}](${videoUrl})`);
     }
 
-    if (summary) {
-      parts.push(`## Summary\n\n${summary}`);
-      parts.push(`## Transcript \n\n`);
-    }
-
+    // The transcript already includes markdown headers from OpenAI
     parts.push(transcript);
 
     const fileContent = parts.join("\n\n");
@@ -288,8 +271,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
   async getTranscript(
     url: string,
+    generateSummary: boolean,
     statusCallback?: (status: string) => void,
-  ): Promise<{ transcript: string; title: string }> {
+  ): Promise<{ transcript: string; title: string; summary: string | null }> {
     const videoId = this.extractVideoId(url);
     if (!videoId) {
       throw new Error("Invalid YouTube URL or video ID");
@@ -393,12 +377,17 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     //console.log("Transcript XML fetched, length:", transcriptXml.length);
-    const parsedTranscript = await this.parseTranscript(
+    const parsedResult = await this.parseTranscript(
       transcriptXml,
+      generateSummary,
       statusCallback,
     );
-    //console.log("Transcript parsed, length:", parsedTranscript.length);
-    return { transcript: parsedTranscript, title: videoTitle };
+    //console.log("Transcript parsed, length:", parsedResult.transcript.length);
+    return {
+      transcript: parsedResult.transcript,
+      title: videoTitle,
+      summary: parsedResult.summary,
+    };
   }
 
   async getTranscriptViaInnerTube(
@@ -489,8 +478,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
   async parseTranscript(
     transcriptXml: string,
+    generateSummary: boolean,
     statusCallback?: (status: string) => void,
-  ): Promise<string> {
+  ): Promise<{ transcript: string; summary: string | null }> {
     // Parse XML and extract text
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(transcriptXml, "text/xml");
@@ -576,22 +566,24 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       //console.log("Processing transcript with OpenAI...");
       const processed = await this.processWithOpenAI(
         rawTranscript,
+        generateSummary,
         statusCallback,
       );
-      //console.log("OpenAI processing complete, length:", processed.length);
+      //console.log("OpenAI processing complete, length:", processed.transcript.length);
       return processed;
     }
 
     //console.log("Returning raw transcript");
-    return rawTranscript;
+    return { transcript: rawTranscript, summary: null };
   }
 
   async processWithOpenAI(
     transcript: string,
+    generateSummary: boolean,
     statusCallback?: (status: string) => void,
-  ): Promise<string> {
+  ): Promise<{ transcript: string; summary: string | null }> {
     if (!this.settings.openaiKey || this.settings.openaiKey.trim() === "") {
-      return transcript;
+      return { transcript, summary: null };
     }
 
     if (statusCallback)
@@ -599,12 +591,29 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         "Processing transcript with OpenAI (this may take a moment)...",
       );
 
-    const prompt = this.settings.prompt || DEFAULT_PROMPT;
-    const fullPrompt = `${prompt}\n\nTranscript:\n${transcript}`;
+    let prompt = this.settings.prompt || DEFAULT_PROMPT;
+    
+    // Build the full prompt with summary instructions if needed
+    let fullPrompt = prompt;
+    
+    if (generateSummary) {
+      fullPrompt += `\n\nAdditionally, please provide a concise summary (2-3 sentences) of the video content, focusing on the main topics, key points, and overall message.`;
+    }
+    
+    fullPrompt += `\n\nPlease format your response as follows:\n`;
+    
+    if (generateSummary) {
+      fullPrompt += `- Start with a "## Summary" markdown header followed by the summary\n`;
+      fullPrompt += `- Then include a "## Transcript" markdown header followed by the processed transcript\n`;
+    } else {
+      fullPrompt += `- Start with a "## Transcript" markdown header followed by the processed transcript\n`;
+    }
+    
+    fullPrompt += `\nTranscript:\n${transcript}`;
 
-    try {
+    const makeRequest = async (): Promise<{ transcript: string; summary: string | null }> => {
       // Add timeout wrapper using configured timeout
-      const timeoutMinutes = this.settings.openaiTimeout || 5;
+      const timeoutMinutes = this.settings.openaiTimeout || 1;
       const timeoutMs = timeoutMinutes * 60 * 1000;
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(
@@ -647,90 +656,87 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       const data = response.json;
-      const processedTranscript = data.choices?.[0]?.message?.content;
+      const responseContent = data.choices?.[0]?.message?.content;
 
-      if (!processedTranscript) {
+      if (!responseContent) {
         throw new Error("No response from OpenAI");
       }
 
-      return processedTranscript.trim();
+      const trimmedContent = responseContent.trim();
+      
+      // Parse the response to extract summary and transcript with headers
+      let summary: string | null = null;
+      let processedTranscript: string;
+      
+      if (generateSummary) {
+        // Extract summary content (without header) for the summary field
+        const summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n(.*?)(?=\n##\s+Transcript|$)/s);
+        if (summaryMatch) {
+          summary = summaryMatch[1].trim();
+        }
+        
+        // Keep the full response with headers for the transcript
+        // The transcript should include both Summary and Transcript sections with headers
+        processedTranscript = trimmedContent;
+      } else {
+        // Keep the full response with Transcript header
+        processedTranscript = trimmedContent;
+      }
+      
+      // Ensure we have a transcript
+      if (!processedTranscript || processedTranscript.length === 0) {
+        processedTranscript = trimmedContent;
+      }
+
+      // Notify user that OpenAI processing is complete
+      new Notice("OpenAI processing complete");
+
+      return { transcript: processedTranscript, summary };
+    };
+
+    try {
+      return await makeRequest();
     } catch (error: unknown) {
-      console.error("OpenAI processing error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+      
+      // Check if it's a timeout error
+      if (errorMessage.includes("timed out")) {
+        // Prompt user if they want to retry
+        const shouldRetry = await new RetryConfirmationModal(
+          this.app,
+          errorMessage,
+        ).waitForResponse();
+
+        if (shouldRetry) {
+          if (statusCallback)
+            statusCallback(
+              "Retrying OpenAI processing...",
+            );
+          try {
+            return await makeRequest();
+          } catch (retryError: unknown) {
+            const retryErrorMessage =
+              retryError instanceof Error ? retryError.message : "Unknown error";
+            throw new Error(
+              `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`,
+            );
+          }
+        } else {
+          // User chose not to retry, return raw transcript
+          new Notice("Using raw transcript (OpenAI processing skipped)");
+          return { transcript, summary: null };
+        }
+      }
+      
+      // For non-timeout errors, throw as before
+      console.error("OpenAI processing error:", error);
       throw new Error(
         `Failed to process transcript with OpenAI: ${errorMessage}`,
       );
     }
   }
 
-  async generateSummary(transcript: string): Promise<string> {
-    if (!this.settings.openaiKey || this.settings.openaiKey.trim() === "") {
-      throw new Error("OpenAI API key is required to generate summary");
-    }
-
-    const summaryPrompt = `Please provide a concise summary (2-3 sentences) of the following YouTube video transcript. Focus on the main topics, key points, and overall message. Be brief and informative.\n\nTranscript:\n${transcript.substring(0, 8000)}`; // Limit transcript length for summary
-
-    try {
-      // Add timeout wrapper using configured timeout
-      const timeoutMinutes = this.settings.openaiTimeout || 5;
-      const timeoutMs = timeoutMinutes * 60 * 1000;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                `OpenAI summary request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
-              ),
-            ),
-          timeoutMs,
-        );
-      });
-
-      const requestPromise = requestUrl({
-        url: "https://api.openai.com/v1/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.settings.openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "user",
-              content: summaryPrompt,
-            },
-          ],
-          temperature: 0.3,
-          max_tokens: 200, // Limit summary length
-        }),
-      });
-
-      const response = await Promise.race([requestPromise, timeoutPromise]);
-
-      if (response.status < 200 || response.status >= 300) {
-        const errorData = response.json || {};
-        throw new Error(
-          `OpenAI API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
-        );
-      }
-
-      const data = response.json;
-      const summary = data.choices?.[0]?.message?.content;
-
-      if (!summary) {
-        throw new Error("No summary response from OpenAI");
-      }
-
-      return summary.trim();
-    } catch (error: unknown) {
-      console.error("OpenAI summary generation error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Failed to generate summary: ${errorMessage}`);
-    }
-  }
 
   insertTranscript(
     view: MarkdownView,
@@ -751,24 +757,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const cursor = editor.getCursor();
       //console.log("Inserting transcript at cursor position:", cursor);
 
-      // Format transcript as a blockquote
-      // Split into reasonable line lengths for readability
-      const words = transcript.split(" ");
-      const lines: string[] = [];
-      let currentLine = "";
-
-      for (const word of words) {
-        if ((currentLine + word).length > 80 && currentLine.length > 0) {
-          lines.push(currentLine.trim());
-          currentLine = word + " ";
-        } else {
-          currentLine += word + " ";
-        }
-      }
-      if (currentLine.trim()) {
-        lines.push(currentLine.trim());
-      }
-
       // Build formatted content with URL, summary, and transcript
       const parts: string[] = [];
 
@@ -776,12 +764,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         parts.push(`![${videoTitle}](${videoUrl})`);
       }
 
-      if (summary) {
-        parts.push(`## Summary\n\n${summary}`);
-        parts.push(`## Transcript\n\n`);
-      }
-
-      parts.push(lines.join("\n"));
+      // The transcript already includes markdown headers from OpenAI
+      // Preserve the structure - don't split lines that contain headers
+      parts.push(transcript);
 
       const formattedContent = "\n\n" + parts.join("\n\n") + "\n\n";
       //console.log( "Formatted transcript length:", formattedContent.length, "lines:", lines.length,);
@@ -792,6 +777,75 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       console.error("Error inserting transcript:", error);
       new Notice(`Error inserting transcript: ${error.message}`);
     }
+  }
+}
+
+class RetryConfirmationModal extends Modal {
+  result: boolean | null = null;
+  resolvePromise: ((value: boolean) => void) | null = null;
+
+  constructor(app: App, errorMessage: string) {
+    super(app);
+    this.errorMessage = errorMessage;
+  }
+
+  errorMessage: string;
+
+  onOpen() {
+    const { contentEl } = this;
+
+    contentEl.createEl("h2", { text: "OpenAI Request Timed Out" });
+
+    contentEl.createEl("p", {
+      text: this.errorMessage,
+    });
+
+    contentEl.createEl("p", {
+      text: "Would you like to retry the OpenAI processing?",
+    });
+
+    const buttonContainer = contentEl.createDiv({
+      attr: { style: "text-align: right; margin-top: 1em;" },
+    });
+
+    const cancelButton = buttonContainer.createEl("button", {
+      text: "Skip (use raw transcript)",
+    });
+    cancelButton.onclick = () => {
+      this.result = false;
+      if (this.resolvePromise) {
+        this.resolvePromise(false);
+      }
+      this.close();
+    };
+
+    const retryButton = buttonContainer.createEl("button", {
+      text: "Retry",
+    });
+    retryButton.setCssProps({ "margin-left": "0.5em" });
+    retryButton.onclick = () => {
+      this.result = true;
+      if (this.resolvePromise) {
+        this.resolvePromise(true);
+      }
+      this.close();
+    };
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+    // If modal was closed without clicking a button, default to false
+    if (this.result === null && this.resolvePromise) {
+      this.resolvePromise(false);
+    }
+  }
+
+  waitForResponse(): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.resolvePromise = resolve;
+      this.open();
+    });
   }
 }
 
@@ -990,7 +1044,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("OpenAI timeout")
       .setDesc(
-        "Timeout for OpenAI API requests in minutes (default: 5 minutes)",
+        "Timeout for OpenAI API requests in minutes (default: 1 minute / 60 seconds)",
       )
       .addText((text) => {
         text.inputEl.type = "number";
