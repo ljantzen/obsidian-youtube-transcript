@@ -603,15 +603,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     let fullPrompt = prompt;
     
     if (generateSummary) {
-      fullPrompt += `\n\nAdditionally, please provide a concise summary (2-3 sentences) of the video content, focusing on the main topics, key points, and overall message.`;
-    }
-    
-    fullPrompt += `\n\nPlease format your response as follows:\n`;
-    
-    if (generateSummary) {
-      fullPrompt += `- Start with a "## Summary" markdown header followed by the summary\n`;
-      fullPrompt += `- Then include a "## Transcript" markdown header followed by the processed transcript\n`;
+      fullPrompt += `\n\nIMPORTANT: You must provide a concise summary (2-3 sentences) of the video content, focusing on the main topics, key points, and overall message.`;
+      fullPrompt += `\n\nYou MUST format your response EXACTLY as follows:\n`;
+      fullPrompt += `\n## Summary\n\n[Your 2-3 sentence summary here]\n\n## Transcript\n\n[Your processed transcript here]\n`;
+      fullPrompt += `\nDo NOT include any other text before or after these sections. Start directly with "## Summary".`;
     } else {
+      fullPrompt += `\n\nPlease format your response as follows:\n`;
       fullPrompt += `- Start with a "## Transcript" markdown header followed by the processed transcript\n`;
     }
     
@@ -675,15 +672,72 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       let processedTranscript: string;
       
       if (generateSummary) {
-        // Extract summary content (without header) for the summary field
-        const summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n(.*?)(?=\n##\s+Transcript|$)/s);
-        if (summaryMatch) {
+        // Try multiple patterns to extract summary (more flexible matching)
+        // Pattern 1: ## Summary followed by content, then ## Transcript (with double newline)
+        let summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n(.*?)(?=\n##\s+Transcript|$)/s);
+        
+        // Pattern 2: ## Summary with single newline
+        if (!summaryMatch) {
+          summaryMatch = trimmedContent.match(/##\s+Summary\s*\n(.*?)(?=\n##\s+Transcript|$)/s);
+        }
+        
+        // Pattern 3: Summary: or Summary - (alternative formats)
+        if (!summaryMatch) {
+          summaryMatch = trimmedContent.match(/(?:##\s+)?Summary[:\-]?\s*\n\n?(.*?)(?=\n##\s+Transcript|\n##\s+Summary|$)/is);
+        }
+        
+        if (summaryMatch && summaryMatch[1]) {
           summary = summaryMatch[1].trim();
         }
         
-        // Keep the full response with headers for the transcript
-        // The transcript should include both Summary and Transcript sections with headers
-        processedTranscript = trimmedContent;
+        // Check if the response already contains both Summary and Transcript sections
+        const hasSummarySection = /##\s+Summary/i.test(trimmedContent);
+        const hasTranscriptSection = /##\s+Transcript/i.test(trimmedContent);
+        
+        if (hasSummarySection && hasTranscriptSection) {
+          // Keep the full response with headers for the transcript
+          processedTranscript = trimmedContent;
+        } else {
+          // OpenAI didn't follow the format - try to fix it
+          console.warn('OpenAI response did not follow expected format with Summary and Transcript sections');
+          
+          // If we found a summary via regex, use it
+          if (summary) {
+            // Extract transcript part (everything after Summary or the full content)
+            const transcriptMatch = trimmedContent.match(/##\s+Transcript\s*\n\n?(.*?)$/s);
+            const transcriptContent = transcriptMatch ? transcriptMatch[1].trim() : trimmedContent.replace(/##\s+Summary\s*\n\n?.*?$/is, '').trim();
+            
+            // Reconstruct with proper format
+            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${transcriptContent || trimmedContent}`;
+          } else if (hasSummarySection) {
+            // Has summary header but extraction failed - try to extract manually
+            const summaryIndex = trimmedContent.indexOf('## Summary');
+            const transcriptIndex = trimmedContent.indexOf('## Transcript');
+            
+            if (transcriptIndex > summaryIndex) {
+              const summaryText = trimmedContent.substring(summaryIndex + 10, transcriptIndex).trim();
+              const transcriptText = trimmedContent.substring(transcriptIndex + 14).trim();
+              summary = summaryText;
+              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${transcriptText}`;
+            } else {
+              // Only summary section found, use first paragraph as summary
+              const afterSummary = trimmedContent.substring(summaryIndex + 10).trim();
+              const firstPara = afterSummary.split('\n\n')[0] || afterSummary.split('\n')[0] || afterSummary.substring(0, 300);
+              summary = firstPara.trim();
+              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${afterSummary}`;
+            }
+          } else {
+            // No summary section at all - use first paragraph as summary
+            const firstPara = trimmedContent.split('\n\n')[0] || trimmedContent.split('\n')[0];
+            if (firstPara && firstPara.length < 500 && !firstPara.startsWith('##')) {
+              summary = firstPara.trim();
+              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${trimmedContent}`;
+            } else {
+              // Last resort: add a generic summary section
+              processedTranscript = `## Summary\n\nVideo transcript processed and cleaned.\n\n## Transcript\n\n${trimmedContent}`;
+            }
+          }
+        }
       } else {
         // Keep the full response with Transcript header
         processedTranscript = trimmedContent;
@@ -695,7 +749,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       // Notify user that OpenAI processing is complete
-      new Notice("OpenAI processing complete");
+      if (generateSummary) {
+        if (summary) {
+          new Notice("OpenAI processing complete with summary");
+        } else {
+          new Notice("OpenAI processing complete (summary extraction may have failed)");
+          console.warn("Summary was requested but extraction failed. Response:", trimmedContent.substring(0, 500));
+        }
+      } else {
+        new Notice("OpenAI processing complete");
+      }
 
       return { transcript: processedTranscript, summary };
     };
