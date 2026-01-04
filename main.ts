@@ -789,12 +789,28 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           } else {
             errorMsg += ` Please wait a few minutes before retrying.`;
           }
+          new Notice(errorMsg);
           throw new Error(errorMsg);
         }
         
-        throw new Error(
-          `OpenAI API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
-        );
+        // Handle authentication errors
+        if (response.status === 401 || response.status === 403) {
+          const errorMsg = `OpenAI API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
+          new Notice(errorMsg);
+          throw new Error(errorMsg);
+        }
+        
+        // Handle 404 errors
+        if (response.status === 404) {
+          const model = this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
+          const errorMsg = `OpenAI API error (404): Model "${model}" not found. Please check your model selection in settings.`;
+          new Notice(errorMsg);
+          throw new Error(errorMsg);
+        }
+        
+        const errorMsg = `OpenAI API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
+        new Notice(errorMsg);
+        throw new Error(errorMsg);
       }
 
       const data = response.json;
@@ -831,9 +847,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           } catch (retryError: unknown) {
             const retryErrorMessage =
               retryError instanceof Error ? retryError.message : "Unknown error";
-            throw new Error(
-              `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`,
-            );
+            const errorMsg = `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`;
+            new Notice(errorMsg);
+            throw new Error(errorMsg);
           }
         } else {
           // User chose not to retry, return raw transcript
@@ -881,9 +897,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               new Notice("Still rate limited. Using raw transcript instead.");
               return { transcript, summary: null };
             }
-            throw new Error(
-              `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`,
-            );
+            const errorMsg = `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`;
+            new Notice(errorMsg);
+            throw new Error(errorMsg);
           }
         } else {
           // User chose not to retry, return raw transcript
@@ -892,11 +908,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         }
       }
       
-      // For other errors, throw as before
+      // For other errors, show notice and throw
+      const errorMsg = `Failed to process transcript with OpenAI: ${errorMessage}`;
+      new Notice(errorMsg);
       console.error("OpenAI processing error:", error);
-      throw new Error(
-        `Failed to process transcript with OpenAI: ${errorMessage}`,
-      );
+      throw new Error(errorMsg);
     }
   }
 
@@ -986,20 +1002,30 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           } else {
             errorMsg += ` Please wait a few minutes before retrying.`;
           }
+          new Notice(errorMsg);
+          throw new Error(errorMsg);
+        }
+        
+        // Handle authentication errors
+        if (response.status === 401 || response.status === 403) {
+          const errorMsg = `Gemini API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
+          new Notice(errorMsg);
           throw new Error(errorMsg);
         }
         
         // Provide more detailed error information for 404
         if (response.status === 404) {
           const errorDetail = errorData.error?.message || response.text || "Unknown error";
+          const errorMsg = `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid.`;
+          new Notice(errorMsg);
           throw new Error(
             `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Error: ${errorDetail}`,
           );
         }
         
-        throw new Error(
-          `Gemini API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
-        );
+        const errorMsg = `Gemini API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
+        new Notice(errorMsg);
+        throw new Error(errorMsg);
       }
 
       const data = response.json;
@@ -1018,6 +1044,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       
+      // Handle 404 errors (model not found or invalid endpoint)
+      if (errorMessage.includes("404") || errorMessage.includes("status 404")) {
+        const model = this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+        const errorMsg = `Gemini API error (404): Model "${model}" not found. Please check your model selection and API key in settings.`;
+        new Notice(errorMsg);
+        throw new Error(
+          `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Common issues: model name typo, API key doesn't have access to Gemini API, or API key is invalid.`,
+        );
+      }
+      
       if (errorMessage.includes("timed out")) {
         const shouldRetry = await new RetryConfirmationModal(
           this.app,
@@ -1032,9 +1068,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           } catch (retryError: unknown) {
             const retryErrorMessage =
               retryError instanceof Error ? retryError.message : "Unknown error";
-            throw new Error(
-              `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`,
-            );
+            const errorMsg = `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`;
+            new Notice(errorMsg);
+            throw new Error(errorMsg);
           }
         } else {
           new Notice("Using raw transcript (Gemini processing skipped)");
@@ -1072,9 +1108,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               new Notice("Still rate limited. Using raw transcript instead.");
               return { transcript, summary: null };
             }
-            throw new Error(
-              `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`,
-            );
+            const errorMsg = `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`;
+            new Notice(errorMsg);
+            throw new Error(errorMsg);
           }
         } else {
           new Notice("Using raw transcript (Gemini processing skipped due to rate limit)");
@@ -1082,10 +1118,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         }
       }
       
+      const errorMsg = `Failed to process transcript with Gemini: ${errorMessage}`;
+      new Notice(errorMsg);
       console.error("Gemini processing error:", error);
-      throw new Error(
-        `Failed to process transcript with Gemini: ${errorMessage}`,
-      );
+      throw new Error(errorMsg);
     }
   }
 
@@ -1177,20 +1213,30 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           } else {
             errorMsg += ` Please wait a few minutes before retrying.`;
           }
+          new Notice(errorMsg);
+          throw new Error(errorMsg);
+        }
+        
+        // Handle authentication errors
+        if (response.status === 401 || response.status === 403) {
+          const errorMsg = `Claude API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
+          new Notice(errorMsg);
           throw new Error(errorMsg);
         }
         
         // Provide more detailed error information for 404
         if (response.status === 404) {
           const errorDetail = errorData.error?.message || response.text || "Unknown error";
+          const errorMsg = `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid.`;
+          new Notice(errorMsg);
           throw new Error(
             `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Error: ${errorDetail}`,
           );
         }
         
-        throw new Error(
-          `Claude API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
-        );
+        const errorMsg = `Claude API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
+        new Notice(errorMsg);
+        throw new Error(errorMsg);
       }
 
       const data = response.json;
@@ -1209,6 +1255,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       
+      // Handle 404 errors (model not found or invalid endpoint)
+      if (errorMessage.includes("404") || errorMessage.includes("status 404")) {
+        const model = this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
+        const errorMsg = `Claude API error (404): Model "${model}" not found. Please check your model selection and API key in settings.`;
+        new Notice(errorMsg);
+        throw new Error(
+          `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Common issues: model name typo, API key doesn't have access to Claude API, or API key is invalid.`,
+        );
+      }
+      
       if (errorMessage.includes("timed out")) {
         const shouldRetry = await new RetryConfirmationModal(
           this.app,
@@ -1223,9 +1279,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           } catch (retryError: unknown) {
             const retryErrorMessage =
               retryError instanceof Error ? retryError.message : "Unknown error";
-            throw new Error(
-              `Failed to process transcript with Claude after retry: ${retryErrorMessage}`,
-            );
+            const errorMsg = `Failed to process transcript with Claude after retry: ${retryErrorMessage}`;
+            new Notice(errorMsg);
+            throw new Error(errorMsg);
           }
         } else {
           new Notice("Using raw transcript (Claude processing skipped)");
@@ -1263,9 +1319,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               new Notice("Still rate limited. Using raw transcript instead.");
               return { transcript, summary: null };
             }
-            throw new Error(
-              `Failed to process transcript with Claude after retry: ${retryErrorMessage}`,
-            );
+            const errorMsg = `Failed to process transcript with Claude after retry: ${retryErrorMessage}`;
+            new Notice(errorMsg);
+            throw new Error(errorMsg);
           }
         } else {
           new Notice("Using raw transcript (Claude processing skipped due to rate limit)");
@@ -1273,10 +1329,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         }
       }
       
+      const errorMsg = `Failed to process transcript with Claude: ${errorMessage}`;
+      new Notice(errorMsg);
       console.error("Claude processing error:", error);
-      throw new Error(
-        `Failed to process transcript with Claude: ${errorMessage}`,
-      );
+      throw new Error(errorMsg);
     }
   }
 
