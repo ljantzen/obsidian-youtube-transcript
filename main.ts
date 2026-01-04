@@ -261,6 +261,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             );
           }
         } catch (error: unknown) {
+          // If user cancelled, don't show an error - just silently abort
+          if (error instanceof UserCancelledError) {
+            // User cancelled - no file creation, no error message needed
+            return;
+          }
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error";
           new Notice(`Error fetching transcript: ${errorMessage}`);
@@ -906,8 +911,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         const shouldRetry = await new RetryConfirmationModal(
           this.app,
           errorMessage,
+          "OpenAI",
         ).waitForResponse();
 
+        if (shouldRetry === null) {
+          // User cancelled - abort transcript creation
+          throw new UserCancelledError("Transcript creation cancelled by user");
+        }
         if (shouldRetry) {
           if (statusCallback) statusCallback("Retrying OpenAI processing...");
           try {
@@ -941,8 +951,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           this.app,
           errorMessage +
             "\n\nYou can retry after waiting a few minutes, or use the raw transcript without OpenAI processing.",
+          "OpenAI",
         ).waitForResponse();
 
+        if (shouldRetry === null) {
+          // User cancelled - abort transcript creation
+          throw new UserCancelledError("Transcript creation cancelled by user");
+        }
         if (shouldRetry) {
           if (statusCallback)
             statusCallback(
@@ -1049,6 +1064,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const model = this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
       // Ensure API key is properly formatted (remove any whitespace)
       const apiKey = this.settings.geminiKey.trim();
+      
+      // Log the request details for debugging
+      console.debug(`Gemini API request: model=${model}, url=https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);
+      
       // Try v1beta first (more up-to-date), fallback to v1 if needed
       const requestPromise = requestUrl({
         url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -1129,6 +1148,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+      
+      // Log the full error for debugging
+      console.debug("Gemini processing error:", error);
+      if (error instanceof Error && error.stack) {
+        console.debug("Gemini error stack:", error.stack);
+      }
 
       // Handle 404 errors (model not found or invalid endpoint)
       if (errorMessage.includes("404") || errorMessage.includes("status 404")) {
@@ -1144,8 +1169,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         const shouldRetry = await new RetryConfirmationModal(
           this.app,
           errorMessage,
+          "Gemini",
         ).waitForResponse();
 
+        if (shouldRetry === null) {
+          // User cancelled - abort transcript creation
+          throw new UserCancelledError("Transcript creation cancelled by user");
+        }
         if (shouldRetry) {
           if (statusCallback) statusCallback("Retrying Gemini processing...");
           try {
@@ -1175,8 +1205,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           this.app,
           errorMessage +
             "\n\nYou can retry after waiting a few minutes, or use the raw transcript without Gemini processing.",
+          "Gemini",
         ).waitForResponse();
 
+        if (shouldRetry === null) {
+          // User cancelled - abort transcript creation
+          throw new UserCancelledError("Transcript creation cancelled by user");
+        }
         if (shouldRetry) {
           if (statusCallback)
             statusCallback(
@@ -1380,8 +1415,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         const shouldRetry = await new RetryConfirmationModal(
           this.app,
           errorMessage,
+          "Claude",
         ).waitForResponse();
 
+        if (shouldRetry === null) {
+          // User cancelled - abort transcript creation
+          throw new UserCancelledError("Transcript creation cancelled by user");
+        }
         if (shouldRetry) {
           if (statusCallback) statusCallback("Retrying Claude processing...");
           try {
@@ -1411,8 +1451,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           this.app,
           errorMessage +
             "\n\nYou can retry after waiting a few minutes, or use the raw transcript without Claude processing.",
+          "Claude",
         ).waitForResponse();
 
+        if (shouldRetry === null) {
+          // User cancelled - abort transcript creation
+          throw new UserCancelledError("Transcript creation cancelled by user");
+        }
         if (shouldRetry) {
           if (statusCallback)
             statusCallback(
@@ -1678,28 +1723,38 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   }
 }
 
+// Custom error class for user cancellation
+class UserCancelledError extends Error {
+  constructor(message: string = "Transcript creation cancelled by user") {
+    super(message);
+    this.name = "UserCancelledError";
+  }
+}
+
 class RetryConfirmationModal extends Modal {
   result: boolean | null = null;
-  resolvePromise: ((value: boolean) => void) | null = null;
+  resolvePromise: ((value: boolean | null) => void) | null = null;
 
-  constructor(app: App, errorMessage: string) {
+  constructor(app: App, errorMessage: string, providerName: string = "LLM") {
     super(app);
     this.errorMessage = errorMessage;
+    this.providerName = providerName;
   }
 
   errorMessage: string;
+  providerName: string;
 
   onOpen() {
     const { contentEl } = this;
 
-    contentEl.createEl("h2", { text: "OpenAI request timed out" });
+    contentEl.createEl("h2", { text: `${this.providerName} request timed out` });
 
     contentEl.createEl("p", {
       text: this.errorMessage,
     });
 
     contentEl.createEl("p", {
-      text: "Would you like to retry the OpenAI processing?",
+      text: `Would you like to retry the ${this.providerName} processing?`,
     });
 
     const buttonContainer = contentEl.createDiv({
@@ -1707,12 +1762,12 @@ class RetryConfirmationModal extends Modal {
     });
 
     const cancelButton = buttonContainer.createEl("button", {
-      text: "Skip (use raw transcript)",
+      text: "Cancel",
     });
     cancelButton.onclick = () => {
-      this.result = false;
+      this.result = null; // null means cancelled/aborted
       if (this.resolvePromise) {
-        this.resolvePromise(false);
+        this.resolvePromise(null);
       }
       this.close();
     };
@@ -1733,13 +1788,13 @@ class RetryConfirmationModal extends Modal {
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
-    // If modal was closed without clicking a button, default to false
+    // If modal was closed without clicking a button (e.g., clicking X), treat as cancellation
     if (this.result === null && this.resolvePromise) {
-      this.resolvePromise(false);
+      this.resolvePromise(null);
     }
   }
 
-  waitForResponse(): Promise<boolean> {
+  waitForResponse(): Promise<boolean | null> {
     return new Promise((resolve) => {
       this.resolvePromise = resolve;
       this.open();
