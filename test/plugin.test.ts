@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { App, PluginManifest } from 'obsidian';
+import type { App, PluginManifest, DataAdapter } from 'obsidian';
 
 // Mock Obsidian types
 const createMockApp = (): Partial<App> => {
@@ -8,13 +8,13 @@ const createMockApp = (): Partial<App> => {
 			getActiveViewOfType: vi.fn(),
 			getActiveFile: vi.fn(),
 			openLinkText: vi.fn()
-		} as Partial<App['workspace']>,
+		} as unknown as App['workspace'],
 		vault: {
 			create: vi.fn(),
 			adapter: {
 				exists: vi.fn().mockResolvedValue(false)
-			}
-		} as Partial<App['vault']>
+			} as unknown as DataAdapter
+		} as unknown as App['vault']
 	};
 };
 
