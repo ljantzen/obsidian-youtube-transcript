@@ -952,8 +952,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       // Gemini API endpoint (using Google AI Studio API)
       const model = this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+      // Ensure API key is properly formatted (remove any whitespace)
+      const apiKey = this.settings.geminiKey.trim();
+      // Try v1beta first (more up-to-date), fallback to v1 if needed
       const requestPromise = requestUrl({
-        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.settings.geminiKey}`,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -984,6 +987,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             errorMsg += ` Please wait a few minutes before retrying.`;
           }
           throw new Error(errorMsg);
+        }
+        
+        // Provide more detailed error information for 404
+        if (response.status === 404) {
+          const errorDetail = errorData.error?.message || response.text || "Unknown error";
+          throw new Error(
+            `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Error: ${errorDetail}`,
+          );
         }
         
         throw new Error(
@@ -1129,16 +1140,19 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       });
 
       // Claude API endpoint (Anthropic)
+      // Ensure API key is properly formatted (remove any whitespace)
+      const apiKey = this.settings.claudeKey.trim();
+      const model = this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
       const requestPromise = requestUrl({
         url: "https://api.anthropic.com/v1/messages",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": this.settings.claudeKey,
+          "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel,
+          model: model,
           max_tokens: 4096,
           messages: [
             {
@@ -1164,6 +1178,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             errorMsg += ` Please wait a few minutes before retrying.`;
           }
           throw new Error(errorMsg);
+        }
+        
+        // Provide more detailed error information for 404
+        if (response.status === 404) {
+          const errorDetail = errorData.error?.message || response.text || "Unknown error";
+          throw new Error(
+            `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Error: ${errorDetail}`,
+          );
         }
         
         throw new Error(
