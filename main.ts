@@ -1836,7 +1836,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
     textarea.addEventListener("input", (e) => {
       const target = e.target as HTMLTextAreaElement;
       this.plugin.settings.prompt = target.value;
-      this.plugin.saveSettings();
+      void this.plugin.saveSettings();
     });
 
     new Setting(containerEl)
