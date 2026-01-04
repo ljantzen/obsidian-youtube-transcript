@@ -241,7 +241,11 @@ describe('Settings Backward Compatibility', () => {
 			claudeModel: "claude-3-5-sonnet-20241022"
 		};
 
-		const settings: any = {};
+		const settings: {
+			openaiModel?: string;
+			geminiModel?: string;
+			claudeModel?: string;
+		} = {};
 		
 		if (settings.openaiModel === undefined) {
 			settings.openaiModel = defaultModels.openaiModel;

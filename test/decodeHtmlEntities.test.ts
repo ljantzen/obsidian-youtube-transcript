@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 
 // Test helper function that matches the implementation
 const decodeHtmlEntities = (text: string): string => {
-	// Create a temporary textarea element to decode HTML entities
-	const textarea = document.createElement('textarea');
-	textarea.innerHTML = text;
-	return textarea.value;
+	// Use DOMParser to safely decode HTML entities
+	const parser = new DOMParser();
+	const doc = parser.parseFromString(text, "text/html");
+	return doc.documentElement.textContent || text;
 };
 
 describe('decodeHtmlEntities', () => {

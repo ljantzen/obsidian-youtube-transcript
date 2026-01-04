@@ -14,7 +14,6 @@ describe('Integration Tests', () => {
 		// 4. Call InnerTube API
 		// 5. Parse transcript
 		
-		const videoId = 'dQw4w9WgXcQ';
 		const mockApiKey = 'AIzaSyTest123';
 		
 		// Simulate API key extraction
@@ -90,7 +89,6 @@ describe('Integration Tests', () => {
 		const includeVideoUrl = true;
 		const videoTitle = 'Test Video';
 		const videoUrl = 'https://www.youtube.com/watch?v=test';
-		const summary = 'This is a summary';
 		const transcript = '## Transcript\n\nThis is a test transcript with multiple words';
 
 		if (includeVideoUrl) {

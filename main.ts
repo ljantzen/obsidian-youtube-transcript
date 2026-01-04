@@ -62,7 +62,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     await this.loadSettings();
 
     // This creates an icon in the left ribbon.
-    this.addRibbonIcon("youtube", "Youtube transcript", (evt: MouseEvent) => {
+    this.addRibbonIcon("youtube", "Youtube transcript", () => {
       // Called when the user clicks the icon.
       this.fetchTranscript();
     });
@@ -293,7 +293,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const fileContent = parts.join("\n\n");
 
     // Create the file
-    const file = await this.app.vault.create(newFilePath, fileContent);
+    await this.app.vault.create(newFilePath, fileContent);
 
     // Open the new file
     await this.app.workspace.openLinkText(newFilePath, "", false);
@@ -533,10 +533,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   }
 
   decodeHtmlEntities(text: string): string {
-    // Create a temporary textarea element to decode HTML entities
-    const textarea = document.createElement("textarea");
-    textarea.innerHTML = text;
-    return textarea.value;
+    // Use DOMParser to safely decode HTML entities
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, "text/html");
+    return doc.documentElement.textContent || text;
   }
 
   hasProviderKey(provider: LLMProvider): boolean {
@@ -687,7 +687,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   ): Promise<{ transcript: string; summary: string | null }> {
     if (!provider || provider === "none" || !this.hasProviderKey(provider)) {
       const providerName = this.getProviderName(provider || "none");
-      console.log(`processWithLLM: No ${providerName} key, returning transcript without summary`);
+      console.debug(`processWithLLM: No ${providerName} key, returning transcript without summary`);
       new Notice(`${providerName} processing requested but API key is not configured. Using raw transcript instead.`);
       return { transcript, summary: null };
     }
@@ -700,7 +700,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       case "claude":
         return await this.processWithClaude(transcript, generateSummary, statusCallback);
       default:
-        new Notice(`Unsupported LLM provider: ${provider}`);
+        new Notice(`Unsupported LLM provider: ${String(provider)}`);
         return { transcript, summary: null };
     }
   }
@@ -711,12 +711,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     statusCallback?: (status: string) => void,
   ): Promise<{ transcript: string; summary: string | null }> {
     if (!this.settings.openaiKey || this.settings.openaiKey.trim() === "") {
-      console.log("processWithOpenAI: No OpenAI key, returning transcript without summary");
+      console.debug("processWithOpenAI: No OpenAI key, returning transcript without summary");
       new Notice("OpenAI processing requested but API key is not configured. Using raw transcript instead.");
       return { transcript, summary: null };
     }
     
-    console.log("processWithOpenAI: generateSummary =", generateSummary);
+    console.debug("processWithOpenAI: generateSummary =", generateSummary);
 
     if (statusCallback)
       statusCallback(
@@ -782,7 +782,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         
         // Handle rate limiting (429) specifically
         if (response.status === 429) {
-          const rateLimitError = errorData.error?.message || "Rate limit exceeded";
           const retryAfter = response.headers?.["retry-after"] || response.headers?.["Retry-After"];
           let errorMsg = `OpenAI rate limit exceeded (429). You've made too many requests too quickly.`;
           if (retryAfter) {
@@ -907,12 +906,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     statusCallback?: (status: string) => void,
   ): Promise<{ transcript: string; summary: string | null }> {
     if (!this.settings.geminiKey || this.settings.geminiKey.trim() === "") {
-      console.log("processWithGemini: No Gemini key, returning transcript without summary");
+      console.debug("processWithGemini: No Gemini key, returning transcript without summary");
       new Notice("Gemini processing requested but API key is not configured. Using raw transcript instead.");
       return { transcript, summary: null };
     }
     
-    console.log("processWithGemini: generateSummary =", generateSummary);
+    console.debug("processWithGemini: generateSummary =", generateSummary);
 
     if (statusCallback)
       statusCallback(
@@ -1085,12 +1084,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     statusCallback?: (status: string) => void,
   ): Promise<{ transcript: string; summary: string | null }> {
     if (!this.settings.claudeKey || this.settings.claudeKey.trim() === "") {
-      console.log("processWithClaude: No Claude key, returning transcript without summary");
+      console.debug("processWithClaude: No Claude key, returning transcript without summary");
       new Notice("Claude processing requested but API key is not configured. Using raw transcript instead.");
       return { transcript, summary: null };
     }
     
-    console.log("processWithClaude: generateSummary =", generateSummary);
+    console.debug("processWithClaude: generateSummary =", generateSummary);
 
     if (statusCallback)
       statusCallback(
@@ -1278,7 +1277,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
       
       if (!summaryMatch) {
-        summaryMatch = trimmedContent.match(/(?:##\s+)?Summary[:\-]?\s*\n\n?(.*?)(?=\n##\s+Transcript|\n##\s+Summary|$)/is);
+        summaryMatch = trimmedContent.match(/(?:##\s+)?Summary[:-]?\s*\n\n?(.*?)(?=\n##\s+Transcript|\n##\s+Summary|$)/is);
       }
       
       if (summaryMatch && summaryMatch[1]) {
@@ -1379,7 +1378,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const hasSummaryInTranscript = processedTranscript.includes('## Summary');
       if (summary || hasSummaryInTranscript) {
         new Notice("LLM processing complete with summary");
-        console.log("Summary generation successful. Summary present:", !!summary, "Summary in transcript:", hasSummaryInTranscript);
+        console.debug("Summary generation successful. Summary present:", !!summary, "Summary in transcript:", hasSummaryInTranscript);
       } else {
         new Notice("LLM processing complete (summary may be missing)");
         console.warn("Summary was requested but not found. Response preview:", trimmedContent.substring(0, 500));
@@ -1447,7 +1446,7 @@ class RetryConfirmationModal extends Modal {
   onOpen() {
     const { contentEl } = this;
 
-    contentEl.createEl("h2", { text: "OpenAI Request Timed Out" });
+    contentEl.createEl("h2", { text: "OpenAI request timed out" });
 
     contentEl.createEl("p", {
       text: this.errorMessage,
@@ -1551,7 +1550,7 @@ class YouTubeUrlModal extends Modal {
         id: "create-new-file-checkbox",
       },
     });
-    const createNewFileLabel = createNewFileContainer.createEl("label", {
+    createNewFileContainer.createEl("label", {
       text: "Create new file (based on video title)",
       attr: {
         for: "create-new-file-checkbox",
@@ -1572,7 +1571,7 @@ class YouTubeUrlModal extends Modal {
     if (this.plugin.settings.includeVideoUrl) {
       includeUrlCheckbox.checked = true;
     }
-    const includeUrlLabel = includeUrlContainer.createEl("label", {
+    includeUrlContainer.createEl("label", {
       text: "Include video URL",
       attr: {
         for: "include-video-url-checkbox",
@@ -1584,7 +1583,7 @@ class YouTubeUrlModal extends Modal {
     const providerContainer = contentEl.createDiv({
       attr: { style: "margin-bottom: 1em; display: flex; align-items: center; gap: 0.5em;" },
     });
-    const providerLabel = providerContainer.createEl("label", {
+    providerContainer.createEl("label", {
       text: "LLM provider:",
       attr: {
         style: "white-space: nowrap;",
@@ -1733,7 +1732,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
         });
 
       new Setting(containerEl)
-        .setName("OpenAI Model")
+        .setName("OpenAI model")
         .setDesc("Select the OpenAI model to use for transcript processing")
         .addDropdown((dropdown) => {
           dropdown
@@ -1769,7 +1768,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
         });
 
       new Setting(containerEl)
-        .setName("Gemini Model")
+        .setName("Gemini model")
         .setDesc("Select the Gemini model to use for transcript processing")
         .addDropdown((dropdown) => {
           dropdown
@@ -1805,7 +1804,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
         });
 
       new Setting(containerEl)
-        .setName("Claude Model")
+        .setName("Claude model")
         .setDesc("Select the Claude model to use for transcript processing")
         .addDropdown((dropdown) => {
           dropdown

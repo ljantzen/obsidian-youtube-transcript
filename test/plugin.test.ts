@@ -8,13 +8,13 @@ const createMockApp = (): Partial<App> => {
 			getActiveViewOfType: vi.fn(),
 			getActiveFile: vi.fn(),
 			openLinkText: vi.fn()
-		} as any,
+		} as Partial<App['workspace']>,
 		vault: {
 			create: vi.fn(),
 			adapter: {
 				exists: vi.fn().mockResolvedValue(false)
 			}
-		} as any
+		} as Partial<App['vault']>
 	};
 };
 

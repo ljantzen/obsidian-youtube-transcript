@@ -29,9 +29,9 @@ const parseTranscriptWithEntities = (transcriptXml: string): string[] => {
 
 		// Decode HTML entities
 		if (text) {
-			const textarea = document.createElement('textarea');
-			textarea.innerHTML = text;
-			text = textarea.value;
+			const parser = new DOMParser();
+			const doc = parser.parseFromString(text, "text/html");
+			text = doc.documentElement.textContent || text;
 		}
 
 		if (text && text.trim()) {
