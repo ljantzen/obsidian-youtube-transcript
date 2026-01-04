@@ -51,14 +51,18 @@ describe('YouTubeTranscriptPlugin', () => {
 	it('should handle settings loading', () => {
 		// Test that settings can be loaded
 		const defaultSettings = {
-			autoFetch: false,
 			openaiKey: '',
-			prompt: 'Default prompt'
+			prompt: 'Default prompt',
+			openaiTimeout: 1,
+			includeVideoUrl: false,
+			generateSummary: false,
 		};
 		
-		expect(defaultSettings.autoFetch).toBe(false);
 		expect(defaultSettings.openaiKey).toBe('');
 		expect(defaultSettings.prompt).toBe('Default prompt');
+		expect(defaultSettings.openaiTimeout).toBe(1);
+		expect(defaultSettings.includeVideoUrl).toBe(false);
+		expect(defaultSettings.generateSummary).toBe(false);
 	});
 
 	it('should validate video ID extraction patterns', () => {

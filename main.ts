@@ -392,8 +392,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
   async getTranscriptViaInnerTube(
     videoId: string,
+    generateSummary: boolean,
     statusCallback?: (status: string) => void,
-  ): Promise<{ transcript: string; title: string }> {
+  ): Promise<{ transcript: string; title: string; summary: string | null }> {
     // Fallback: Try InnerTube API (may require valid API key)
     const innertubeResponse = await requestUrl({
       url: "https://www.youtube.com/youtubei/v1/player",
@@ -462,11 +463,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       throw new Error("Transcript URL returned empty response.");
     }
 
-    const transcript = await this.parseTranscript(
+    const parsedResult = await this.parseTranscript(
       transcriptXml,
+      generateSummary,
       statusCallback,
     );
-    return { transcript, title: videoTitle };
+    return {
+      transcript: parsedResult.transcript,
+      title: videoTitle,
+      summary: parsedResult.summary,
+    };
   }
 
   decodeHtmlEntities(text: string): string {
