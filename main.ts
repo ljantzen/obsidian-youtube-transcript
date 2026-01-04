@@ -2008,7 +2008,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("YouTube transcript settings")
+      .setName("YouTube transcript")
       .setHeading();
 
     new Setting(containerEl)
