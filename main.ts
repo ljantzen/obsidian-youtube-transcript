@@ -584,6 +584,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     //console.log("Returning raw transcript");
     if (generateSummary) {
       console.warn("Summary generation requested but OpenAI API key is not configured");
+      new Notice("Summary generation requested but OpenAI API key is not configured. Using raw transcript instead.");
     }
     return { transcript: rawTranscript, summary: null };
   }
@@ -595,6 +596,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   ): Promise<{ transcript: string; summary: string | null }> {
     if (!this.settings.openaiKey || this.settings.openaiKey.trim() === "") {
       console.log("processWithOpenAI: No OpenAI key, returning transcript without summary");
+      new Notice("OpenAI processing requested but API key is not configured. Using raw transcript instead.");
       return { transcript, summary: null };
     }
     
@@ -661,6 +663,20 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       if (response.status < 200 || response.status >= 300) {
         const errorData = response.json || {};
+        
+        // Handle rate limiting (429) specifically
+        if (response.status === 429) {
+          const rateLimitError = errorData.error?.message || "Rate limit exceeded";
+          const retryAfter = response.headers?.["retry-after"] || response.headers?.["Retry-After"];
+          let errorMsg = `OpenAI rate limit exceeded (429). You've made too many requests too quickly.`;
+          if (retryAfter) {
+            errorMsg += ` Please wait ${retryAfter} seconds before retrying.`;
+          } else {
+            errorMsg += ` Please wait a few minutes before retrying.`;
+          }
+          throw new Error(errorMsg);
+        }
+        
         throw new Error(
           `OpenAI API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
         );
@@ -867,7 +883,57 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         }
       }
       
-      // For non-timeout errors, throw as before
+      // Check if it's a rate limit error (429)
+      // Check for various formats: "429", "rate limit", "too many requests", etc.
+      const isRateLimitError = 
+        errorMessage.toLowerCase().includes("rate limit") ||
+        errorMessage.includes("429") ||
+        errorMessage.toLowerCase().includes("too many requests");
+      
+      if (isRateLimitError) {
+        // Prompt user if they want to retry or use raw transcript
+        const shouldRetry = await new RetryConfirmationModal(
+          this.app,
+          errorMessage + "\n\nYou can retry after waiting a few minutes, or use the raw transcript without OpenAI processing.",
+        ).waitForResponse();
+
+        if (shouldRetry) {
+          if (statusCallback)
+            statusCallback(
+              "Waiting before retrying OpenAI processing (rate limit)...",
+            );
+          // Wait 60 seconds before retrying for rate limits
+          await new Promise((resolve) => setTimeout(resolve, 60000));
+          if (statusCallback)
+            statusCallback(
+              "Retrying OpenAI processing...",
+            );
+          try {
+            return await makeRequest();
+          } catch (retryError: unknown) {
+            const retryErrorMessage =
+              retryError instanceof Error ? retryError.message : "Unknown error";
+            // If still rate limited, offer to use raw transcript
+            const isStillRateLimited = 
+              retryErrorMessage.toLowerCase().includes("rate limit") ||
+              retryErrorMessage.includes("429") ||
+              retryErrorMessage.toLowerCase().includes("too many requests");
+            if (isStillRateLimited) {
+              new Notice("Still rate limited. Using raw transcript instead.");
+              return { transcript, summary: null };
+            }
+            throw new Error(
+              `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`,
+            );
+          }
+        } else {
+          // User chose not to retry, return raw transcript
+          new Notice("Using raw transcript (OpenAI processing skipped due to rate limit)");
+          return { transcript, summary: null };
+        }
+      }
+      
+      // For other errors, throw as before
       console.error("OpenAI processing error:", error);
       throw new Error(
         `Failed to process transcript with OpenAI: ${errorMessage}`,
