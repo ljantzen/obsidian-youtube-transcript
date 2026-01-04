@@ -576,10 +576,15 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         statusCallback,
       );
       //console.log("OpenAI processing complete, length:", processed.transcript.length);
+      //console.log("Summary generated:", processed.summary ? "Yes" : "No");
       return processed;
     }
 
+    // If summary was requested but no OpenAI key, return raw transcript
     //console.log("Returning raw transcript");
+    if (generateSummary) {
+      console.warn("Summary generation requested but OpenAI API key is not configured");
+    }
     return { transcript: rawTranscript, summary: null };
   }
 
@@ -589,8 +594,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     statusCallback?: (status: string) => void,
   ): Promise<{ transcript: string; summary: string | null }> {
     if (!this.settings.openaiKey || this.settings.openaiKey.trim() === "") {
+      console.log("processWithOpenAI: No OpenAI key, returning transcript without summary");
       return { transcript, summary: null };
     }
+    
+    console.log("processWithOpenAI: generateSummary =", generateSummary);
 
     if (statusCallback)
       statusCallback(
@@ -697,6 +705,31 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         if (hasSummarySection && hasTranscriptSection) {
           // Keep the full response with headers for the transcript
           processedTranscript = trimmedContent;
+          // Ensure summary is extracted even if regex failed
+          if (!summary) {
+            // Try case-insensitive search
+            const summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n?(.*?)(?=\n##\s+Transcript|$)/is);
+            if (summaryMatch && summaryMatch[1]) {
+              summary = summaryMatch[1].trim();
+            } else {
+              // Fallback to indexOf
+              const summaryIndex = trimmedContent.search(/##\s+Summary/i);
+              const transcriptIndex = trimmedContent.search(/##\s+Transcript/i);
+              if (transcriptIndex > summaryIndex && summaryIndex !== -1) {
+                const afterSummary = trimmedContent.substring(summaryIndex);
+                const beforeTranscript = afterSummary.substring(0, afterSummary.search(/##\s+Transcript/i));
+                summary = beforeTranscript.replace(/##\s+Summary\s*/i, '').trim();
+              }
+            }
+          }
+          // Verify the transcript actually contains the summary section (case-insensitive)
+          const hasSummaryInOutput = /##\s+Summary/i.test(processedTranscript);
+          if (!hasSummaryInOutput) {
+            console.warn('Summary section detected in response but not found in final transcript. Reconstructing...');
+            const transcriptMatch = trimmedContent.match(/##\s+Transcript\s*\n\n?(.*?)$/is);
+            const transcriptContent = transcriptMatch ? transcriptMatch[1].trim() : trimmedContent;
+            processedTranscript = `## Summary\n\n${summary || 'Summary not extracted'}\n\n## Transcript\n\n${transcriptContent}`;
+          }
         } else {
           // OpenAI didn't follow the format - try to fix it
           console.warn('OpenAI response did not follow expected format with Summary and Transcript sections');
@@ -734,8 +767,42 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${trimmedContent}`;
             } else {
               // Last resort: add a generic summary section
-              processedTranscript = `## Summary\n\nVideo transcript processed and cleaned.\n\n## Transcript\n\n${trimmedContent}`;
+              summary = 'Video transcript processed and cleaned.';
+              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${trimmedContent}`;
             }
+          }
+        }
+        
+        // Final safety check: if generateSummary is true, we MUST have a summary section
+        // Use case-insensitive check to catch variations
+        const hasSummaryInOutput = /##\s+Summary/i.test(processedTranscript);
+        if (generateSummary && !hasSummaryInOutput) {
+          console.warn('Summary was requested but not found in OpenAI response. Adding fallback summary.');
+          console.warn('Response preview:', trimmedContent.substring(0, 200));
+          if (!summary) {
+            summary = 'Summary generation requested but OpenAI response did not include a summary section.';
+          }
+          // Check if transcript already has a ## Transcript header
+          if (/##\s+Transcript/i.test(processedTranscript)) {
+            // Insert summary before transcript
+            processedTranscript = processedTranscript.replace(
+              /(##\s+Transcript)/i,
+              `## Summary\n\n${summary}\n\n$1`
+            );
+          } else {
+            // Add both headers
+            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${processedTranscript}`;
+          }
+        }
+        
+        // Double-check: ensure summary section exists when requested
+        if (generateSummary) {
+          const finalCheck = /##\s+Summary/i.test(processedTranscript);
+          if (!finalCheck) {
+            console.error('CRITICAL: Summary section still missing after all attempts!');
+            console.error('Processed transcript preview:', processedTranscript.substring(0, 500));
+            // Force add summary at the beginning
+            processedTranscript = `## Summary\n\n${summary || 'Summary could not be generated'}\n\n## Transcript\n\n${processedTranscript}`;
           }
         }
       } else {
@@ -750,11 +817,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       // Notify user that OpenAI processing is complete
       if (generateSummary) {
-        if (summary) {
+        const hasSummaryInTranscript = processedTranscript.includes('## Summary');
+        if (summary || hasSummaryInTranscript) {
           new Notice("OpenAI processing complete with summary");
+          console.log("Summary generation successful. Summary present:", !!summary, "Summary in transcript:", hasSummaryInTranscript);
         } else {
-          new Notice("OpenAI processing complete (summary extraction may have failed)");
-          console.warn("Summary was requested but extraction failed. Response:", trimmedContent.substring(0, 500));
+          new Notice("OpenAI processing complete (summary may be missing)");
+          console.warn("Summary was requested but not found. Response preview:", trimmedContent.substring(0, 500));
         }
       } else {
         new Notice("OpenAI processing complete");
