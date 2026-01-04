@@ -10,8 +10,16 @@ import {
   TFile,
 } from "obsidian";
 
+type LLMProvider = "openai" | "gemini" | "claude" | "none";
+
 interface YouTubeTranscriptPluginSettings {
+  llmProvider: LLMProvider;
   openaiKey: string;
+  openaiModel: string;
+  geminiKey: string;
+  geminiModel: string;
+  claudeKey: string;
+  claudeModel: string;
   prompt: string;
   openaiTimeout: number; // Timeout in minutes
   includeVideoUrl: boolean;
@@ -34,7 +42,13 @@ const DEFAULT_PROMPT = `Please process the following YouTube video transcript. Y
 Return only the cleaned transcript without any additional commentary or explanation.`;
 
 const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
+  llmProvider: "none",
   openaiKey: "",
+  openaiModel: "gpt-4o-mini",
+  geminiKey: "",
+  geminiModel: "gemini-1.5-flash",
+  claudeKey: "",
+  claudeModel: "claude-3-5-sonnet-20241022",
   prompt: DEFAULT_PROMPT,
   openaiTimeout: 1, // Default 1 minute (60 seconds)
   includeVideoUrl: false,
@@ -71,6 +85,44 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   async loadSettings() {
     const loadedData = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+
+    // Backward compatibility: if llmProvider is not set, infer from existing keys
+    if (this.settings.llmProvider === undefined || this.settings.llmProvider === "none") {
+      if (this.settings.openaiKey && this.settings.openaiKey.trim() !== "") {
+        this.settings.llmProvider = "openai";
+      } else if (this.settings.geminiKey && this.settings.geminiKey.trim() !== "") {
+        this.settings.llmProvider = "gemini";
+      } else if (this.settings.claudeKey && this.settings.claudeKey.trim() !== "") {
+        this.settings.llmProvider = "claude";
+      } else {
+        this.settings.llmProvider = "none";
+      }
+      await this.saveSettings();
+    }
+
+    // Ensure new API key fields exist (backward compatibility)
+    if (this.settings.geminiKey === undefined) {
+      this.settings.geminiKey = "";
+      await this.saveSettings();
+    }
+    if (this.settings.claudeKey === undefined) {
+      this.settings.claudeKey = "";
+      await this.saveSettings();
+    }
+
+    // Ensure model fields exist (backward compatibility)
+    if (this.settings.openaiModel === undefined) {
+      this.settings.openaiModel = DEFAULT_SETTINGS.openaiModel;
+      await this.saveSettings();
+    }
+    if (this.settings.geminiModel === undefined) {
+      this.settings.geminiModel = DEFAULT_SETTINGS.geminiModel;
+      await this.saveSettings();
+    }
+    if (this.settings.claudeModel === undefined) {
+      this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
+      await this.saveSettings();
+    }
 
     // Ensure prompt has a default value if empty
     if (!this.settings.prompt || this.settings.prompt.trim() === "") {
@@ -113,6 +165,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         createNewFile: boolean,
         includeVideoUrl: boolean,
         generateSummary: boolean,
+        llmProvider: LLMProvider,
       ) => {
         try {
           const fetchingNotice = new Notice(
@@ -122,6 +175,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           const result = await this.getTranscript(
             url,
             generateSummary,
+            llmProvider,
             (status: string) => {
               // Update notice with processing status
               fetchingNotice.setMessage(status);
@@ -272,6 +326,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   async getTranscript(
     url: string,
     generateSummary: boolean,
+    llmProvider: LLMProvider,
     statusCallback?: (status: string) => void,
   ): Promise<{ transcript: string; title: string; summary: string | null }> {
     const videoId = this.extractVideoId(url);
@@ -380,6 +435,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const parsedResult = await this.parseTranscript(
       transcriptXml,
       generateSummary,
+      llmProvider,
       statusCallback,
     );
     //console.log("Transcript parsed, length:", parsedResult.transcript.length);
@@ -466,6 +522,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const parsedResult = await this.parseTranscript(
       transcriptXml,
       generateSummary,
+      this.settings.llmProvider,
       statusCallback,
     );
     return {
@@ -482,9 +539,36 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     return textarea.value;
   }
 
+  hasProviderKey(provider: LLMProvider): boolean {
+    switch (provider) {
+      case "openai":
+        return !!(this.settings.openaiKey && this.settings.openaiKey.trim() !== "");
+      case "gemini":
+        return !!(this.settings.geminiKey && this.settings.geminiKey.trim() !== "");
+      case "claude":
+        return !!(this.settings.claudeKey && this.settings.claudeKey.trim() !== "");
+      default:
+        return false;
+    }
+  }
+
+  getProviderName(provider: LLMProvider): string {
+    switch (provider) {
+      case "openai":
+        return "OpenAI";
+      case "gemini":
+        return "Gemini";
+      case "claude":
+        return "Claude";
+      default:
+        return "LLM";
+    }
+  }
+
   async parseTranscript(
     transcriptXml: string,
     generateSummary: boolean,
+    llmProvider: LLMProvider,
     statusCallback?: (status: string) => void,
   ): Promise<{ transcript: string; summary: string | null }> {
     // Parse XML and extract text
@@ -567,26 +651,58 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const rawTranscript = transcriptParts.join(" ");
     //console.log( "Raw transcript assembled, length:", rawTranscript.length, "parts:", transcriptParts.length,);
 
-    // Process through OpenAI if API key is provided
-    if (this.settings.openaiKey && this.settings.openaiKey.trim() !== "") {
-      //console.log("Processing transcript with OpenAI...");
-      const processed = await this.processWithOpenAI(
-        rawTranscript,
-        generateSummary,
-        statusCallback,
-      );
-      //console.log("OpenAI processing complete, length:", processed.transcript.length);
-      //console.log("Summary generated:", processed.summary ? "Yes" : "No");
-      return processed;
+    // Process through LLM if provider is configured (use provided provider or fallback to settings)
+    const providerToUse = llmProvider || this.settings.llmProvider;
+    if (providerToUse && providerToUse !== "none") {
+      const hasKey = this.hasProviderKey(providerToUse);
+      if (hasKey) {
+        //console.log(`Processing transcript with ${providerToUse}...`);
+        const processed = await this.processWithLLM(
+          rawTranscript,
+          generateSummary,
+          providerToUse,
+          statusCallback,
+        );
+        //console.log(`${providerToUse} processing complete, length:`, processed.transcript.length);
+        //console.log("Summary generated:", processed.summary ? "Yes" : "No");
+        return processed;
+      }
     }
 
-    // If summary was requested but no OpenAI key, return raw transcript
+    // If summary was requested but no LLM provider/key, return raw transcript
     //console.log("Returning raw transcript");
     if (generateSummary) {
-      console.warn("Summary generation requested but OpenAI API key is not configured");
-      new Notice("Summary generation requested but OpenAI API key is not configured. Using raw transcript instead.");
+      const providerName = this.getProviderName(providerToUse || "none");
+      console.warn(`Summary generation requested but ${providerName} API key is not configured`);
+      new Notice(`Summary generation requested but ${providerName} API key is not configured. Using raw transcript instead.`);
     }
     return { transcript: rawTranscript, summary: null };
+  }
+
+  async processWithLLM(
+    transcript: string,
+    generateSummary: boolean,
+    provider: LLMProvider,
+    statusCallback?: (status: string) => void,
+  ): Promise<{ transcript: string; summary: string | null }> {
+    if (!provider || provider === "none" || !this.hasProviderKey(provider)) {
+      const providerName = this.getProviderName(provider || "none");
+      console.log(`processWithLLM: No ${providerName} key, returning transcript without summary`);
+      new Notice(`${providerName} processing requested but API key is not configured. Using raw transcript instead.`);
+      return { transcript, summary: null };
+    }
+
+    switch (provider) {
+      case "openai":
+        return await this.processWithOpenAI(transcript, generateSummary, statusCallback);
+      case "gemini":
+        return await this.processWithGemini(transcript, generateSummary, statusCallback);
+      case "claude":
+        return await this.processWithClaude(transcript, generateSummary, statusCallback);
+      default:
+        new Notice(`Unsupported LLM provider: ${provider}`);
+        return { transcript, summary: null };
+    }
   }
 
   async processWithOpenAI(
@@ -648,7 +764,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           Authorization: `Bearer ${this.settings.openaiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel,
           messages: [
             {
               role: "user",
@@ -689,163 +805,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         throw new Error("No response from OpenAI");
       }
 
-      const trimmedContent = responseContent.trim();
-      
-      // Parse the response to extract summary and transcript with headers
-      let summary: string | null = null;
-      let processedTranscript: string;
-      
-      if (generateSummary) {
-        // Try multiple patterns to extract summary (more flexible matching)
-        // Pattern 1: ## Summary followed by content, then ## Transcript (with double newline)
-        let summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n(.*?)(?=\n##\s+Transcript|$)/s);
-        
-        // Pattern 2: ## Summary with single newline
-        if (!summaryMatch) {
-          summaryMatch = trimmedContent.match(/##\s+Summary\s*\n(.*?)(?=\n##\s+Transcript|$)/s);
-        }
-        
-        // Pattern 3: Summary: or Summary - (alternative formats)
-        if (!summaryMatch) {
-          summaryMatch = trimmedContent.match(/(?:##\s+)?Summary[:\-]?\s*\n\n?(.*?)(?=\n##\s+Transcript|\n##\s+Summary|$)/is);
-        }
-        
-        if (summaryMatch && summaryMatch[1]) {
-          summary = summaryMatch[1].trim();
-        }
-        
-        // Check if the response already contains both Summary and Transcript sections
-        const hasSummarySection = /##\s+Summary/i.test(trimmedContent);
-        const hasTranscriptSection = /##\s+Transcript/i.test(trimmedContent);
-        
-        if (hasSummarySection && hasTranscriptSection) {
-          // Keep the full response with headers for the transcript
-          processedTranscript = trimmedContent;
-          // Ensure summary is extracted even if regex failed
-          if (!summary) {
-            // Try case-insensitive search
-            const summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n?(.*?)(?=\n##\s+Transcript|$)/is);
-            if (summaryMatch && summaryMatch[1]) {
-              summary = summaryMatch[1].trim();
-            } else {
-              // Fallback to indexOf
-              const summaryIndex = trimmedContent.search(/##\s+Summary/i);
-              const transcriptIndex = trimmedContent.search(/##\s+Transcript/i);
-              if (transcriptIndex > summaryIndex && summaryIndex !== -1) {
-                const afterSummary = trimmedContent.substring(summaryIndex);
-                const beforeTranscript = afterSummary.substring(0, afterSummary.search(/##\s+Transcript/i));
-                summary = beforeTranscript.replace(/##\s+Summary\s*/i, '').trim();
-              }
-            }
-          }
-          // Verify the transcript actually contains the summary section (case-insensitive)
-          const hasSummaryInOutput = /##\s+Summary/i.test(processedTranscript);
-          if (!hasSummaryInOutput) {
-            console.warn('Summary section detected in response but not found in final transcript. Reconstructing...');
-            const transcriptMatch = trimmedContent.match(/##\s+Transcript\s*\n\n?(.*?)$/is);
-            const transcriptContent = transcriptMatch ? transcriptMatch[1].trim() : trimmedContent;
-            processedTranscript = `## Summary\n\n${summary || 'Summary not extracted'}\n\n## Transcript\n\n${transcriptContent}`;
-          }
-        } else {
-          // OpenAI didn't follow the format - try to fix it
-          console.warn('OpenAI response did not follow expected format with Summary and Transcript sections');
-          
-          // If we found a summary via regex, use it
-          if (summary) {
-            // Extract transcript part (everything after Summary or the full content)
-            const transcriptMatch = trimmedContent.match(/##\s+Transcript\s*\n\n?(.*?)$/s);
-            const transcriptContent = transcriptMatch ? transcriptMatch[1].trim() : trimmedContent.replace(/##\s+Summary\s*\n\n?.*?$/is, '').trim();
-            
-            // Reconstruct with proper format
-            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${transcriptContent || trimmedContent}`;
-          } else if (hasSummarySection) {
-            // Has summary header but extraction failed - try to extract manually
-            const summaryIndex = trimmedContent.indexOf('## Summary');
-            const transcriptIndex = trimmedContent.indexOf('## Transcript');
-            
-            if (transcriptIndex > summaryIndex) {
-              const summaryText = trimmedContent.substring(summaryIndex + 10, transcriptIndex).trim();
-              const transcriptText = trimmedContent.substring(transcriptIndex + 14).trim();
-              summary = summaryText;
-              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${transcriptText}`;
-            } else {
-              // Only summary section found, use first paragraph as summary
-              const afterSummary = trimmedContent.substring(summaryIndex + 10).trim();
-              const firstPara = afterSummary.split('\n\n')[0] || afterSummary.split('\n')[0] || afterSummary.substring(0, 300);
-              summary = firstPara.trim();
-              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${afterSummary}`;
-            }
-          } else {
-            // No summary section at all - use first paragraph as summary
-            const firstPara = trimmedContent.split('\n\n')[0] || trimmedContent.split('\n')[0];
-            if (firstPara && firstPara.length < 500 && !firstPara.startsWith('##')) {
-              summary = firstPara.trim();
-              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${trimmedContent}`;
-            } else {
-              // Last resort: add a generic summary section
-              summary = 'Video transcript processed and cleaned.';
-              processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${trimmedContent}`;
-            }
-          }
-        }
-        
-        // Final safety check: if generateSummary is true, we MUST have a summary section
-        // Use case-insensitive check to catch variations
-        const hasSummaryInOutput = /##\s+Summary/i.test(processedTranscript);
-        if (generateSummary && !hasSummaryInOutput) {
-          console.warn('Summary was requested but not found in OpenAI response. Adding fallback summary.');
-          console.warn('Response preview:', trimmedContent.substring(0, 200));
-          if (!summary) {
-            summary = 'Summary generation requested but OpenAI response did not include a summary section.';
-          }
-          // Check if transcript already has a ## Transcript header
-          if (/##\s+Transcript/i.test(processedTranscript)) {
-            // Insert summary before transcript
-            processedTranscript = processedTranscript.replace(
-              /(##\s+Transcript)/i,
-              `## Summary\n\n${summary}\n\n$1`
-            );
-          } else {
-            // Add both headers
-            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${processedTranscript}`;
-          }
-        }
-        
-        // Double-check: ensure summary section exists when requested
-        if (generateSummary) {
-          const finalCheck = /##\s+Summary/i.test(processedTranscript);
-          if (!finalCheck) {
-            console.error('CRITICAL: Summary section still missing after all attempts!');
-            console.error('Processed transcript preview:', processedTranscript.substring(0, 500));
-            // Force add summary at the beginning
-            processedTranscript = `## Summary\n\n${summary || 'Summary could not be generated'}\n\n## Transcript\n\n${processedTranscript}`;
-          }
-        }
-      } else {
-        // Keep the full response with Transcript header
-        processedTranscript = trimmedContent;
-      }
-      
-      // Ensure we have a transcript
-      if (!processedTranscript || processedTranscript.length === 0) {
-        processedTranscript = trimmedContent;
-      }
-
-      // Notify user that OpenAI processing is complete
-      if (generateSummary) {
-        const hasSummaryInTranscript = processedTranscript.includes('## Summary');
-        if (summary || hasSummaryInTranscript) {
-          new Notice("OpenAI processing complete with summary");
-          console.log("Summary generation successful. Summary present:", !!summary, "Summary in transcript:", hasSummaryInTranscript);
-        } else {
-          new Notice("OpenAI processing complete (summary may be missing)");
-          console.warn("Summary was requested but not found. Response preview:", trimmedContent.substring(0, 500));
-        }
-      } else {
-        new Notice("OpenAI processing complete");
-      }
-
-      return { transcript: processedTranscript, summary };
+      return this.parseLLMResponse(responseContent.trim(), generateSummary);
     };
 
     try {
@@ -941,6 +901,495 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
   }
 
+  async processWithGemini(
+    transcript: string,
+    generateSummary: boolean,
+    statusCallback?: (status: string) => void,
+  ): Promise<{ transcript: string; summary: string | null }> {
+    if (!this.settings.geminiKey || this.settings.geminiKey.trim() === "") {
+      console.log("processWithGemini: No Gemini key, returning transcript without summary");
+      new Notice("Gemini processing requested but API key is not configured. Using raw transcript instead.");
+      return { transcript, summary: null };
+    }
+    
+    console.log("processWithGemini: generateSummary =", generateSummary);
+
+    if (statusCallback)
+      statusCallback(
+        "Processing transcript with Gemini (this may take a moment)...",
+      );
+
+    let prompt = this.settings.prompt || DEFAULT_PROMPT;
+    
+    // Build the full prompt with summary instructions if needed
+    let fullPrompt = prompt;
+    
+    if (generateSummary) {
+      fullPrompt += `\n\nIMPORTANT: You must provide a concise summary (2-3 sentences) of the video content, focusing on the main topics, key points, and overall message.`;
+      fullPrompt += `\n\nYou MUST format your response EXACTLY as follows:\n`;
+      fullPrompt += `\n## Summary\n\n[Your 2-3 sentence summary here]\n\n## Transcript\n\n[Your processed transcript here]\n`;
+      fullPrompt += `\nDo NOT include any other text before or after these sections. Start directly with "## Summary".`;
+    } else {
+      fullPrompt += `\n\nPlease format your response as follows:\n`;
+      fullPrompt += `- Start with a "## Transcript" markdown header followed by the processed transcript\n`;
+    }
+    
+    fullPrompt += `\nTranscript:\n${transcript}`;
+
+    const makeRequest = async (): Promise<{ transcript: string; summary: string | null }> => {
+      const timeoutMinutes = this.settings.openaiTimeout || 1;
+      const timeoutMs = timeoutMinutes * 60 * 1000;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Gemini request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
+              ),
+            ),
+          timeoutMs,
+        );
+      });
+
+      // Gemini API endpoint (using Google AI Studio API)
+      const model = this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+      const requestPromise = requestUrl({
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.settings.geminiKey}`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: fullPrompt,
+            }],
+          }],
+          generationConfig: {
+            temperature: 0.3,
+          },
+        }),
+      });
+
+      const response = await Promise.race([requestPromise, timeoutPromise]);
+
+      if (response.status < 200 || response.status >= 300) {
+        const errorData = response.json || {};
+        
+        if (response.status === 429) {
+          const retryAfter = response.headers?.["retry-after"] || response.headers?.["Retry-After"];
+          let errorMsg = `Gemini rate limit exceeded (429). You've made too many requests too quickly.`;
+          if (retryAfter) {
+            errorMsg += ` Please wait ${retryAfter} seconds before retrying.`;
+          } else {
+            errorMsg += ` Please wait a few minutes before retrying.`;
+          }
+          throw new Error(errorMsg);
+        }
+        
+        throw new Error(
+          `Gemini API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
+        );
+      }
+
+      const data = response.json;
+      const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!responseContent) {
+        throw new Error("No response from Gemini");
+      }
+
+      return this.parseLLMResponse(responseContent.trim(), generateSummary);
+    };
+
+    try {
+      return await makeRequest();
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      
+      if (errorMessage.includes("timed out")) {
+        const shouldRetry = await new RetryConfirmationModal(
+          this.app,
+          errorMessage,
+        ).waitForResponse();
+
+        if (shouldRetry) {
+          if (statusCallback)
+            statusCallback("Retrying Gemini processing...");
+          try {
+            return await makeRequest();
+          } catch (retryError: unknown) {
+            const retryErrorMessage =
+              retryError instanceof Error ? retryError.message : "Unknown error";
+            throw new Error(
+              `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`,
+            );
+          }
+        } else {
+          new Notice("Using raw transcript (Gemini processing skipped)");
+          return { transcript, summary: null };
+        }
+      }
+      
+      const isRateLimitError = 
+        errorMessage.toLowerCase().includes("rate limit") ||
+        errorMessage.includes("429") ||
+        errorMessage.toLowerCase().includes("too many requests");
+      
+      if (isRateLimitError) {
+        const shouldRetry = await new RetryConfirmationModal(
+          this.app,
+          errorMessage + "\n\nYou can retry after waiting a few minutes, or use the raw transcript without Gemini processing.",
+        ).waitForResponse();
+
+        if (shouldRetry) {
+          if (statusCallback)
+            statusCallback("Waiting before retrying Gemini processing (rate limit)...");
+          await new Promise((resolve) => setTimeout(resolve, 60000));
+          if (statusCallback)
+            statusCallback("Retrying Gemini processing...");
+          try {
+            return await makeRequest();
+          } catch (retryError: unknown) {
+            const retryErrorMessage =
+              retryError instanceof Error ? retryError.message : "Unknown error";
+            const isStillRateLimited = 
+              retryErrorMessage.toLowerCase().includes("rate limit") ||
+              retryErrorMessage.includes("429") ||
+              retryErrorMessage.toLowerCase().includes("too many requests");
+            if (isStillRateLimited) {
+              new Notice("Still rate limited. Using raw transcript instead.");
+              return { transcript, summary: null };
+            }
+            throw new Error(
+              `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`,
+            );
+          }
+        } else {
+          new Notice("Using raw transcript (Gemini processing skipped due to rate limit)");
+          return { transcript, summary: null };
+        }
+      }
+      
+      console.error("Gemini processing error:", error);
+      throw new Error(
+        `Failed to process transcript with Gemini: ${errorMessage}`,
+      );
+    }
+  }
+
+  async processWithClaude(
+    transcript: string,
+    generateSummary: boolean,
+    statusCallback?: (status: string) => void,
+  ): Promise<{ transcript: string; summary: string | null }> {
+    if (!this.settings.claudeKey || this.settings.claudeKey.trim() === "") {
+      console.log("processWithClaude: No Claude key, returning transcript without summary");
+      new Notice("Claude processing requested but API key is not configured. Using raw transcript instead.");
+      return { transcript, summary: null };
+    }
+    
+    console.log("processWithClaude: generateSummary =", generateSummary);
+
+    if (statusCallback)
+      statusCallback(
+        "Processing transcript with Claude (this may take a moment)...",
+      );
+
+    let prompt = this.settings.prompt || DEFAULT_PROMPT;
+    
+    // Build the full prompt with summary instructions if needed
+    let fullPrompt = prompt;
+    
+    if (generateSummary) {
+      fullPrompt += `\n\nIMPORTANT: You must provide a concise summary (2-3 sentences) of the video content, focusing on the main topics, key points, and overall message.`;
+      fullPrompt += `\n\nYou MUST format your response EXACTLY as follows:\n`;
+      fullPrompt += `\n## Summary\n\n[Your 2-3 sentence summary here]\n\n## Transcript\n\n[Your processed transcript here]\n`;
+      fullPrompt += `\nDo NOT include any other text before or after these sections. Start directly with "## Summary".`;
+    } else {
+      fullPrompt += `\n\nPlease format your response as follows:\n`;
+      fullPrompt += `- Start with a "## Transcript" markdown header followed by the processed transcript\n`;
+    }
+    
+    fullPrompt += `\nTranscript:\n${transcript}`;
+
+    const makeRequest = async (): Promise<{ transcript: string; summary: string | null }> => {
+      const timeoutMinutes = this.settings.openaiTimeout || 1;
+      const timeoutMs = timeoutMinutes * 60 * 1000;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Claude request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
+              ),
+            ),
+          timeoutMs,
+        );
+      });
+
+      // Claude API endpoint (Anthropic)
+      const requestPromise = requestUrl({
+        url: "https://api.anthropic.com/v1/messages",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": this.settings.claudeKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel,
+          max_tokens: 4096,
+          messages: [
+            {
+              role: "user",
+              content: fullPrompt,
+            },
+          ],
+          temperature: 0.3,
+        }),
+      });
+
+      const response = await Promise.race([requestPromise, timeoutPromise]);
+
+      if (response.status < 200 || response.status >= 300) {
+        const errorData = response.json || {};
+        
+        if (response.status === 429) {
+          const retryAfter = response.headers?.["retry-after"] || response.headers?.["Retry-After"];
+          let errorMsg = `Claude rate limit exceeded (429). You've made too many requests too quickly.`;
+          if (retryAfter) {
+            errorMsg += ` Please wait ${retryAfter} seconds before retrying.`;
+          } else {
+            errorMsg += ` Please wait a few minutes before retrying.`;
+          }
+          throw new Error(errorMsg);
+        }
+        
+        throw new Error(
+          `Claude API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
+        );
+      }
+
+      const data = response.json;
+      const responseContent = data.content?.[0]?.text;
+
+      if (!responseContent) {
+        throw new Error("No response from Claude");
+      }
+
+      return this.parseLLMResponse(responseContent.trim(), generateSummary);
+    };
+
+    try {
+      return await makeRequest();
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      
+      if (errorMessage.includes("timed out")) {
+        const shouldRetry = await new RetryConfirmationModal(
+          this.app,
+          errorMessage,
+        ).waitForResponse();
+
+        if (shouldRetry) {
+          if (statusCallback)
+            statusCallback("Retrying Claude processing...");
+          try {
+            return await makeRequest();
+          } catch (retryError: unknown) {
+            const retryErrorMessage =
+              retryError instanceof Error ? retryError.message : "Unknown error";
+            throw new Error(
+              `Failed to process transcript with Claude after retry: ${retryErrorMessage}`,
+            );
+          }
+        } else {
+          new Notice("Using raw transcript (Claude processing skipped)");
+          return { transcript, summary: null };
+        }
+      }
+      
+      const isRateLimitError = 
+        errorMessage.toLowerCase().includes("rate limit") ||
+        errorMessage.includes("429") ||
+        errorMessage.toLowerCase().includes("too many requests");
+      
+      if (isRateLimitError) {
+        const shouldRetry = await new RetryConfirmationModal(
+          this.app,
+          errorMessage + "\n\nYou can retry after waiting a few minutes, or use the raw transcript without Claude processing.",
+        ).waitForResponse();
+
+        if (shouldRetry) {
+          if (statusCallback)
+            statusCallback("Waiting before retrying Claude processing (rate limit)...");
+          await new Promise((resolve) => setTimeout(resolve, 60000));
+          if (statusCallback)
+            statusCallback("Retrying Claude processing...");
+          try {
+            return await makeRequest();
+          } catch (retryError: unknown) {
+            const retryErrorMessage =
+              retryError instanceof Error ? retryError.message : "Unknown error";
+            const isStillRateLimited = 
+              retryErrorMessage.toLowerCase().includes("rate limit") ||
+              retryErrorMessage.includes("429") ||
+              retryErrorMessage.toLowerCase().includes("too many requests");
+            if (isStillRateLimited) {
+              new Notice("Still rate limited. Using raw transcript instead.");
+              return { transcript, summary: null };
+            }
+            throw new Error(
+              `Failed to process transcript with Claude after retry: ${retryErrorMessage}`,
+            );
+          }
+        } else {
+          new Notice("Using raw transcript (Claude processing skipped due to rate limit)");
+          return { transcript, summary: null };
+        }
+      }
+      
+      console.error("Claude processing error:", error);
+      throw new Error(
+        `Failed to process transcript with Claude: ${errorMessage}`,
+      );
+    }
+  }
+
+  parseLLMResponse(
+    responseContent: string,
+    generateSummary: boolean,
+  ): { transcript: string; summary: string | null } {
+    const trimmedContent = responseContent.trim();
+    
+    // Parse the response to extract summary and transcript with headers
+    let summary: string | null = null;
+    let processedTranscript: string;
+    
+    if (generateSummary) {
+      // Try multiple patterns to extract summary (more flexible matching)
+      let summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n(.*?)(?=\n##\s+Transcript|$)/s);
+      
+      if (!summaryMatch) {
+        summaryMatch = trimmedContent.match(/##\s+Summary\s*\n(.*?)(?=\n##\s+Transcript|$)/s);
+      }
+      
+      if (!summaryMatch) {
+        summaryMatch = trimmedContent.match(/(?:##\s+)?Summary[:\-]?\s*\n\n?(.*?)(?=\n##\s+Transcript|\n##\s+Summary|$)/is);
+      }
+      
+      if (summaryMatch && summaryMatch[1]) {
+        summary = summaryMatch[1].trim();
+      }
+      
+      const hasSummarySection = /##\s+Summary/i.test(trimmedContent);
+      const hasTranscriptSection = /##\s+Transcript/i.test(trimmedContent);
+      
+      if (hasSummarySection && hasTranscriptSection) {
+        processedTranscript = trimmedContent;
+        if (!summary) {
+          const summaryMatch = trimmedContent.match(/##\s+Summary\s*\n\n?(.*?)(?=\n##\s+Transcript|$)/is);
+          if (summaryMatch && summaryMatch[1]) {
+            summary = summaryMatch[1].trim();
+          } else {
+            const summaryIndex = trimmedContent.search(/##\s+Summary/i);
+            const transcriptIndex = trimmedContent.search(/##\s+Transcript/i);
+            if (transcriptIndex > summaryIndex && summaryIndex !== -1) {
+              const afterSummary = trimmedContent.substring(summaryIndex);
+              const beforeTranscript = afterSummary.substring(0, afterSummary.search(/##\s+Transcript/i));
+              summary = beforeTranscript.replace(/##\s+Summary\s*/i, '').trim();
+            }
+          }
+        }
+        const hasSummaryInOutput = /##\s+Summary/i.test(processedTranscript);
+        if (!hasSummaryInOutput) {
+          console.warn('Summary section detected in response but not found in final transcript. Reconstructing...');
+          const transcriptMatch = trimmedContent.match(/##\s+Transcript\s*\n\n?(.*?)$/is);
+          const transcriptContent = transcriptMatch ? transcriptMatch[1].trim() : trimmedContent;
+          processedTranscript = `## Summary\n\n${summary || 'Summary not extracted'}\n\n## Transcript\n\n${transcriptContent}`;
+        }
+      } else {
+        console.warn('LLM response did not follow expected format with Summary and Transcript sections');
+        
+        if (summary) {
+          const transcriptMatch = trimmedContent.match(/##\s+Transcript\s*\n\n?(.*?)$/s);
+          const transcriptContent = transcriptMatch ? transcriptMatch[1].trim() : trimmedContent.replace(/##\s+Summary\s*\n\n?.*?$/is, '').trim();
+          processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${transcriptContent || trimmedContent}`;
+        } else if (hasSummarySection) {
+          const summaryIndex = trimmedContent.indexOf('## Summary');
+          const transcriptIndex = trimmedContent.indexOf('## Transcript');
+          
+          if (transcriptIndex > summaryIndex) {
+            const summaryText = trimmedContent.substring(summaryIndex + 10, transcriptIndex).trim();
+            const transcriptText = trimmedContent.substring(transcriptIndex + 14).trim();
+            summary = summaryText;
+            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${transcriptText}`;
+          } else {
+            const afterSummary = trimmedContent.substring(summaryIndex + 10).trim();
+            const firstPara = afterSummary.split('\n\n')[0] || afterSummary.split('\n')[0] || afterSummary.substring(0, 300);
+            summary = firstPara.trim();
+            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${afterSummary}`;
+          }
+        } else {
+          const firstPara = trimmedContent.split('\n\n')[0] || trimmedContent.split('\n')[0];
+          if (firstPara && firstPara.length < 500 && !firstPara.startsWith('##')) {
+            summary = firstPara.trim();
+            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${trimmedContent}`;
+          } else {
+            summary = 'Video transcript processed and cleaned.';
+            processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${trimmedContent}`;
+          }
+        }
+      }
+      
+      if (generateSummary && !/##\s+Summary/i.test(processedTranscript)) {
+        console.warn('Summary was requested but not found in LLM response. Adding fallback summary.');
+        if (!summary) {
+          summary = 'Summary generation requested but LLM response did not include a summary section.';
+        }
+        if (/##\s+Transcript/i.test(processedTranscript)) {
+          processedTranscript = processedTranscript.replace(
+            /(##\s+Transcript)/i,
+            `## Summary\n\n${summary}\n\n$1`
+          );
+        } else {
+          processedTranscript = `## Summary\n\n${summary}\n\n## Transcript\n\n${processedTranscript}`;
+        }
+      }
+      
+      if (generateSummary) {
+        const finalCheck = /##\s+Summary/i.test(processedTranscript);
+        if (!finalCheck) {
+          console.error('CRITICAL: Summary section still missing after all attempts!');
+          processedTranscript = `## Summary\n\n${summary || 'Summary could not be generated'}\n\n## Transcript\n\n${processedTranscript}`;
+        }
+      }
+    } else {
+      processedTranscript = trimmedContent;
+    }
+    
+    if (!processedTranscript || processedTranscript.length === 0) {
+      processedTranscript = trimmedContent;
+    }
+
+    if (generateSummary) {
+      const hasSummaryInTranscript = processedTranscript.includes('## Summary');
+      if (summary || hasSummaryInTranscript) {
+        new Notice("LLM processing complete with summary");
+        console.log("Summary generation successful. Summary present:", !!summary, "Summary in transcript:", hasSummaryInTranscript);
+      } else {
+        new Notice("LLM processing complete (summary may be missing)");
+        console.warn("Summary was requested but not found. Response preview:", trimmedContent.substring(0, 500));
+      }
+    } else {
+      new Notice("LLM processing complete");
+    }
+
+    return { transcript: processedTranscript, summary };
+  }
 
   insertTranscript(
     view: MarkdownView,
@@ -1059,6 +1508,7 @@ class YouTubeUrlModal extends Modal {
     createNewFile: boolean,
     includeVideoUrl: boolean,
     generateSummary: boolean,
+    llmProvider: LLMProvider,
   ) => void | Promise<void>;
   plugin: YouTubeTranscriptPlugin;
 
@@ -1070,6 +1520,7 @@ class YouTubeUrlModal extends Modal {
       createNewFile: boolean,
       includeVideoUrl: boolean,
       generateSummary: boolean,
+      llmProvider: LLMProvider,
     ) => void | Promise<void>,
   ) {
     super(app);
@@ -1129,6 +1580,28 @@ class YouTubeUrlModal extends Modal {
       },
     });
 
+    // Add provider selection dropdown
+    const providerContainer = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em; display: flex; align-items: center; gap: 0.5em;" },
+    });
+    const providerLabel = providerContainer.createEl("label", {
+      text: "LLM provider:",
+      attr: {
+        style: "white-space: nowrap;",
+      },
+    });
+    const providerDropdown = providerContainer.createEl("select", {
+      attr: {
+        id: "llm-provider-dropdown",
+        style: "flex: 1;",
+      },
+    });
+    providerDropdown.add(new Option("None (raw transcript)", "none"));
+    providerDropdown.add(new Option("OpenAI", "openai"));
+    providerDropdown.add(new Option("Google Gemini", "gemini"));
+    providerDropdown.add(new Option("Anthropic Claude", "claude"));
+    providerDropdown.value = this.plugin.settings.llmProvider || "none";
+
     // Add checkbox for generating summary
     const generateSummaryContainer = contentEl.createDiv({
       attr: { style: "margin-bottom: 1em;" },
@@ -1142,13 +1615,23 @@ class YouTubeUrlModal extends Modal {
     if (this.plugin.settings.generateSummary) {
       generateSummaryCheckbox.checked = true;
     }
+    
     const generateSummaryLabel = generateSummaryContainer.createEl("label", {
-      text: "Generate summary (requires OpenAI API key)",
+      text: `Generate summary (requires ${this.plugin.getProviderName(providerDropdown.value as LLMProvider)} API key)`,
       attr: {
         for: "generate-summary-checkbox",
         style: "margin-left: 0.5em; cursor: pointer;",
       },
     });
+    
+    // Update summary label based on selected provider
+    const updateSummaryLabel = () => {
+      const selectedProvider = providerDropdown.value as LLMProvider;
+      const providerName = this.plugin.getProviderName(selectedProvider);
+      generateSummaryLabel.textContent = `Generate summary (requires ${providerName} API key)`;
+    };
+    
+    providerDropdown.addEventListener("change", updateSummaryLabel);
 
     const buttonContainer = contentEl.createDiv({
       attr: { style: "text-align: right;" },
@@ -1167,7 +1650,8 @@ class YouTubeUrlModal extends Modal {
         const createNewFile = createNewFileCheckbox.checked;
         const includeVideoUrl = includeUrlCheckbox.checked;
         const generateSummary = generateSummaryCheckbox.checked;
-        void this.onSubmit(url, createNewFile, includeVideoUrl, generateSummary);
+        const llmProvider = providerDropdown.value as LLMProvider;
+        void this.onSubmit(url, createNewFile, includeVideoUrl, generateSummary, llmProvider);
         this.close();
       }
     };
@@ -1179,7 +1663,8 @@ class YouTubeUrlModal extends Modal {
           const createNewFile = createNewFileCheckbox.checked;
           const includeVideoUrl = includeUrlCheckbox.checked;
           const generateSummary = generateSummaryCheckbox.checked;
-          void this.onSubmit(url, createNewFile, includeVideoUrl, generateSummary);
+          const llmProvider = providerDropdown.value as LLMProvider;
+          void this.onSubmit(url, createNewFile, includeVideoUrl, generateSummary, llmProvider);
           this.close();
         }
       }
@@ -1212,24 +1697,134 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
       .setHeading();
 
     new Setting(containerEl)
-      .setName("OpenAI API key")
-      .setDesc(
-        "Your OpenAI API key for processing transcripts (optional but recommended)",
-      )
-      .addText((text) => {
-        text.inputEl.type = "password";
-        text
-          .setPlaceholder("sk-...")
-          .setValue(this.plugin.settings.openaiKey)
-          .onChange(async (value) => {
-            this.plugin.settings.openaiKey = value;
+      .setName("LLM provider")
+      .setDesc("Select which LLM provider to use for transcript processing")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("none", "None (raw transcript)")
+          .addOption("openai", "OpenAI")
+          .addOption("gemini", "Google Gemini")
+          .addOption("claude", "Anthropic Claude")
+          .setValue(this.plugin.settings.llmProvider || "none")
+          .onChange(async (value: LLMProvider) => {
+            this.plugin.settings.llmProvider = value;
             await this.plugin.saveSettings();
+            // Refresh the settings display to show/hide relevant API key fields
+            this.display();
           });
       });
 
+    // Show OpenAI API key field if OpenAI is selected or if it's the current provider
+    if (this.plugin.settings.llmProvider === "openai" || this.plugin.settings.llmProvider === "none") {
+      new Setting(containerEl)
+        .setName("OpenAI API key")
+        .setDesc(
+          "Your OpenAI API key for processing transcripts (get one at https://platform.openai.com/api-keys)",
+        )
+        .addText((text) => {
+          text.inputEl.type = "password";
+          text
+            .setPlaceholder("sk-...")
+            .setValue(this.plugin.settings.openaiKey)
+            .onChange(async (value) => {
+              this.plugin.settings.openaiKey = value;
+              await this.plugin.saveSettings();
+            });
+        });
+
+      new Setting(containerEl)
+        .setName("OpenAI Model")
+        .setDesc("Select the OpenAI model to use for transcript processing")
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption("gpt-4o-mini", "GPT-4o Mini (fast, cost-effective)")
+            .addOption("gpt-4o", "GPT-4o (high quality)")
+            .addOption("gpt-4-turbo", "GPT-4 Turbo")
+            .addOption("gpt-4", "GPT-4")
+            .addOption("gpt-3.5-turbo", "GPT-3.5 Turbo")
+            .setValue(this.plugin.settings.openaiModel || DEFAULT_SETTINGS.openaiModel)
+            .onChange(async (value) => {
+              this.plugin.settings.openaiModel = value;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
+
+    // Show Gemini API key field if Gemini is selected
+    if (this.plugin.settings.llmProvider === "gemini") {
+      new Setting(containerEl)
+        .setName("Gemini API key")
+        .setDesc(
+          "Your Google Gemini API key for processing transcripts (get one at https://aistudio.google.com/app/apikey)",
+        )
+        .addText((text) => {
+          text.inputEl.type = "password";
+          text
+            .setPlaceholder("AIza...")
+            .setValue(this.plugin.settings.geminiKey)
+            .onChange(async (value) => {
+              this.plugin.settings.geminiKey = value;
+              await this.plugin.saveSettings();
+            });
+        });
+
+      new Setting(containerEl)
+        .setName("Gemini Model")
+        .setDesc("Select the Gemini model to use for transcript processing")
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption("gemini-1.5-flash", "Gemini 1.5 Flash (fast, cost-effective)")
+            .addOption("gemini-1.5-pro", "Gemini 1.5 Pro (high quality)")
+            .addOption("gemini-1.5-flash-latest", "Gemini 1.5 Flash Latest")
+            .addOption("gemini-1.5-pro-latest", "Gemini 1.5 Pro Latest")
+            .addOption("gemini-pro", "Gemini Pro")
+            .setValue(this.plugin.settings.geminiModel || DEFAULT_SETTINGS.geminiModel)
+            .onChange(async (value) => {
+              this.plugin.settings.geminiModel = value;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
+
+    // Show Claude API key field if Claude is selected
+    if (this.plugin.settings.llmProvider === "claude") {
+      new Setting(containerEl)
+        .setName("Claude API key")
+        .setDesc(
+          "Your Anthropic Claude API key for processing transcripts (get one at https://console.anthropic.com/)",
+        )
+        .addText((text) => {
+          text.inputEl.type = "password";
+          text
+            .setPlaceholder("sk-ant-...")
+            .setValue(this.plugin.settings.claudeKey)
+            .onChange(async (value) => {
+              this.plugin.settings.claudeKey = value;
+              await this.plugin.saveSettings();
+            });
+        });
+
+      new Setting(containerEl)
+        .setName("Claude Model")
+        .setDesc("Select the Claude model to use for transcript processing")
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet (recommended)")
+            .addOption("claude-3-5-haiku-20241022", "Claude 3.5 Haiku (fast, cost-effective)")
+            .addOption("claude-3-opus-20240229", "Claude 3 Opus (highest quality)")
+            .addOption("claude-3-sonnet-20240229", "Claude 3 Sonnet")
+            .addOption("claude-3-haiku-20240307", "Claude 3 Haiku")
+            .setValue(this.plugin.settings.claudeModel || DEFAULT_SETTINGS.claudeModel)
+            .onChange(async (value) => {
+              this.plugin.settings.claudeModel = value;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
+
     const promptSetting = new Setting(containerEl)
       .setName("Processing prompt")
-      .setDesc("The prompt sent to OpenAI for processing the transcript");
+      .setDesc("The prompt sent to the LLM for processing the transcript");
 
     const textarea = promptSetting.controlEl.createEl("textarea", {
       attr: {
@@ -1246,9 +1841,9 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
     });
 
     new Setting(containerEl)
-      .setName("OpenAI timeout")
+      .setName("LLM timeout")
       .setDesc(
-        "Timeout for OpenAI API requests in minutes (default: 1 minute / 60 seconds)",
+        "Timeout for LLM API requests in minutes (default: 1 minute / 60 seconds)",
       )
       .addText((text) => {
         text.inputEl.type = "number";

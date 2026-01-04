@@ -51,14 +51,24 @@ describe('YouTubeTranscriptPlugin', () => {
 	it('should handle settings loading', () => {
 		// Test that settings can be loaded
 		const defaultSettings = {
+			llmProvider: "none" as const,
 			openaiKey: '',
+			openaiModel: "gpt-4o-mini",
+			geminiKey: '',
+			geminiModel: "gemini-1.5-flash",
+			claudeKey: '',
+			claudeModel: "claude-3-5-sonnet-20241022",
 			prompt: 'Default prompt',
 			openaiTimeout: 1,
 			includeVideoUrl: false,
 			generateSummary: false,
 		};
 		
+		expect(defaultSettings.llmProvider).toBe("none");
 		expect(defaultSettings.openaiKey).toBe('');
+		expect(defaultSettings.openaiModel).toBe("gpt-4o-mini");
+		expect(defaultSettings.geminiModel).toBe("gemini-1.5-flash");
+		expect(defaultSettings.claudeModel).toBe("claude-3-5-sonnet-20241022");
 		expect(defaultSettings.prompt).toBe('Default prompt');
 		expect(defaultSettings.openaiTimeout).toBe(1);
 		expect(defaultSettings.includeVideoUrl).toBe(false);
