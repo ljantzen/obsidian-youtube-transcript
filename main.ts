@@ -80,7 +80,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     });
   }
 
-  onunload() {}
+  onunload() {
+    // Plugin cleanup if needed
+  }
 
   async loadSettings() {
     const loadedData = await this.loadData();
@@ -284,7 +286,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     includeVideoUrl: boolean,
   ) {
     // Sanitize the filename
-    let sanitizedTitle = this.sanitizeFilename(videoTitle);
+    const baseSanitizedTitle = this.sanitizeFilename(videoTitle);
+    let sanitizedTitle = baseSanitizedTitle;
 
     // Get the directory of the active file
     const activeFilePath = activeFile.path;
@@ -299,8 +302,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       : `${sanitizedTitle}.md`;
     let counter = 1;
     while (await this.app.vault.adapter.exists(newFilePath)) {
-      const baseName = sanitizedTitle;
-      sanitizedTitle = `${baseName} (${counter})`;
+      sanitizedTitle = `${baseSanitizedTitle} (${counter})`;
       newFilePath = directory
         ? `${directory}/${sanitizedTitle}.md`
         : `${sanitizedTitle}.md`;
@@ -319,10 +321,61 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     const fileContent = parts.join("\n\n");
 
-    // Create the file
-    await this.app.vault.create(newFilePath, fileContent);
+    // Create the file, handling race conditions
+    try {
+      // Double-check file doesn't exist (race condition protection)
+      const fileExists = await this.app.vault.adapter.exists(newFilePath);
 
-    // Open the new file
+      if (fileExists) {
+        // File was created between our check and now, find a new name
+        let fallbackCounter = counter;
+        let fallbackPath = directory
+          ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
+          : `${baseSanitizedTitle} (${fallbackCounter}).md`;
+        while (await this.app.vault.adapter.exists(fallbackPath)) {
+          fallbackCounter++;
+          fallbackPath = directory
+            ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
+            : `${baseSanitizedTitle} (${fallbackCounter}).md`;
+        }
+        await this.app.vault.create(fallbackPath, fileContent);
+        newFilePath = fallbackPath;
+      } else {
+        // File doesn't exist, create it
+        await this.app.vault.create(newFilePath, fileContent);
+      }
+    } catch (error: unknown) {
+      // If create fails (e.g., file was created between check and create),
+      // find a new name and create a secondary file
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+
+      // Check if the error is because file already exists
+      if (
+        errorMessage.includes("already exists") ||
+        errorMessage.includes("file exists") ||
+        (await this.app.vault.adapter.exists(newFilePath))
+      ) {
+        // File exists, create a secondary file with incremented name
+        let fallbackCounter = counter;
+        let fallbackPath = directory
+          ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
+          : `${baseSanitizedTitle} (${fallbackCounter}).md`;
+        while (await this.app.vault.adapter.exists(fallbackPath)) {
+          fallbackCounter++;
+          fallbackPath = directory
+            ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
+            : `${baseSanitizedTitle} (${fallbackCounter}).md`;
+        }
+        await this.app.vault.create(fallbackPath, fileContent);
+        newFilePath = fallbackPath;
+      } else {
+        // Re-throw if it's a different error
+        throw error;
+      }
+    }
+
+    // Open the file
     await this.app.workspace.openLinkText(newFilePath, "", false);
   }
 
@@ -1064,10 +1117,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const model = this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
       // Ensure API key is properly formatted (remove any whitespace)
       const apiKey = this.settings.geminiKey.trim();
-      
+
       // Log the request details for debugging
-      console.debug(`Gemini API request: model=${model}, url=https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);
-      
+      console.debug(
+        `Gemini API request: model=${model}, url=https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      );
+
       // Try v1beta first (more up-to-date), fallback to v1 if needed
       const requestPromise = requestUrl({
         url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -1148,7 +1203,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      
+
       // Log the full error for debugging
       console.debug("Gemini processing error:", error);
       if (error instanceof Error && error.stack) {
@@ -1314,14 +1369,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Ensure API key is properly formatted (remove any whitespace)
       const apiKey = this.settings.claudeKey.trim();
       const model = this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
-      
+
       // Validate Claude model name format
       if (!this.validateClaudeModelName(model)) {
         const errorMsg = `Invalid Claude model name: "${model}". Only Claude version 4 models are supported. Valid formats: claude-opus-4-1, claude-opus-4-1-20250805, claude-opus-4, claude-opus-4-20250514, claude-sonnet-4, claude-sonnet-4-20250514. Please check your model selection in settings.`;
         new Notice(errorMsg);
         throw new Error(errorMsg);
       }
-      
+
       const requestPromise = requestUrl({
         url: "https://api.anthropic.com/v1/messages",
         method: "POST",
@@ -1725,7 +1780,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
 // Custom error class for user cancellation
 class UserCancelledError extends Error {
-  constructor(message: string = "Transcript creation cancelled by user") {
+  constructor(message = "Transcript creation cancelled by user") {
     super(message);
     this.name = "UserCancelledError";
   }
@@ -1735,7 +1790,7 @@ class RetryConfirmationModal extends Modal {
   result: boolean | null = null;
   resolvePromise: ((value: boolean | null) => void) | null = null;
 
-  constructor(app: App, errorMessage: string, providerName: string = "LLM") {
+  constructor(app: App, errorMessage: string, providerName = "LLM") {
     super(app);
     this.errorMessage = errorMessage;
     this.providerName = providerName;
@@ -1747,7 +1802,9 @@ class RetryConfirmationModal extends Modal {
   onOpen() {
     const { contentEl } = this;
 
-    contentEl.createEl("h2", { text: `${this.providerName} request timed out` });
+    contentEl.createEl("h2", {
+      text: `${this.providerName} request timed out`,
+    });
 
     contentEl.createEl("p", {
       text: this.errorMessage,
@@ -1899,11 +1956,25 @@ class YouTubeUrlModal extends Modal {
         style: "flex: 1;",
       },
     });
+    
+    // Always include "None" option
     providerDropdown.add(new Option("None (raw transcript)", "none"));
-    providerDropdown.add(new Option("OpenAI", "openai"));
-    providerDropdown.add(new Option("Google Gemini", "gemini"));
-    providerDropdown.add(new Option("Anthropic Claude", "claude"));
-    providerDropdown.value = this.plugin.settings.llmProvider || "none";
+    
+    // Only add providers that have configured API keys
+    if (this.plugin.hasProviderKey("openai")) {
+      providerDropdown.add(new Option("OpenAI", "openai"));
+    }
+    if (this.plugin.hasProviderKey("gemini")) {
+      providerDropdown.add(new Option("Google Gemini", "gemini"));
+    }
+    if (this.plugin.hasProviderKey("claude")) {
+      providerDropdown.add(new Option("Anthropic Claude", "claude"));
+    }
+    
+    // Set default value, fallback to "none" if current provider doesn't have a key
+    const currentProvider = this.plugin.settings.llmProvider || "none";
+    const hasCurrentProviderKey = currentProvider === "none" || this.plugin.hasProviderKey(currentProvider);
+    providerDropdown.value = hasCurrentProviderKey ? currentProvider : "none";
 
     // Add checkbox for generating summary
     const generateSummaryContainer = contentEl.createDiv({
@@ -1920,7 +1991,7 @@ class YouTubeUrlModal extends Modal {
     }
 
     const generateSummaryLabel = generateSummaryContainer.createEl("label", {
-      text: `Generate summary (requires ${this.plugin.getProviderName(providerDropdown.value as LLMProvider)} API key)`,
+      text: `Generate summary`,
       attr: {
         for: "generate-summary-checkbox",
         style: "margin-left: 0.5em; cursor: pointer;",
@@ -1929,9 +2000,7 @@ class YouTubeUrlModal extends Modal {
 
     // Update summary label based on selected provider
     const updateSummaryLabel = () => {
-      const selectedProvider = providerDropdown.value as LLMProvider;
-      const providerName = this.plugin.getProviderName(selectedProvider);
-      generateSummaryLabel.textContent = `Generate summary (requires ${providerName} API key)`;
+      generateSummaryLabel.textContent = `Generate summary`;
     };
 
     providerDropdown.addEventListener("change", updateSummaryLabel);
@@ -2007,9 +2076,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    new Setting(containerEl)
-      .setName("YouTube transcript")
-      .setHeading();
+    new Setting(containerEl).setName("YouTube transcript").setHeading();
 
     new Setting(containerEl)
       .setName("LLM provider")
@@ -2138,10 +2205,7 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
               "claude-opus-4-1-20250805",
               "Claude Opus 4.1 (latest, GA)",
             )
-            .addOption(
-              "claude-opus-4-20250514",
-              "Claude Opus 4 (GA)",
-            )
+            .addOption("claude-opus-4-20250514", "Claude Opus 4 (GA)")
             .addOption(
               "claude-sonnet-4-20250514",
               "Claude Sonnet 4 (recommended, GA)",
@@ -2159,9 +2223,14 @@ class YouTubeTranscriptSettingTab extends PluginSettingTab {
                 this.plugin.settings.claudeModel = value;
                 await this.plugin.saveSettings();
               } else {
-                new Notice(`Invalid Claude model name: "${value}". Please select a valid model from the dropdown.`);
+                new Notice(
+                  `Invalid Claude model name: "${value}". Please select a valid model from the dropdown.`,
+                );
                 // Reset to default if invalid
-                dropdown.setValue(this.plugin.settings.claudeModel || DEFAULT_SETTINGS.claudeModel);
+                dropdown.setValue(
+                  this.plugin.settings.claudeModel ||
+                    DEFAULT_SETTINGS.claudeModel,
+                );
               }
             });
         });
