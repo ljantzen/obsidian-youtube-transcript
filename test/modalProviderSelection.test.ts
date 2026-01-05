@@ -117,8 +117,7 @@ describe("URL Modal Provider Selection", () => {
         claudeKey: "",
       };
 
-      const hasCurrentProviderKey =
-        settingsProvider === "none" || hasProviderKey(settingsProvider, keys);
+      const hasCurrentProviderKey = hasProviderKey(settingsProvider, keys);
       const defaultValue = hasCurrentProviderKey ? settingsProvider : "none";
 
       expect(defaultValue).toBe("openai");
@@ -132,8 +131,7 @@ describe("URL Modal Provider Selection", () => {
         claudeKey: "sk-ant-test",
       };
 
-      const hasCurrentProviderKey =
-        settingsProvider === "none" || hasProviderKey(settingsProvider, keys);
+      const hasCurrentProviderKey = hasProviderKey(settingsProvider, keys);
       const defaultValue = hasCurrentProviderKey ? settingsProvider : "none";
 
       expect(defaultValue).toBe("none");
@@ -170,8 +168,7 @@ describe("URL Modal Provider Selection", () => {
         claudeKey: "",
       };
 
-      const hasCurrentProviderKey =
-        previousProvider === "none" || hasProviderKey(previousProvider, currentKeys);
+      const hasCurrentProviderKey = hasProviderKey(previousProvider, currentKeys);
       const defaultValue = hasCurrentProviderKey ? previousProvider : "none";
 
       expect(defaultValue).toBe("none");
