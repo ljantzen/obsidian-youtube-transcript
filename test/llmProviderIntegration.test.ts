@@ -6,13 +6,12 @@ describe("LLM Provider Integration", () => {
   describe("Request body formatting", () => {
     describe("OpenAI request structure", () => {
       it("should format OpenAI API request body correctly", () => {
-        const model = "gpt-4o-mini";
         const prompt = "Process this transcript";
         const transcript = "Sample transcript text";
         const fullPrompt = `${prompt}\nTranscript:\n${transcript}`;
 
         const requestBody = {
-          model: model,
+          model: "gpt-4o-mini",
           messages: [
             {
               role: "user",
@@ -67,7 +66,6 @@ describe("LLM Provider Integration", () => {
 
     describe("Gemini request structure", () => {
       it("should format Gemini API request body correctly", () => {
-        const model = "gemini-2.0-flash";
         const prompt = "Process this transcript";
         const transcript = "Sample transcript text";
         const fullPrompt = `${prompt}\nTranscript:\n${transcript}`;
@@ -197,7 +195,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle empty OpenAI response", () => {
-        const mockResponse = {
+        const mockResponse: any = {
           choices: [],
         };
 
@@ -206,7 +204,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle OpenAI response with missing content", () => {
-        const mockResponse = {
+        const mockResponse: any = {
           choices: [
             {
               message: {},
@@ -243,7 +241,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle empty Gemini response", () => {
-        const mockResponse = {
+        const mockResponse: any = {
           candidates: [],
         };
 
@@ -270,7 +268,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle empty Claude response", () => {
-        const mockResponse = {
+        const mockResponse: any = {
           content: [],
         };
 
@@ -289,7 +287,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should identify authentication errors (403)", () => {
-        const status = 403;
+        const status = 403 as number;
         const isAuthError = status === 401 || status === 403;
         expect(isAuthError).toBe(true);
       });
@@ -384,7 +382,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle missing retry-after header", () => {
-        const headers = {};
+        const headers: any = {};
         const retryAfter = headers["retry-after"] || headers["Retry-After"];
         expect(retryAfter).toBeUndefined();
       });
@@ -420,7 +418,7 @@ describe("LLM Provider Integration", () => {
     });
 
     it("should format timeout error message with plural minutes", () => {
-      const timeoutMinutes = 2;
+      const timeoutMinutes = 2 as number;
       const errorMsg = `OpenAI request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`;
 
       expect(errorMsg).toContain("2 minutes");
@@ -446,7 +444,7 @@ describe("LLM Provider Integration", () => {
     });
 
     it("should detect empty API key", () => {
-      const apiKey = "";
+      const apiKey = "" as string;
       const isValid = !!(apiKey && apiKey.trim() !== "");
 
       expect(isValid).toBe(false);
@@ -590,7 +588,7 @@ describe("LLM Provider Integration", () => {
   describe("Fallback to raw transcript", () => {
     it("should return raw transcript when API key is missing", () => {
       const transcript = "Raw transcript text";
-      const apiKey = "";
+      const apiKey = "" as string;
       const isValid = !!(apiKey && apiKey.trim() !== "");
 
       if (!isValid) {
