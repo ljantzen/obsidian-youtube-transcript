@@ -189,11 +189,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         llmProvider: LLMProvider,
         overrideDirectory: string | null | undefined,
       ) => {
+        const fetchingNotice = new Notice(
+          "Fetching transcript from YouTube...",
+          0,
+        );
         try {
-          const fetchingNotice = new Notice(
-            "Fetching transcript from YouTube...",
-            0,
-          );
           const result = await getYouTubeTranscript(
             this.app,
             url,
@@ -260,6 +260,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             );
           }
         } catch (error: unknown) {
+          fetchingNotice.hide();
           // If user cancelled, don't show an error - just silently abort
           if (error instanceof UserCancelledError) {
             return;

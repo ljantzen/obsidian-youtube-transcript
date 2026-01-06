@@ -15,6 +15,13 @@ export class UserCancelledError extends Error {
   }
 }
 
+export class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TimeoutError";
+  }
+}
+
 export async function processWithOpenAI(
   app: App,
   transcript: string,
@@ -51,7 +58,7 @@ export async function processWithOpenAI(
       setTimeout(
         () =>
           reject(
-            new Error(
+            new TimeoutError(
               `OpenAI request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
             ),
           ),
@@ -85,16 +92,8 @@ export async function processWithOpenAI(
 
       // Handle rate limiting (429) specifically
       if (response.status === 429) {
-        const retryAfter =
-          response.headers?.["retry-after"] ||
-          response.headers?.["Retry-After"];
-        let errorMsg = `OpenAI rate limit exceeded (429). You've made too many requests too quickly.`;
-        if (retryAfter) {
-          errorMsg += ` Please wait ${retryAfter} seconds before retrying.`;
-        } else {
-          errorMsg += ` Please wait a few minutes before retrying.`;
-        }
-        new Notice(errorMsg);
+        const errorMsg = formatRateLimitMessage(response.headers);
+        new Notice(errorMsg, 10000); // Show for 10 seconds
         throw new Error(errorMsg);
       }
 
@@ -135,7 +134,7 @@ export async function processWithOpenAI(
       error instanceof Error ? error.message : "Unknown error";
 
     // Check if it's a timeout error
-    if (errorMessage.includes("timed out") && RetryModal) {
+    if (error instanceof TimeoutError && RetryModal) {
       const shouldRetry = await new RetryModal(
         app,
         errorMessage,
@@ -217,4 +216,20 @@ export async function processWithOpenAI(
     console.error("OpenAI processing error:", error);
     throw new Error(errorMsg);
   }
+}
+
+function formatRateLimitMessage(headers: Record<string, string>): string {
+  const remainingRequests = headers["x-ratelimit-remaining-requests"];
+  const remainingTokens = headers["x-ratelimit-remaining-tokens"];
+  const resetRequests = headers["x-ratelimit-reset-requests"];
+  const resetTokens = headers["x-ratelimit-reset-tokens"];
+
+  let reason = "Rate limit exceeded. ";
+  if (remainingRequests === "0") {
+    reason = `You have exceeded your request limit. Please wait ${resetRequests} before making new requests.`;
+  } else if (remainingTokens === "0") {
+    reason = `You have exceeded your token limit. The limit will reset in ${resetTokens}.`;
+  }
+
+  return `OpenAI API Error (429): ${reason}`;
 }

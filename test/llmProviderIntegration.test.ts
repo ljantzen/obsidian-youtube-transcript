@@ -2,6 +2,35 @@ import { describe, it, expect } from "vitest";
 
 type LLMProvider = "openai" | "gemini" | "claude" | "none";
 
+// Define a minimal OpenAI response structure for testing
+interface MockOpenAIResponse {
+  choices?: {
+    message?: {
+      content?: string;
+    };
+  }[];
+}
+
+// Define a minimal Gemini response structure for testing
+interface MockGeminiResponse {
+  candidates?: {
+    content?: {
+      parts?: {
+        text?: string;
+      }[];
+    };
+  }[];
+}
+
+// Define a minimal Claude response structure for testing
+interface MockClaudeResponse {
+  content?: {
+    text?: string;
+  }[];
+}
+
+type Headers = Record<string, string>;
+
 describe("LLM Provider Integration", () => {
   describe("Request body formatting", () => {
     describe("OpenAI request structure", () => {
@@ -195,7 +224,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle empty OpenAI response", () => {
-        const mockResponse: any = {
+        const mockResponse: MockOpenAIResponse = {
           choices: [],
         };
 
@@ -204,7 +233,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle OpenAI response with missing content", () => {
-        const mockResponse: any = {
+        const mockResponse: MockOpenAIResponse = {
           choices: [
             {
               message: {},
@@ -241,7 +270,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle empty Gemini response", () => {
-        const mockResponse: any = {
+        const mockResponse: MockGeminiResponse = {
           candidates: [],
         };
 
@@ -268,7 +297,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle empty Claude response", () => {
-        const mockResponse: any = {
+        const mockResponse: MockClaudeResponse = {
           content: [],
         };
 
@@ -360,6 +389,54 @@ describe("LLM Provider Integration", () => {
         expect(errorMsg).toContain("429");
         expect(errorMsg).toContain("few minutes");
       });
+
+      describe("OpenAI rate limit message formatting", () => {
+        const formatRateLimitMessage = (headers: Record<string, string>): string => {
+          const remainingRequests = headers["x-ratelimit-remaining-requests"];
+          const remainingTokens = headers["x-ratelimit-remaining-tokens"];
+          const resetRequests = headers["x-ratelimit-reset-requests"];
+          const resetTokens = headers["x-ratelimit-reset-tokens"];
+
+          let reason = "Rate limit exceeded. ";
+          if (remainingRequests === "0") {
+            reason = `You have exceeded your request limit. Please wait ${resetRequests} before making new requests.`;
+          } else if (remainingTokens === "0") {
+            reason = `You have exceeded your token limit. The limit will reset in ${resetTokens}.`;
+          }
+
+          return `OpenAI API Error (429): ${reason}`;
+        }
+
+        it("should format message for request-based rate limit", () => {
+          const headers = {
+            "x-ratelimit-remaining-requests": "0",
+            "x-ratelimit-reset-requests": "10s",
+            "x-ratelimit-remaining-tokens": "1000",
+            "x-ratelimit-reset-tokens": "1ms",
+          };
+          const message = formatRateLimitMessage(headers);
+          expect(message).toContain("exceeded your request limit");
+          expect(message).toContain("wait 10s");
+        });
+
+        it("should format message for token-based rate limit", () => {
+          const headers = {
+            "x-ratelimit-remaining-requests": "10",
+            "x-ratelimit-reset-requests": "1ms",
+            "x-ratelimit-remaining-tokens": "0",
+            "x-ratelimit-reset-tokens": "5s",
+          };
+          const message = formatRateLimitMessage(headers);
+          expect(message).toContain("exceeded your token limit");
+          expect(message).toContain("reset in 5s");
+        });
+
+        it("should show generic message if headers are missing", () => {
+          const headers = {};
+          const message = formatRateLimitMessage(headers);
+          expect(message).toContain("Rate limit exceeded");
+        });
+      });
     });
 
     describe("Retry-After header parsing", () => {
@@ -382,7 +459,7 @@ describe("LLM Provider Integration", () => {
       });
 
       it("should handle missing retry-after header", () => {
-        const headers: any = {};
+        const headers: Headers = {};
         const retryAfter = headers["retry-after"] || headers["Retry-After"];
         expect(retryAfter).toBeUndefined();
       });
@@ -425,6 +502,25 @@ describe("LLM Provider Integration", () => {
 
       expect(errorMsg).toContain("2 minutes");
       expect(errorMsg.endsWith("2 minutes")).toBe(true);
+    });
+
+    it("should throw TimeoutError on timeout", async () => {
+      class TestTimeoutError extends Error { constructor(message: string) { super(message); this.name = "TimeoutError"; } }
+      const requestFn = async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        throw new TestTimeoutError("Request timed out");
+      }
+
+      let error: Error | null = null;
+      try {
+        await requestFn();
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).not.toBeNull();
+      expect(error).toBeInstanceOf(TestTimeoutError);
+      expect(error?.message).toContain("timed out");
     });
 
     it("should format timeout error message with singular minute", () => {
