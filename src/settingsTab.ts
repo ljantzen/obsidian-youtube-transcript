@@ -211,6 +211,39 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             }
           });
       });
+
+    new Setting(containerEl).setName("File Creation").setHeading();
+
+    new Setting(containerEl)
+      .setName("Use default directory")
+      .setDesc(
+        "When enabled, new transcript files will be created in the default directory instead of the current file's directory",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.useDefaultDirectory)
+          .onChange(async (value) => {
+            this.settings.useDefaultDirectory = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Default directory")
+      .setDesc(
+        "Directory path where new transcript files will be created (leave empty to use current file's directory). Example: 'Transcripts' or 'Notes/YouTube'",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("Transcripts")
+          .setValue(this.settings.defaultDirectory)
+          .onChange(async (value) => {
+            // Normalize path: remove leading/trailing slashes and ensure forward slashes
+            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+            this.settings.defaultDirectory = normalizedPath;
+            await this.saveSettings();
+          });
+      });
   }
 
   /**

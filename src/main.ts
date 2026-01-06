@@ -3,6 +3,7 @@ import {
   MarkdownView,
   Notice,
   TFile,
+  TFolder,
 } from "obsidian";
 import type {
   YouTubeTranscriptPluginSettings,
@@ -138,6 +139,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.generateSummary = DEFAULT_SETTINGS.generateSummary;
       await this.saveSettings();
     }
+
+    // Ensure defaultDirectory and useDefaultDirectory have default values (backward compatibility)
+    if (this.settings.defaultDirectory === undefined) {
+      this.settings.defaultDirectory = DEFAULT_SETTINGS.defaultDirectory;
+      await this.saveSettings();
+    }
+    if (this.settings.useDefaultDirectory === undefined) {
+      this.settings.useDefaultDirectory = DEFAULT_SETTINGS.useDefaultDirectory;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -176,6 +187,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         includeVideoUrl: boolean,
         generateSummary: boolean,
         llmProvider: LLMProvider,
+        overrideDirectory: string | null | undefined,
       ) => {
         try {
           const fetchingNotice = new Notice(
@@ -222,6 +234,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               normalizedUrl,
               summary,
               includeVideoUrl,
+              overrideDirectory,
             );
             new Notice(
               `Transcript file created successfully! (${transcript.length} characters)`,
@@ -267,14 +280,57 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     videoUrl: string,
     summary: string | null,
     includeVideoUrl: boolean,
+    overrideDirectory?: string | null, // null = use default directory, undefined = use active file's directory, string = use this directory
   ) {
     const baseSanitizedTitle = sanitizeFilename(videoTitle);
 
-    const activeFilePath = activeFile.path;
-    const directory = activeFilePath.substring(
-      0,
-      activeFilePath.lastIndexOf("/"),
-    );
+    // Determine which directory to use
+    let directory: string;
+    if (overrideDirectory === null) {
+      // Explicitly use default directory (if enabled and set)
+      directory =
+        this.settings.useDefaultDirectory &&
+        this.settings.defaultDirectory.trim() !== ""
+          ? this.settings.defaultDirectory.trim()
+          : activeFile.path.substring(0, activeFile.path.lastIndexOf("/"));
+    } else if (typeof overrideDirectory === "string") {
+      // Use the provided override directory
+      directory = overrideDirectory;
+    } else {
+      // overrideDirectory is undefined: use default directory if enabled, otherwise use active file's directory
+      if (
+        this.settings.useDefaultDirectory &&
+        this.settings.defaultDirectory.trim() !== ""
+      ) {
+        directory = this.settings.defaultDirectory.trim();
+      } else {
+        directory = activeFile.path.substring(
+          0,
+          activeFile.path.lastIndexOf("/"),
+        );
+      }
+    }
+
+    // Ensure directory exists (create if it doesn't)
+    if (directory && directory.trim() !== "") {
+      const dirFile = this.app.vault.getAbstractFileByPath(directory);
+      if (!dirFile || !(dirFile instanceof TFolder)) {
+        // Create the directory if it doesn't exist or if it exists as a file
+        try {
+          await this.app.vault.createFolder(directory);
+        } catch (error) {
+          // If folder creation fails, fall back to active file's directory
+          console.warn(
+            `Failed to create directory ${directory}, using active file's directory:`,
+            error,
+          );
+          directory = activeFile.path.substring(
+            0,
+            activeFile.path.lastIndexOf("/"),
+          );
+        }
+      }
+    }
 
     // Find an available path by checking if file exists (using getAbstractFileByPath which is synchronous)
     let newFilePath = directory

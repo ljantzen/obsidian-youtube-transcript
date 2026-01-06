@@ -12,6 +12,8 @@ export interface YouTubeTranscriptPluginSettings {
   openaiTimeout: number; // Timeout in minutes
   includeVideoUrl: boolean;
   generateSummary: boolean;
+  defaultDirectory: string; // Default directory for new transcript files (empty = use current file's directory)
+  useDefaultDirectory: boolean; // Whether to use the default directory
 }
 
 export interface CaptionTrack {

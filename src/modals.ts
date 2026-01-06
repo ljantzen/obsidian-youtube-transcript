@@ -84,6 +84,7 @@ export class YouTubeUrlModal extends Modal {
     includeVideoUrl: boolean,
     generateSummary: boolean,
     llmProvider: LLMProvider,
+    overrideDirectory: string | null | undefined,
   ) => void | Promise<void>;
   settings: YouTubeTranscriptPluginSettings;
   callbacks: YouTubeUrlModalCallbacks;
@@ -98,6 +99,7 @@ export class YouTubeUrlModal extends Modal {
       includeVideoUrl: boolean,
       generateSummary: boolean,
       llmProvider: LLMProvider,
+      overrideDirectory: string | null | undefined,
     ) => void | Promise<void>,
   ) {
     super(app);
@@ -136,6 +138,35 @@ export class YouTubeUrlModal extends Modal {
         style: "margin-left: 0.5em; cursor: pointer;",
       },
     });
+
+    // Add checkbox for overriding default directory (only show if default directory is enabled)
+    const overrideDirectoryContainer = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em; margin-left: 1.5em;" },
+    });
+    const overrideDirectoryCheckbox = overrideDirectoryContainer.createEl("input", {
+      type: "checkbox",
+      attr: {
+        id: "override-directory-checkbox",
+      },
+    });
+    overrideDirectoryContainer.createEl("label", {
+      text: "Use current file's directory instead of default",
+      attr: {
+        for: "override-directory-checkbox",
+        style: "margin-left: 0.5em; cursor: pointer;",
+      },
+    });
+
+    // Show/hide override checkbox based on createNewFile and default directory settings
+    const updateOverrideVisibility = () => {
+      const showOverride =
+        createNewFileCheckbox.checked &&
+        this.settings.useDefaultDirectory &&
+        this.settings.defaultDirectory.trim() !== "";
+      overrideDirectoryContainer.style.display = showOverride ? "block" : "none";
+    };
+    createNewFileCheckbox.addEventListener("change", updateOverrideVisibility);
+    updateOverrideVisibility();
 
     // Add checkbox for including video URL
     const includeUrlContainer = contentEl.createDiv({
@@ -246,12 +277,27 @@ export class YouTubeUrlModal extends Modal {
         const includeVideoUrl = includeUrlCheckbox.checked;
         const generateSummary = generateSummaryCheckbox.checked;
         const llmProvider = providerDropdown.value as LLMProvider;
+        // Determine override directory:
+        // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
+        // - If default directory is enabled and override checkbox is unchecked: use default directory (pass null)
+        // - Otherwise: use current file's directory (pass undefined)
+        let overrideDirectory: string | null | undefined = undefined;
+        if (
+          createNewFile &&
+          this.settings.useDefaultDirectory &&
+          this.settings.defaultDirectory.trim() !== ""
+        ) {
+          overrideDirectory = overrideDirectoryCheckbox.checked
+            ? undefined // Use current file's directory
+            : null; // Use default directory
+        }
         void this.onSubmit(
           url,
           createNewFile,
           includeVideoUrl,
           generateSummary,
           llmProvider,
+          overrideDirectory,
         );
         this.close();
       }
@@ -265,12 +311,27 @@ export class YouTubeUrlModal extends Modal {
           const includeVideoUrl = includeUrlCheckbox.checked;
           const generateSummary = generateSummaryCheckbox.checked;
           const llmProvider = providerDropdown.value as LLMProvider;
+          // Determine override directory:
+          // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
+          // - If default directory is enabled and override checkbox is unchecked: use default directory (pass null)
+          // - Otherwise: use current file's directory (pass undefined)
+          let overrideDirectory: string | null | undefined = undefined;
+          if (
+            createNewFile &&
+            this.settings.useDefaultDirectory &&
+            this.settings.defaultDirectory.trim() !== ""
+          ) {
+            overrideDirectory = overrideDirectoryCheckbox.checked
+              ? undefined // Use current file's directory
+              : null; // Use default directory
+          }
           void this.onSubmit(
             url,
             createNewFile,
             includeVideoUrl,
             generateSummary,
             llmProvider,
+            overrideDirectory,
           );
           this.close();
         }

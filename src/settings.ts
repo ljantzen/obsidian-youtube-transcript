@@ -23,6 +23,8 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   openaiTimeout: 1, // Default 1 minute (60 seconds)
   includeVideoUrl: false,
   generateSummary: false,
+  defaultDirectory: "", // Empty = use current file's directory
+  useDefaultDirectory: false, // Default to false to maintain backward compatibility
 };
 
 /**
