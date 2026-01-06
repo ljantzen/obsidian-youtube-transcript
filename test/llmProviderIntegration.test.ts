@@ -397,13 +397,15 @@ describe("LLM Provider Integration", () => {
       expect(timeoutMs).toBe(120000); // 2 minutes = 120,000ms
     });
 
-    it("should use default timeout when not specified", () => {
-      const timeoutMinutes = undefined || 1;
-      const timeoutMs = timeoutMinutes * 60 * 1000;
-
-      expect(timeoutMs).toBe(60000); // 1 minute = 60,000ms
-    });
-
+    		it("should use default timeout when not specified", () => {
+    			let timeoutMinutes;
+    			if (timeoutMinutes === undefined) {
+    				timeoutMinutes = 1;
+    			}
+    			const timeoutMs = timeoutMinutes * 60 * 1000;
+    
+    			expect(timeoutMs).toBe(60000); // 1 minute = 60,000ms
+    		});
     it("should detect timeout error message", () => {
       const errorMessages = [
         "OpenAI request timed out after 2 minutes",

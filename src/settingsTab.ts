@@ -15,6 +15,7 @@ import {
   fetchGeminiModels,
   type ModelInfo,
 } from "./llm/modelFetcher";
+import { FolderSuggest } from "./suggester";
 import {
   populateModelDropdown,
   createModelRefreshButton,
@@ -234,6 +235,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         "Directory path where new transcript files will be created (leave empty to use current file's directory). Example: 'Transcripts' or 'Notes/YouTube'",
       )
       .addText((text) => {
+        new FolderSuggest(this.app, text.inputEl);
         text
           .setPlaceholder("Transcripts")
           .setValue(this.settings.defaultDirectory)
