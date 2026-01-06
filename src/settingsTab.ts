@@ -3,13 +3,29 @@ import type {
   YouTubeTranscriptPluginSettings,
   LLMProvider,
 } from "./types";
-import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_PROMPT,
+  DEFAULT_OPENAI_MODELS,
+  DEFAULT_GEMINI_MODELS,
+} from "./settings";
 import { validateClaudeModelName } from "./utils";
+import {
+  fetchOpenAIModels,
+  fetchGeminiModels,
+  type ModelInfo,
+} from "./llm/modelFetcher";
+import {
+  populateModelDropdown,
+  createModelRefreshButton,
+} from "./settingsTabHelpers";
 
 export class YouTubeTranscriptSettingTab extends PluginSettingTab {
   plugin: Plugin;
   settings: YouTubeTranscriptPluginSettings;
   saveSettings: () => Promise<void>;
+  cachedOpenAIModels: ModelInfo[] | null = null;
+  cachedGeminiModels: ModelInfo[] | null = null;
 
   constructor(
     app: App,
@@ -29,6 +45,16 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl).setName("YouTube transcript").setHeading();
+
+    // Refresh model lists automatically on initialization
+    void this.refreshModelLists();
+
+    // Display plugin version
+    const version = this.plugin.manifest.version;
+    new Setting(containerEl)
+      .setName("Version")
+      .setDesc(`Plugin version: ${version}`)
+      .setDisabled(true);
 
     new Setting(containerEl)
       .setName("LLM provider")
@@ -69,22 +95,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             });
         });
 
-      new Setting(containerEl)
-        .setName("OpenAI model")
-        .setDesc("Select the OpenAI model to use for transcript processing")
-        .addDropdown((dropdown) => {
-          dropdown
-            .addOption("gpt-4o-mini", "GPT-4o Mini (fast, cost-effective)")
-            .addOption("gpt-4o", "GPT-4o (high quality)")
-            .addOption("gpt-4-turbo", "GPT-4 Turbo")
-            .addOption("gpt-4", "GPT-4")
-            .addOption("gpt-3.5-turbo", "GPT-3.5 Turbo")
-            .setValue(this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel)
-            .onChange(async (value) => {
-              this.settings.openaiModel = value;
-              await this.saveSettings();
-            });
-        });
+      this.createOpenAIModelSetting(containerEl);
     }
 
     // Show Gemini API key field if Gemini is selected
@@ -105,24 +116,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             });
         });
 
-      new Setting(containerEl)
-        .setName("Gemini model")
-        .setDesc("Select the Gemini model to use for transcript processing")
-        .addDropdown((dropdown) => {
-          dropdown
-            .addOption("gemini-3-pro", "Gemini 3 Pro")
-            .addOption("gemini-3-flash", "Gemini 3 Flash")
-            .addOption("gemini-flash-latest", "Gemini 2.0 Flash")
-            .addOption("gemini-2.5-pro", "Gemini 2.5 Pro")
-            .addOption("gemini-2.5-flash", "Gemini 2.5 Flash")
-            .addOption("gemini-2.0-pro", "Gemini 2.0 Pro")
-            .addOption("gemini-2.0-flash", "Gemini 2.0 Flash")
-            .setValue(this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel)
-            .onChange(async (value) => {
-              this.settings.geminiModel = value;
-              await this.saveSettings();
-            });
-        });
+      this.createGeminiModelSetting(containerEl);
     }
 
     // Show Claude API key field if Claude is selected
@@ -217,5 +211,145 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             }
           });
       });
+  }
+
+  /**
+   * Refreshes model lists automatically on initialization
+   * Validates that selected models are still available
+   */
+  private async refreshModelLists(): Promise<void> {
+    // Refresh OpenAI models if API key is available
+    if (this.settings.openaiKey && this.settings.openaiKey.trim() !== "") {
+      try {
+        const models = await fetchOpenAIModels(this.settings.openaiKey);
+        this.cachedOpenAIModels = models;
+        // Validate selected model is available
+        const currentModel = this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
+        const modelExists = models.some((m) => m.id === currentModel);
+        if (!modelExists) {
+          // Fallback to default if current model is not available
+          this.settings.openaiModel = DEFAULT_SETTINGS.openaiModel;
+          await this.saveSettings();
+        }
+      } catch (error) {
+        // Silently fail - user can manually refresh if needed
+        console.debug("Failed to auto-refresh OpenAI models:", error);
+      }
+    }
+
+    // Refresh Gemini models if API key is available
+    if (this.settings.geminiKey && this.settings.geminiKey.trim() !== "") {
+      try {
+        const models = await fetchGeminiModels(this.settings.geminiKey);
+        this.cachedGeminiModels = models;
+        // Validate selected model is available
+        const currentModel = this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+        const modelExists = models.some((m) => m.id === currentModel);
+        if (!modelExists) {
+          // Fallback to default if current model is not available
+          this.settings.geminiModel = DEFAULT_SETTINGS.geminiModel;
+          await this.saveSettings();
+        }
+      } catch (error) {
+        // Silently fail - user can manually refresh if needed
+        console.debug("Failed to auto-refresh Gemini models:", error);
+      }
+    }
+  }
+
+  /**
+   * Creates the OpenAI model selection setting with refresh functionality
+   */
+  private createOpenAIModelSetting(containerEl: HTMLElement): void {
+    const setting = new Setting(containerEl)
+      .setName("OpenAI model")
+      .setDesc("Select the OpenAI model to use for transcript processing");
+
+    const modelsToUse = this.cachedOpenAIModels || DEFAULT_OPENAI_MODELS;
+    let currentValue =
+      this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
+
+    // Ensure current model is available in the list
+    const modelExists = modelsToUse.some((m) => m.id === currentValue);
+    if (!modelExists) {
+      // Fallback to default if current model is not available
+      currentValue = DEFAULT_SETTINGS.openaiModel;
+      this.settings.openaiModel = currentValue;
+      void this.saveSettings();
+    }
+
+    setting.addDropdown((dropdown) => {
+      populateModelDropdown(dropdown.selectEl, modelsToUse, currentValue);
+      dropdown.onChange(async (value) => {
+        this.settings.openaiModel = value;
+        await this.saveSettings();
+      });
+    });
+
+    const selectEl = setting.controlEl.querySelector(
+      "select",
+    ) as HTMLSelectElement;
+
+    if (selectEl) {
+      createModelRefreshButton(
+        setting,
+        selectEl,
+        "OpenAI",
+        this.settings.openaiKey,
+        fetchOpenAIModels,
+        (models) => {
+          this.cachedOpenAIModels = models;
+        },
+        () => this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel,
+      );
+    }
+  }
+
+  /**
+   * Creates the Gemini model selection setting with refresh functionality
+   */
+  private createGeminiModelSetting(containerEl: HTMLElement): void {
+    const setting = new Setting(containerEl)
+      .setName("Gemini model")
+      .setDesc("Select the Gemini model to use for transcript processing");
+
+    const modelsToUse = this.cachedGeminiModels || DEFAULT_GEMINI_MODELS;
+    let currentValue =
+      this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+
+    // Ensure current model is available in the list
+    const modelExists = modelsToUse.some((m) => m.id === currentValue);
+    if (!modelExists) {
+      // Fallback to default if current model is not available
+      currentValue = DEFAULT_SETTINGS.geminiModel;
+      this.settings.geminiModel = currentValue;
+      void this.saveSettings();
+    }
+
+    setting.addDropdown((dropdown) => {
+      populateModelDropdown(dropdown.selectEl, modelsToUse, currentValue);
+      dropdown.onChange(async (value) => {
+        this.settings.geminiModel = value;
+        await this.saveSettings();
+      });
+    });
+
+    const selectEl = setting.controlEl.querySelector(
+      "select",
+    ) as HTMLSelectElement;
+
+    if (selectEl) {
+      createModelRefreshButton(
+        setting,
+        selectEl,
+        "Gemini",
+        this.settings.geminiKey,
+        fetchGeminiModels,
+        (models) => {
+          this.cachedGeminiModels = models;
+        },
+        () => this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel,
+      );
+    }
   }
 }

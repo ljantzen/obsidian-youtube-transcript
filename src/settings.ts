@@ -1,4 +1,5 @@
 import type { YouTubeTranscriptPluginSettings } from "./types";
+import type { ModelInfo } from "./llm/modelFetcher";
 
 export const DEFAULT_PROMPT = `Please process the following YouTube video transcript. Your task is to:
 
@@ -23,3 +24,27 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   includeVideoUrl: false,
   generateSummary: false,
 };
+
+/**
+ * Default OpenAI models shown in the dropdown before fetching from API
+ */
+export const DEFAULT_OPENAI_MODELS: ModelInfo[] = [
+  { id: "gpt-4o-mini", displayName: "GPT-4o Mini (fast, cost-effective)" },
+  { id: "gpt-4o", displayName: "GPT-4o (high quality)" },
+  { id: "gpt-4-turbo", displayName: "GPT-4 Turbo" },
+  { id: "gpt-4", displayName: "GPT-4" },
+  { id: "gpt-3.5-turbo", displayName: "GPT-3.5 Turbo" },
+];
+
+/**
+ * Default Gemini models shown in the dropdown before fetching from API
+ */
+export const DEFAULT_GEMINI_MODELS: ModelInfo[] = [
+  { id: "gemini-3-pro", displayName: "Gemini 3 Pro" },
+  { id: "gemini-3-flash", displayName: "Gemini 3 Flash" },
+  { id: "gemini-flash-latest", displayName: "Gemini 2.0 Flash" },
+  { id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro" },
+  { id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash" },
+  { id: "gemini-2.0-pro", displayName: "Gemini 2.0 Pro" },
+  { id: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash" },
+];
