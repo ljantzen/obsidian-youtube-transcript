@@ -269,7 +269,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     includeVideoUrl: boolean,
   ) {
     const baseSanitizedTitle = sanitizeFilename(videoTitle);
-    let sanitizedTitle = baseSanitizedTitle;
 
     const activeFilePath = activeFile.path;
     const directory = activeFilePath.substring(
@@ -277,16 +276,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       activeFilePath.lastIndexOf("/"),
     );
 
-    // Handle duplicate filenames
+    // Find an available path by checking if file exists (using getAbstractFileByPath which is synchronous)
     let newFilePath = directory
-      ? `${directory}/${sanitizedTitle}.md`
-      : `${sanitizedTitle}.md`;
+      ? `${directory}/${baseSanitizedTitle}.md`
+      : `${baseSanitizedTitle}.md`;
     let counter = 1;
-    while (await this.app.vault.adapter.exists(newFilePath)) {
-      sanitizedTitle = `${baseSanitizedTitle} (${counter})`;
-      newFilePath = directory
-        ? `${directory}/${sanitizedTitle}.md`
-        : `${sanitizedTitle}.md`;
+    while (this.app.vault.getAbstractFileByPath(newFilePath)) {
+      const baseName = directory
+        ? `${directory}/${baseSanitizedTitle}`
+        : baseSanitizedTitle;
+      newFilePath = `${baseName} (${counter}).md`;
       counter++;
     }
 
@@ -301,47 +300,26 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     const fileContent = parts.join("\n\n");
 
-    // Create the file, handling race conditions
+    // Create the file (with error handling for race conditions)
     try {
-      const fileExists = await this.app.vault.adapter.exists(newFilePath);
-
-      if (fileExists) {
-        let fallbackCounter = counter;
-        let fallbackPath = directory
-          ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-          : `${baseSanitizedTitle} (${fallbackCounter}).md`;
-        while (await this.app.vault.adapter.exists(fallbackPath)) {
-          fallbackCounter++;
-          fallbackPath = directory
-            ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-            : `${baseSanitizedTitle} (${fallbackCounter}).md`;
-        }
-        await this.app.vault.create(fallbackPath, fileContent);
-        newFilePath = fallbackPath;
-      } else {
-        await this.app.vault.create(newFilePath, fileContent);
-      }
+      await this.app.vault.create(newFilePath, fileContent);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-
+      // Handle race condition: if file was created between check and create
       if (
         errorMessage.includes("already exists") ||
-        errorMessage.includes("file exists") ||
-        (await this.app.vault.adapter.exists(newFilePath))
+        errorMessage.includes("file exists")
       ) {
-        let fallbackCounter = counter;
-        let fallbackPath = directory
-          ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-          : `${baseSanitizedTitle} (${fallbackCounter}).md`;
-        while (await this.app.vault.adapter.exists(fallbackPath)) {
-          fallbackCounter++;
-          fallbackPath = directory
-            ? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-            : `${baseSanitizedTitle} (${fallbackCounter}).md`;
+        // Find next available path and try again
+        const baseName = directory
+          ? `${directory}/${baseSanitizedTitle}`
+          : baseSanitizedTitle;
+        while (this.app.vault.getAbstractFileByPath(newFilePath)) {
+          newFilePath = `${baseName} (${counter}).md`;
+          counter++;
         }
-        await this.app.vault.create(fallbackPath, fileContent);
-        newFilePath = fallbackPath;
+        await this.app.vault.create(newFilePath, fileContent);
       } else {
         throw error;
       }

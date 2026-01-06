@@ -8,7 +8,7 @@
 - [x] **Author URL**: Add your GitHub profile or website URL
 - [x] **Description**: Clear and concise (current: "Fetch and embed YouTube video transcripts in your Obsidian notes")
 - [x] **Version**: Semantic versioning (currently 0.1.0)
-- [x] **minAppVersion**: Set appropriately (currently 0.15.0)
+- [x] **minAppVersion**: Set appropriately (currently 1.0.0)
 - [x] **isDesktopOnly**: Set correctly (false for this plugin)
 
 ### 2. Repository Setup

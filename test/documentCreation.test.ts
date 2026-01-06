@@ -10,9 +10,9 @@ const sanitizeFilename = (filename: string): string => {
 		.substring(0, 100); // Limit length
 };
 
-// Simulate the createTranscriptFile logic for testing
+// Simulate the createTranscriptFile logic for testing (using FileManager API)
 async function simulateCreateTranscriptFile(
-	adapter: { exists: (path: string) => Promise<boolean> },
+	getAvailablePath: (basePath: string, extension: string) => string,
 	create: (path: string, content: string) => Promise<TFile>,
 	activeFile: TFile,
 	videoTitle: string,
@@ -21,7 +21,6 @@ async function simulateCreateTranscriptFile(
 	includeVideoUrl: boolean
 ): Promise<string> {
 	const baseSanitizedTitle = sanitizeFilename(videoTitle);
-	let sanitizedTitle = baseSanitizedTitle;
 
 	const activeFilePath = activeFile.path;
 	const directory = activeFilePath.substring(
@@ -29,18 +28,11 @@ async function simulateCreateTranscriptFile(
 		activeFilePath.lastIndexOf('/')
 	);
 
-	// Handle duplicate filenames
-	let newFilePath = directory
-		? `${directory}/${sanitizedTitle}.md`
-		: `${sanitizedTitle}.md`;
-	let counter = 1;
-	while (await adapter.exists(newFilePath)) {
-		sanitizedTitle = `${baseSanitizedTitle} (${counter})`;
-		newFilePath = directory
-			? `${directory}/${sanitizedTitle}.md`
-			: `${sanitizedTitle}.md`;
-		counter++;
-	}
+	// Use FileManager API to get an available path (handles duplicates automatically)
+	const basePath = directory
+		? `${directory}/${baseSanitizedTitle}.md`
+		: `${baseSanitizedTitle}.md`;
+	const newFilePath = getAvailablePath(basePath, "md");
 
 	// Build file content
 	const parts: string[] = [];
@@ -50,55 +42,13 @@ async function simulateCreateTranscriptFile(
 	parts.push(transcript);
 	const fileContent = parts.join('\n\n');
 
-	// Create the file, handling race conditions
-	try {
-		const fileExists = await adapter.exists(newFilePath);
-		if (fileExists) {
-			// File was created between our check and now, find a new name
-			let fallbackCounter = counter;
-			let fallbackPath = directory
-				? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-				: `${baseSanitizedTitle} (${fallbackCounter}).md`;
-			while (await adapter.exists(fallbackPath)) {
-				fallbackCounter++;
-				fallbackPath = directory
-					? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-					: `${baseSanitizedTitle} (${fallbackCounter}).md`;
-			}
-			await create(fallbackPath, fileContent);
-			return fallbackPath;
-		} else {
-			await create(newFilePath, fileContent);
-			return newFilePath;
-		}
-	} catch (error: unknown) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-		if (
-			errorMessage.includes('already exists') ||
-			errorMessage.includes('file exists') ||
-			(await adapter.exists(newFilePath))
-		) {
-			let fallbackCounter = counter;
-			let fallbackPath = directory
-				? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-				: `${baseSanitizedTitle} (${fallbackCounter}).md`;
-			while (await adapter.exists(fallbackPath)) {
-				fallbackCounter++;
-				fallbackPath = directory
-					? `${directory}/${baseSanitizedTitle} (${fallbackCounter}).md`
-					: `${baseSanitizedTitle} (${fallbackCounter}).md`;
-			}
-			await create(fallbackPath, fileContent);
-			return fallbackPath;
-		}
-		throw error;
-	}
+	// Create the file
+	await create(newFilePath, fileContent);
+	return newFilePath;
 }
 
 // Types for test mocks
-type MockAdapter = {
-	exists: (path: string) => Promise<boolean>;
-};
+type MockGetAvailablePath = (basePath: string, extension: string) => string;
 
 type MockCreate = (path: string, content: string) => Promise<TFile>;
 
@@ -120,18 +70,28 @@ const createMockTFile = (path: string): TFile => {
 };
 
 describe('createTranscriptFile', () => {
-	let mockAdapter: MockAdapter;
+	let mockGetAvailablePath: MockGetAvailablePath;
 	let mockCreate: MockCreate;
 	let fileMap: Set<string>;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
 		fileMap = new Set<string>();
-		mockAdapter = {
-			exists: vi.fn<[string], Promise<boolean>>().mockImplementation(async (path: string) => {
-				return fileMap.has(path);
-			}),
-		};
+		// Mock getAvailablePath to handle duplicates by appending (1), (2), etc.
+		mockGetAvailablePath = vi.fn<[string, string], string>().mockImplementation((basePath: string) => {
+			if (!fileMap.has(basePath)) {
+				return basePath;
+			}
+			// If file exists, find next available path
+			const baseName = basePath.replace(/\.md$/, '');
+			let counter = 1;
+			let candidatePath = `${baseName} (${counter}).md`;
+			while (fileMap.has(candidatePath)) {
+				counter++;
+				candidatePath = `${baseName} (${counter}).md`;
+			}
+			return candidatePath;
+		});
 		mockCreate = vi.fn<[string, string], Promise<TFile>>().mockImplementation(async (path: string) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
@@ -148,7 +108,7 @@ describe('createTranscriptFile', () => {
 		const videoUrl = 'https://www.youtube.com/watch?v=test123';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -168,7 +128,7 @@ describe('createTranscriptFile', () => {
 		const transcript = 'This is a test transcript';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -191,7 +151,7 @@ describe('createTranscriptFile', () => {
 		const transcript = 'This is a test transcript';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -210,7 +170,7 @@ describe('createTranscriptFile', () => {
 		const transcript = 'Root transcript';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -230,7 +190,7 @@ describe('createTranscriptFile', () => {
 		const videoUrl = 'https://www.youtube.com/watch?v=test123';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -250,7 +210,7 @@ describe('createTranscriptFile', () => {
 		const transcript = 'Test transcript';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -267,41 +227,18 @@ describe('createTranscriptFile', () => {
 		);
 	});
 
-	it('should handle race condition when file is created between check and create', async () => {
-		// Simulate race condition: file doesn't exist initially, but exists when create is called
-		let checkCount = 0;
-		const raceAdapter = {
-			exists: vi.fn().mockImplementation(async (path: string) => {
-				checkCount++;
-				// First check returns false, but file gets created before create() is called
-				if (path === 'test/Test Video Title.md' && checkCount === 1) {
-					return false;
-				}
-				// After first check, file exists
-				return fileMap.has(path);
-			}),
-		};
-
-		const raceCreate: MockCreate = vi.fn<[string, string], Promise<TFile>>().mockImplementation(async (path: string) => {
-			// Simulate file being created between exists check and create call
-			if (path === 'test/Test Video Title.md' && !fileMap.has(path)) {
-				fileMap.add(path); // File gets created
-				throw new Error(`File already exists: ${path}`);
-			}
-			if (fileMap.has(path)) {
-				throw new Error(`File already exists: ${path}`);
-			}
-			fileMap.add(path);
-			return createMockTFile(path);
-		});
-
+	it('should handle duplicate files by using getAvailablePath', async () => {
+		// getAvailablePath handles duplicates automatically, so if a file exists,
+		// it should return the next available path
+		fileMap.add('test/Test Video Title.md');
+		
 		const activeFile = createMockTFile('test/active.md');
 		const videoTitle = 'Test Video Title';
 		const transcript = 'Test transcript';
 
 		const result = await simulateCreateTranscriptFile(
-			raceAdapter,
-			raceCreate,
+			mockGetAvailablePath,
+			mockCreate,
 			activeFile,
 			videoTitle,
 			transcript,
@@ -309,15 +246,13 @@ describe('createTranscriptFile', () => {
 			false
 		);
 
-		// Should create secondary file after detecting race condition
+		// Should create secondary file using getAvailablePath
 		expect(result).toBe('test/Test Video Title (1).md');
-		expect(raceCreate).toHaveBeenCalledWith('test/Test Video Title (1).md', transcript);
+		expect(mockCreate).toHaveBeenCalledWith('test/Test Video Title (1).md', transcript);
 	});
 
 	it('should handle error when create fails for non-existence reason', async () => {
-		const errorAdapter: MockAdapter = {
-			exists: vi.fn<[string], Promise<boolean>>().mockResolvedValue(false),
-		};
+		const errorGetAvailablePath: MockGetAvailablePath = vi.fn<[string, string], string>().mockReturnValue('test/Test Video.md');
 		const errorCreate: MockCreate = vi.fn<[string, string], Promise<TFile>>().mockRejectedValue(new Error('Permission denied'));
 
 		const activeFile = createMockTFile('test/active.md');
@@ -326,7 +261,7 @@ describe('createTranscriptFile', () => {
 
 		await expect(
 			simulateCreateTranscriptFile(
-				errorAdapter,
+				errorGetAvailablePath,
 				errorCreate,
 				activeFile,
 				videoTitle,
@@ -343,7 +278,7 @@ describe('createTranscriptFile', () => {
 		const transcript = 'Test transcript';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -364,7 +299,7 @@ describe('createTranscriptFile', () => {
 		const transcript = 'Test transcript';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,
@@ -384,7 +319,7 @@ describe('createTranscriptFile', () => {
 		const transcript = 'New transcript content';
 
 		const result = await simulateCreateTranscriptFile(
-			mockAdapter,
+			mockGetAvailablePath,
 			mockCreate,
 			activeFile,
 			videoTitle,

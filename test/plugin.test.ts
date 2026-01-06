@@ -23,7 +23,7 @@ const createMockManifest = (): PluginManifest => {
     id: "obsidian-youtube-transcript",
     name: "YouTube Transcript",
     version: "0.1.0",
-    minAppVersion: "0.15.0",
+    minAppVersion: "1.0.0",
     description: "Test plugin",
     author: "Test Author",
     authorUrl: "",
