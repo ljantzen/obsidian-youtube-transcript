@@ -1,6 +1,10 @@
 import { Notice } from "obsidian";
 import type { LLMResponse } from "../types";
 
+export function getProcessingStatusMessage(providerName: string): string {
+  return `Processing transcript with ${providerName} (this may take a moment or two)...`;
+}
+
 export function parseLLMResponse(
   responseContent: string,
   generateSummary: boolean,

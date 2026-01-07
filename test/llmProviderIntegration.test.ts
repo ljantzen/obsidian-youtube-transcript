@@ -53,8 +53,12 @@ describe("LLM Provider Integration", () => {
         expect(requestBody.model).toBe("gpt-4o-mini");
         expect(requestBody.messages).toHaveLength(1);
         expect(requestBody.messages[0].role).toBe("user");
-        expect(requestBody.messages[0].content).toContain("Process this transcript");
-        expect(requestBody.messages[0].content).toContain("Sample transcript text");
+        expect(requestBody.messages[0].content).toContain(
+          "Process this transcript",
+        );
+        expect(requestBody.messages[0].content).toContain(
+          "Sample transcript text",
+        );
         expect(requestBody.temperature).toBe(0.3);
       });
 
@@ -160,8 +164,12 @@ describe("LLM Provider Integration", () => {
         expect(requestBody.max_tokens).toBe(4096);
         expect(requestBody.messages).toHaveLength(1);
         expect(requestBody.messages[0].role).toBe("user");
-        expect(requestBody.messages[0].content).toContain("Process this transcript");
-        expect(requestBody.messages[0].content).toContain("Sample transcript text");
+        expect(requestBody.messages[0].content).toContain(
+          "Process this transcript",
+        );
+        expect(requestBody.messages[0].content).toContain(
+          "Sample transcript text",
+        );
         expect(requestBody.temperature).toBe(0.3);
       });
 
@@ -197,7 +205,9 @@ describe("LLM Provider Integration", () => {
         expect(validateClaudeModelName("claude-sonnet-4-20250514")).toBe(true);
 
         // Invalid models
-        expect(validateClaudeModelName("claude-3-5-sonnet-20241022")).toBe(false);
+        expect(validateClaudeModelName("claude-3-5-sonnet-20241022")).toBe(
+          false,
+        );
         expect(validateClaudeModelName("claude-haiku-4")).toBe(false);
         expect(validateClaudeModelName("claude-5-opus")).toBe(false);
       });
@@ -391,7 +401,9 @@ describe("LLM Provider Integration", () => {
       });
 
       describe("OpenAI rate limit message formatting", () => {
-        const formatRateLimitMessage = (headers: Record<string, string>): string => {
+        const formatRateLimitMessage = (
+          headers: Record<string, string>,
+        ): string => {
           const remainingRequests = headers["x-ratelimit-remaining-requests"];
           const remainingTokens = headers["x-ratelimit-remaining-tokens"];
           const resetRequests = headers["x-ratelimit-reset-requests"];
@@ -405,7 +417,7 @@ describe("LLM Provider Integration", () => {
           }
 
           return `OpenAI API Error (429): ${reason}`;
-        }
+        };
 
         it("should format message for request-based rate limit", () => {
           const headers = {
@@ -474,15 +486,15 @@ describe("LLM Provider Integration", () => {
       expect(timeoutMs).toBe(120000); // 2 minutes = 120,000ms
     });
 
-    		it("should use default timeout when not specified", () => {
-    			let timeoutMinutes;
-    			if (timeoutMinutes === undefined) {
-    				timeoutMinutes = 1;
-    			}
-    			const timeoutMs = timeoutMinutes * 60 * 1000;
-    
-    			expect(timeoutMs).toBe(60000); // 1 minute = 60,000ms
-    		});
+    it("should use default timeout when not specified", () => {
+      let timeoutMinutes;
+      if (timeoutMinutes === undefined) {
+        timeoutMinutes = 1;
+      }
+      const timeoutMs = timeoutMinutes * 60 * 1000;
+
+      expect(timeoutMs).toBe(60000); // 1 minute = 60,000ms
+    });
     it("should detect timeout error message", () => {
       const errorMessages = [
         "OpenAI request timed out after 2 minutes",
@@ -505,11 +517,16 @@ describe("LLM Provider Integration", () => {
     });
 
     it("should throw TimeoutError on timeout", async () => {
-      class TestTimeoutError extends Error { constructor(message: string) { super(message); this.name = "TimeoutError"; } }
-      const requestFn = async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        throw new TestTimeoutError("Request timed out");
+      class TestTimeoutError extends Error {
+        constructor(message: string) {
+          super(message);
+          this.name = "TimeoutError";
+        }
       }
+      const requestFn = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        throw new TestTimeoutError("Request timed out");
+      };
 
       let error: Error | null = null;
       try {
@@ -596,9 +613,9 @@ describe("LLM Provider Integration", () => {
   describe("Status callback", () => {
     it("should provide status updates at different stages", () => {
       const statusMessages = [
-        "Processing transcript with OpenAI (this may take a moment)...",
-        "Processing transcript with Gemini (this may take a moment)...",
-        "Processing transcript with Claude (this may take a moment)...",
+        "Processing transcript with OpenAI (this may take a moment or two)...",
+        "Processing transcript with Gemini (this may take a moment or two)...",
+        "Processing transcript with Claude (this may take a moment or two)...",
         "Retrying OpenAI processing...",
         "Retrying Gemini processing...",
         "Retrying Claude processing...",

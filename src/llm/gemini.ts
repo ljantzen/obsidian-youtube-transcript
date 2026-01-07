@@ -6,7 +6,11 @@ import type {
   RetryModalConstructor,
 } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
-import { parseLLMResponse, buildPrompt } from "./parser";
+import {
+  parseLLMResponse,
+  buildPrompt,
+  getProcessingStatusMessage,
+} from "./parser";
 import { UserCancelledError } from "./openai";
 
 export async function processWithGemini(
@@ -29,10 +33,7 @@ export async function processWithGemini(
 
   console.debug("processWithGemini: generateSummary =", generateSummary);
 
-  if (statusCallback)
-    statusCallback(
-      "Processing transcript with Gemini (this may take a moment)...",
-    );
+  if (statusCallback) statusCallback(getProcessingStatusMessage("Gemini"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
   const fullPrompt = buildPrompt(prompt, transcript, generateSummary);

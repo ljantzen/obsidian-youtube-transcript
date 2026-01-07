@@ -6,7 +6,11 @@ import type {
   RetryModalConstructor,
 } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
-import { parseLLMResponse, buildPrompt } from "./parser";
+import {
+  parseLLMResponse,
+  buildPrompt,
+  getProcessingStatusMessage,
+} from "./parser";
 
 export class UserCancelledError extends Error {
   constructor(message = "Transcript creation cancelled by user") {
@@ -42,10 +46,7 @@ export async function processWithOpenAI(
 
   console.debug("processWithOpenAI: generateSummary =", generateSummary);
 
-  if (statusCallback)
-    statusCallback(
-      "Processing transcript with OpenAI (this may take a moment)...",
-    );
+  if (statusCallback) statusCallback(getProcessingStatusMessage("OpenAI"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
   const fullPrompt = buildPrompt(prompt, transcript, generateSummary);

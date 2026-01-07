@@ -7,7 +7,11 @@ import type {
 } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
 import { validateClaudeModelName } from "../utils";
-import { parseLLMResponse, buildPrompt } from "./parser";
+import {
+  parseLLMResponse,
+  buildPrompt,
+  getProcessingStatusMessage,
+} from "./parser";
 import { UserCancelledError } from "./openai";
 
 export async function processWithClaude(
@@ -30,10 +34,7 @@ export async function processWithClaude(
 
   console.debug("processWithClaude: generateSummary =", generateSummary);
 
-  if (statusCallback)
-    statusCallback(
-      "Processing transcript with Claude (this may take a moment)...",
-    );
+  if (statusCallback) statusCallback(getProcessingStatusMessage("Claude"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
   const fullPrompt = buildPrompt(prompt, transcript, generateSummary);
