@@ -58,7 +58,7 @@ export async function processWithClaude(
 
     // Validate Claude model name format
     if (!validateClaudeModelName(model)) {
-      const errorMsg = `Invalid Claude model name: "${model}". Only Claude version 4 models are supported. Valid formats: claude-opus-4-1, claude-opus-4-1-20250805, claude-opus-4, claude-opus-4-20250514, claude-sonnet-4, claude-sonnet-4-20250514. Please check your model selection in settings.`;
+      const errorMsg = `Invalid Claude model name: "${model}". Only Claude version 4 models are supported. Valid examples: claude-opus-4, claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5, claude-haiku-4-5-20251001. Please check your model selection in settings.`;
       new Notice(errorMsg);
       throw new Error(errorMsg);
     }
@@ -90,6 +90,7 @@ export async function processWithClaude(
       const errorData = response.json || {};
 
       if (response.status === 429) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const retryAfter =
           response.headers?.["retry-after"] ||
           response.headers?.["Retry-After"];
@@ -104,12 +105,14 @@ export async function processWithClaude(
       }
 
       if (response.status === 401 || response.status === 403) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const errorMsg = `Claude API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
         new Notice(errorMsg);
         throw new Error(errorMsg);
       }
 
       if (response.status === 404) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const errorDetail =
           errorData.error?.message || response.text || "Unknown error";
         const errorMsg = `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid.`;
@@ -119,6 +122,7 @@ export async function processWithClaude(
         );
       }
 
+      if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Claude API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
       new Notice(errorMsg);
       throw new Error(errorMsg);
@@ -128,6 +132,7 @@ export async function processWithClaude(
     const responseContent = data.content?.[0]?.text;
 
     if (!responseContent) {
+      if (statusCallback) statusCallback(null); // Hide notice
       throw new Error("No response from Claude");
     }
 
@@ -142,6 +147,7 @@ export async function processWithClaude(
 
     if (errorMessage.includes("404") || errorMessage.includes("status 404")) {
       const model = settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
+      if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Claude API error (404): Model "${model}" not found. Please check your model selection and API key in settings.`;
       new Notice(errorMsg);
       throw new Error(
@@ -150,11 +156,13 @@ export async function processWithClaude(
     }
 
     if (errorMessage.includes("timed out") && RetryModal) {
+      if (statusCallback) statusCallback(null); // Hide notice before showing modal
       const shouldRetry = await new RetryModal(
         app,
         errorMessage,
         "Claude",
       ).waitForResponse();
+      if (statusCallback) statusCallback(null); // Hide notice after modal closes
 
       if (shouldRetry === null) {
         throw new UserCancelledError("Transcript creation cancelled by user");
@@ -171,6 +179,7 @@ export async function processWithClaude(
           throw new Error(errorMsg);
         }
       } else {
+        if (statusCallback) statusCallback(null); // Hide notice
         new Notice("Using raw transcript (Claude processing skipped)");
         return { transcript, summary: null };
       }
@@ -182,12 +191,14 @@ export async function processWithClaude(
       errorMessage.toLowerCase().includes("too many requests");
 
     if (isRateLimitError && RetryModal) {
+      if (statusCallback) statusCallback(null); // Hide notice before showing modal
       const shouldRetry = await new RetryModal(
         app,
         errorMessage +
           "\n\nYou can retry after waiting a few minutes, or use the raw transcript without Claude processing.",
         "Claude",
       ).waitForResponse();
+      if (statusCallback) statusCallback(null); // Hide notice after modal closes
 
       if (shouldRetry === null) {
         throw new UserCancelledError("Transcript creation cancelled by user");
@@ -209,6 +220,7 @@ export async function processWithClaude(
             retryErrorMessage.includes("429") ||
             retryErrorMessage.toLowerCase().includes("too many requests");
           if (isStillRateLimited) {
+            if (statusCallback) statusCallback(null); // Hide notice
             new Notice("Still rate limited. Using raw transcript instead.");
             return { transcript, summary: null };
           }
@@ -217,6 +229,7 @@ export async function processWithClaude(
           throw new Error(errorMsg);
         }
       } else {
+        if (statusCallback) statusCallback(null); // Hide notice
         new Notice(
           "Using raw transcript (Claude processing skipped due to rate limit)",
         );
@@ -224,6 +237,7 @@ export async function processWithClaude(
       }
     }
 
+    if (statusCallback) statusCallback(null); // Hide notice
     const errorMsg = `Failed to process transcript with Claude: ${errorMessage}`;
     new Notice(errorMsg);
     console.error("Claude processing error:", error);

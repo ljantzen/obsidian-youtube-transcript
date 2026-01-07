@@ -200,12 +200,15 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             generateSummary,
             llmProvider,
             this.settings,
-            (status: string) => {
-              fetchingNotice.setMessage(status);
+            (status: string | null) => {
+              if (status === null) {
+                fetchingNotice.hide();
+              } else {
+                fetchingNotice.setMessage(status);
+              }
             },
             RetryConfirmationModal,
           );
-          fetchingNotice.hide();
 
           const { transcript, title, summary } = result;
 
@@ -260,15 +263,17 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             );
           }
         } catch (error: unknown) {
-          fetchingNotice.hide();
           // If user cancelled, don't show an error - just silently abort
           if (error instanceof UserCancelledError) {
+            fetchingNotice.hide();
             return;
           }
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error";
           new Notice(`Error fetching transcript: ${errorMessage}`);
           console.error("Transcript fetch error:", error);
+        } finally {
+          fetchingNotice.hide();
         }
       },
     ).open();

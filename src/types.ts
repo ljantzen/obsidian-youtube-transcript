@@ -32,7 +32,7 @@ export interface LLMResponse {
   summary: string | null;
 }
 
-export type StatusCallback = (status: string) => void;
+export type StatusCallback = (status: string | null) => void;
 
 export interface RetryModalConstructor {
   new (app: unknown, errorMessage: string, providerName: string): {

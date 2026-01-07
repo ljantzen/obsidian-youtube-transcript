@@ -30,14 +30,11 @@ export function decodeHtmlEntities(text: string): string {
 }
 
 export function validateClaudeModelName(modelName: string): boolean {
-  // Only support Claude version 4 models:
-  // - claude-opus-4-1, claude-opus-4-1-20250805
-  // - claude-opus-4, claude-opus-4-20250514
+  // Support Claude version 4 models with optional minor versions and dates:
+  // - claude-opus-4, claude-opus-4-1, claude-opus-4-1-20250805
   // - claude-sonnet-4, claude-sonnet-4-20250514
-  const validPatterns = [
-    /^claude-opus-4-1(-[0-9]{8})?$/, // claude-opus-4-1 or claude-opus-4-1-20250805
-    /^claude-opus-4(-[0-9]{8})?$/, // claude-opus-4 or claude-opus-4-20250514
-    /^claude-sonnet-4(-[0-9]{8})?$/, // claude-sonnet-4 or claude-sonnet-4-20250514
-  ];
-  return validPatterns.some((pattern) => pattern.test(modelName));
+  // - claude-haiku-4, claude-haiku-4-5, claude-haiku-4-5-20251001
+  // Pattern: claude-{type}-4(-{minor})?(-{date})?
+  const validPattern = /^claude-(opus|sonnet|haiku)-4(-[0-9]+)?(-[0-9]{8})?$/;
+  return validPattern.test(modelName);
 }

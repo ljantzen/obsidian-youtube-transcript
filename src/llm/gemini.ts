@@ -87,6 +87,7 @@ export async function processWithGemini(
       const errorData = response.json || {};
 
       if (response.status === 429) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const retryAfter =
           response.headers?.["retry-after"] ||
           response.headers?.["Retry-After"];
@@ -101,12 +102,14 @@ export async function processWithGemini(
       }
 
       if (response.status === 401 || response.status === 403) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const errorMsg = `Gemini API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
         new Notice(errorMsg);
         throw new Error(errorMsg);
       }
 
       if (response.status === 404) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const errorDetail =
           errorData.error?.message || response.text || "Unknown error";
         const errorMsg = `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid.`;
@@ -116,6 +119,7 @@ export async function processWithGemini(
         );
       }
 
+      if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Gemini API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
       new Notice(errorMsg);
       throw new Error(errorMsg);
@@ -125,6 +129,7 @@ export async function processWithGemini(
     const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!responseContent) {
+      if (statusCallback) statusCallback(null); // Hide notice
       throw new Error("No response from Gemini");
     }
 
@@ -144,6 +149,7 @@ export async function processWithGemini(
 
     if (errorMessage.includes("404") || errorMessage.includes("status 404")) {
       const model = settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+      if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Gemini API error (404): Model "${model}" not found. Please check your model selection and API key in settings.`;
       new Notice(errorMsg);
       throw new Error(
@@ -152,11 +158,13 @@ export async function processWithGemini(
     }
 
     if (errorMessage.includes("timed out") && RetryModal) {
+      if (statusCallback) statusCallback(null); // Hide notice before showing modal
       const shouldRetry = await new RetryModal(
         app,
         errorMessage,
         "Gemini",
       ).waitForResponse();
+      if (statusCallback) statusCallback(null); // Hide notice after modal closes
 
       if (shouldRetry === null) {
         throw new UserCancelledError("Transcript creation cancelled by user");
@@ -173,6 +181,7 @@ export async function processWithGemini(
           throw new Error(errorMsg);
         }
       } else {
+        if (statusCallback) statusCallback(null); // Hide notice
         new Notice("Using raw transcript (Gemini processing skipped)");
         return { transcript, summary: null };
       }
@@ -184,12 +193,14 @@ export async function processWithGemini(
       errorMessage.toLowerCase().includes("too many requests");
 
     if (isRateLimitError && RetryModal) {
+      if (statusCallback) statusCallback(null); // Hide notice before showing modal
       const shouldRetry = await new RetryModal(
         app,
         errorMessage +
           "\n\nYou can retry after waiting a few minutes, or use the raw transcript without Gemini processing.",
         "Gemini",
       ).waitForResponse();
+      if (statusCallback) statusCallback(null); // Hide notice after modal closes
 
       if (shouldRetry === null) {
         throw new UserCancelledError("Transcript creation cancelled by user");
@@ -211,6 +222,7 @@ export async function processWithGemini(
             retryErrorMessage.includes("429") ||
             retryErrorMessage.toLowerCase().includes("too many requests");
           if (isStillRateLimited) {
+            if (statusCallback) statusCallback(null); // Hide notice
             new Notice("Still rate limited. Using raw transcript instead.");
             return { transcript, summary: null };
           }
@@ -219,6 +231,7 @@ export async function processWithGemini(
           throw new Error(errorMsg);
         }
       } else {
+        if (statusCallback) statusCallback(null); // Hide notice
         new Notice(
           "Using raw transcript (Gemini processing skipped due to rate limit)",
         );
@@ -226,6 +239,7 @@ export async function processWithGemini(
       }
     }
 
+    if (statusCallback) statusCallback(null); // Hide notice
     const errorMsg = `Failed to process transcript with Gemini: ${errorMessage}`;
     new Notice(errorMsg);
     console.error("Gemini processing error:", error);

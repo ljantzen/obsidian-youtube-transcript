@@ -140,36 +140,25 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
       new Setting(containerEl)
         .setName("Claude model")
-        .setDesc("Select the Claude model to use for transcript processing")
-        .addDropdown((dropdown) => {
-          // Claude version 4 models only
-          dropdown
-            .addOption(
-              "claude-opus-4-1-20250805",
-              "Claude Opus 4.1 (latest, GA)",
-            )
-            .addOption("claude-opus-4-20250514", "Claude Opus 4 (GA)")
-            .addOption(
-              "claude-sonnet-4-20250514",
-              "Claude Sonnet 4 (recommended, GA)",
-            );
-          // Simplified names (without dates)
-          dropdown
-            .addOption("claude-opus-4-1", "Claude Opus 4.1 (no date)")
-            .addOption("claude-opus-4", "Claude Opus 4 (no date)")
-            .addOption("claude-sonnet-4", "Claude Sonnet 4 (no date)")
+        .setDesc(
+          "Enter the Claude model ID to use for transcript processing. Examples: claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001, or simplified versions like claude-opus-4, claude-sonnet-4, claude-haiku-4-5. Only Claude version 4 models are supported.",
+        )
+        .addText((text) => {
+          text
+            .setPlaceholder("claude-sonnet-4-20250514")
             .setValue(this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel)
             .onChange(async (value) => {
-              if (validateClaudeModelName(value)) {
-                this.settings.claudeModel = value;
+              const trimmedValue = value.trim();
+              if (trimmedValue === "") {
+                // Allow empty to use default
+                this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
+                await this.saveSettings();
+              } else if (validateClaudeModelName(trimmedValue)) {
+                this.settings.claudeModel = trimmedValue;
                 await this.saveSettings();
               } else {
                 new Notice(
-                  `Invalid Claude model name: "${value}". Please select a valid model from the dropdown.`,
-                );
-                // Reset to default if invalid
-                dropdown.setValue(
-                  this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel,
+                  `Invalid Claude model name: "${trimmedValue}". Must be a Claude version 4 model (e.g., claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001).`,
                 );
               }
             });

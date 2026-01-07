@@ -8,3 +8,5 @@ coverage/
 .nyc_output/
 *.test.js
 *.spec.js
+CLAUDE.md
+GEMINI.md

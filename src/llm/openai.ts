@@ -92,6 +92,7 @@ export async function processWithOpenAI(
 
       // Handle rate limiting (429) specifically
       if (response.status === 429) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const errorMsg = formatRateLimitMessage(response.headers);
         new Notice(errorMsg, 10000); // Show for 10 seconds
         throw new Error(errorMsg);
@@ -99,6 +100,7 @@ export async function processWithOpenAI(
 
       // Handle authentication errors
       if (response.status === 401 || response.status === 403) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const errorMsg = `OpenAI API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
         new Notice(errorMsg);
         throw new Error(errorMsg);
@@ -106,12 +108,14 @@ export async function processWithOpenAI(
 
       // Handle 404 errors
       if (response.status === 404) {
+        if (statusCallback) statusCallback(null); // Hide notice
         const model = settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
         const errorMsg = `OpenAI API error (404): Model "${model}" not found. Please check your model selection in settings.`;
         new Notice(errorMsg);
         throw new Error(errorMsg);
       }
 
+      if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `OpenAI API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
       new Notice(errorMsg);
       throw new Error(errorMsg);
@@ -121,6 +125,7 @@ export async function processWithOpenAI(
     const responseContent = data.choices?.[0]?.message?.content;
 
     if (!responseContent) {
+      if (statusCallback) statusCallback(null); // Hide notice
       throw new Error("No response from OpenAI");
     }
 
@@ -135,11 +140,13 @@ export async function processWithOpenAI(
 
     // Check if it's a timeout error
     if (error instanceof TimeoutError && RetryModal) {
+      if (statusCallback) statusCallback(null); // Hide notice before showing modal
       const shouldRetry = await new RetryModal(
         app,
         errorMessage,
         "OpenAI",
       ).waitForResponse();
+      if (statusCallback) statusCallback(null); // Hide notice after modal closes
 
       if (shouldRetry === null) {
         throw new UserCancelledError("Transcript creation cancelled by user");
@@ -156,6 +163,7 @@ export async function processWithOpenAI(
           throw new Error(errorMsg);
         }
       } else {
+        if (statusCallback) statusCallback(null); // Hide notice
         new Notice("Using raw transcript (OpenAI processing skipped)");
         return { transcript, summary: null };
       }
@@ -168,12 +176,14 @@ export async function processWithOpenAI(
       errorMessage.toLowerCase().includes("too many requests");
 
     if (isRateLimitError && RetryModal) {
+      if (statusCallback) statusCallback(null); // Hide notice before showing modal
       const shouldRetry = await new RetryModal(
         app,
         errorMessage +
           "\n\nYou can retry after waiting a few minutes, or use the raw transcript without OpenAI processing.",
         "OpenAI",
       ).waitForResponse();
+      if (statusCallback) statusCallback(null); // Hide notice after modal closes
 
       if (shouldRetry === null) {
         throw new UserCancelledError("Transcript creation cancelled by user");
@@ -195,6 +205,7 @@ export async function processWithOpenAI(
             retryErrorMessage.includes("429") ||
             retryErrorMessage.toLowerCase().includes("too many requests");
           if (isStillRateLimited) {
+            if (statusCallback) statusCallback(null); // Hide notice
             new Notice("Still rate limited. Using raw transcript instead.");
             return { transcript, summary: null };
           }
@@ -203,6 +214,7 @@ export async function processWithOpenAI(
           throw new Error(errorMsg);
         }
       } else {
+        if (statusCallback) statusCallback(null); // Hide notice
         new Notice(
           "Using raw transcript (OpenAI processing skipped due to rate limit)",
         );
@@ -211,6 +223,7 @@ export async function processWithOpenAI(
     }
 
     // For other errors, show notice and throw
+    if (statusCallback) statusCallback(null); // Hide notice
     const errorMsg = `Failed to process transcript with OpenAI: ${errorMessage}`;
     new Notice(errorMsg);
     console.error("OpenAI processing error:", error);
