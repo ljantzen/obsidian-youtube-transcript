@@ -12,13 +12,12 @@ export interface YouTubeTranscriptPluginSettings {
   openaiTimeout: number; // Timeout in minutes
   includeVideoUrl: boolean;
   generateSummary: boolean;
-  defaultDirectory: string; // Default directory for new transcript files (empty = use current file's directory)
-  useDefaultDirectory: boolean; // Whether to use the default directory
   tagWithChannelName: boolean; // Whether to tag notes with the YouTube channel name
   includeTimestamps: boolean; // Whether to include timestamps in transcripts
   timestampFrequency: number; // How often to show timestamps (in seconds). 0 = every sentence, >0 = every N seconds
   includeTimestampsInLLM: boolean; // Whether to include timestamps in LLM-processed transcripts
   localVideoDirectory: string; // Filesystem directory where local video files are stored (empty = use YouTube URLs)
+  savedDirectories: string[]; // List of user-configurable directories for storing transcript files
 }
 
 export interface CaptionTrack {

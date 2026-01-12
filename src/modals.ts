@@ -85,7 +85,7 @@ export class YouTubeUrlModal extends Modal {
     includeVideoUrl: boolean,
     generateSummary: boolean,
     llmProvider: LLMProvider,
-    overrideDirectory: string | null | undefined,
+    selectedDirectory: string | null,
     tagWithChannelName: boolean,
   ) => void | Promise<void>;
   settings: YouTubeTranscriptPluginSettings;
@@ -101,7 +101,7 @@ export class YouTubeUrlModal extends Modal {
       includeVideoUrl: boolean,
       generateSummary: boolean,
       llmProvider: LLMProvider,
-      overrideDirectory: string | null | undefined,
+      selectedDirectory: string | null,
       tagWithChannelName: boolean,
     ) => void | Promise<void>,
   ) {
@@ -156,34 +156,43 @@ export class YouTubeUrlModal extends Modal {
       },
     });
 
-    // Add checkbox for overriding default directory (only show if default directory is enabled)
-    const overrideDirectoryContainer = contentEl.createDiv({
-      attr: { style: "margin-bottom: 1em; margin-left: 1.5em;" },
-    });
-    const overrideDirectoryCheckbox = overrideDirectoryContainer.createEl("input", {
-      type: "checkbox",
+    // Add directory selector dropdown (only show when creating new file)
+    const directoryContainer = contentEl.createDiv({
       attr: {
-        id: "override-directory-checkbox",
+        style:
+          "margin-bottom: 1em; margin-left: 1.5em; display: flex; align-items: center; gap: 0.5em;",
       },
     });
-    overrideDirectoryContainer.createEl("label", {
-      text: "Use current file's directory instead of default",
+    directoryContainer.createEl("label", {
+      text: "Directory:",
       attr: {
-        for: "override-directory-checkbox",
-        style: "margin-left: 0.5em; cursor: pointer;",
+        style: "white-space: nowrap;",
+      },
+    });
+    const directoryDropdown = directoryContainer.createEl("select", {
+      attr: {
+        id: "directory-dropdown",
+        style: "flex: 1; min-width: 200px;",
       },
     });
 
-    // Show/hide override checkbox based on createNewFile and default directory settings
-    const updateOverrideVisibility = () => {
-      const showOverride =
-        createNewFileCheckbox.checked &&
-        this.settings.useDefaultDirectory &&
-        this.settings.defaultDirectory.trim() !== "";
-      overrideDirectoryContainer.style.display = showOverride ? "block" : "none";
+    // Add "Current directory" option
+    directoryDropdown.add(new Option("Current directory", ""));
+
+    // Add saved directories
+    const savedDirs = this.settings.savedDirectories || [];
+    savedDirs.forEach((dir) => {
+      if (dir && dir.trim() !== "") {
+        directoryDropdown.add(new Option(dir, dir));
+      }
+    });
+
+    // Show/hide directory dropdown based on createNewFile checkbox
+    const updateDirectoryVisibility = () => {
+      directoryContainer.style.display = createNewFileCheckbox.checked ? "flex" : "none";
     };
-    createNewFileCheckbox.addEventListener("change", updateOverrideVisibility);
-    updateOverrideVisibility();
+    createNewFileCheckbox.addEventListener("change", updateDirectoryVisibility);
+    updateDirectoryVisibility();
 
     // Add checkbox for including video URL
     const includeUrlContainer = contentEl.createDiv({
@@ -376,27 +385,18 @@ export class YouTubeUrlModal extends Modal {
           ? (providerDropdown.value as LLMProvider)
           : "none";
         const tagWithChannelName = tagChannelCheckbox.checked;
-        // Determine override directory:
-        // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
-        // - If default directory is enabled and override checkbox is unchecked: use default directory (pass null)
-        // - Otherwise: use current file's directory (pass undefined)
-        let overrideDirectory: string | null | undefined = undefined;
-        if (
-          createNewFile &&
-          this.settings.useDefaultDirectory &&
-          this.settings.defaultDirectory.trim() !== ""
-        ) {
-          overrideDirectory = overrideDirectoryCheckbox.checked
-            ? undefined // Use current file's directory
-            : null; // Use default directory
-        }
+        // Get selected directory from dropdown
+        // Empty string = current directory, non-empty = specific directory
+        const selectedDirectory = createNewFile
+          ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
+          : null;
         void this.onSubmit(
           url,
           createNewFile,
           includeVideoUrl,
           generateSummary,
           llmProvider,
-          overrideDirectory,
+          selectedDirectory,
           tagWithChannelName,
         );
         this.close();
@@ -422,27 +422,18 @@ export class YouTubeUrlModal extends Modal {
             ? (providerDropdown.value as LLMProvider)
             : "none";
           const tagWithChannelName = tagChannelCheckbox.checked;
-          // Determine override directory:
-          // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
-          // - If default directory is enabled and override checkbox is unchecked: use default directory (pass null)
-          // - Otherwise: use current file's directory (pass undefined)
-          let overrideDirectory: string | null | undefined = undefined;
-          if (
-            createNewFile &&
-            this.settings.useDefaultDirectory &&
-            this.settings.defaultDirectory.trim() !== ""
-          ) {
-            overrideDirectory = overrideDirectoryCheckbox.checked
-              ? undefined // Use current file's directory
-              : null; // Use default directory
-          }
+          // Get selected directory from dropdown
+          // Empty string = current directory, non-empty = specific directory
+          const selectedDirectory = createNewFile
+            ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
+            : null;
           void this.onSubmit(
             url,
             createNewFile,
             includeVideoUrl,
             generateSummary,
             llmProvider,
-            overrideDirectory,
+            selectedDirectory,
             tagWithChannelName,
           );
           this.close();

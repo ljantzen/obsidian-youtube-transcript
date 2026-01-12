@@ -16,13 +16,12 @@ describe("Settings", () => {
       openaiTimeout: 1,
       includeVideoUrl: false,
       generateSummary: false,
-      defaultDirectory: "",
-      useDefaultDirectory: false,
       tagWithChannelName: false,
       includeTimestamps: true,
       timestampFrequency: 0,
       includeTimestampsInLLM: false,
       localVideoDirectory: "",
+      savedDirectories: [],
     };
 
     // Verify structure exists
@@ -151,6 +150,21 @@ describe("Settings", () => {
     // Test with Windows path
     settings.localVideoDirectory = "C:\\Users\\Videos";
     expect(settings.localVideoDirectory).toBe("C:\\Users\\Videos");
+  });
+
+  it("should validate saved directories setting", () => {
+    const settings = {
+      savedDirectories: [] as string[],
+    };
+
+    expect(Array.isArray(settings.savedDirectories)).toBe(true);
+    expect(settings.savedDirectories).toEqual([]);
+
+    // Test with directories
+    settings.savedDirectories = ['Transcripts', 'Notes/YouTube'];
+    expect(settings.savedDirectories).toHaveLength(2);
+    expect(settings.savedDirectories).toContain('Transcripts');
+    expect(settings.savedDirectories).toContain('Notes/YouTube');
   });
 
   it("should validate timestamp frequency values", () => {

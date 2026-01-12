@@ -202,40 +202,6 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(containerEl).setName("File Creation").setHeading();
-
-    new Setting(containerEl)
-      .setName("Use default directory")
-      .setDesc(
-        "When enabled, new transcript files will be created in the default directory instead of the current file's directory",
-      )
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.settings.useDefaultDirectory)
-          .onChange(async (value) => {
-            this.settings.useDefaultDirectory = value;
-            await this.saveSettings();
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Default directory")
-      .setDesc(
-        "Directory path where new transcript files will be created (leave empty to use current file's directory). Example: 'Transcripts' or 'Notes/YouTube'",
-      )
-      .addText((text) => {
-        new FolderSuggest(this.app, text.inputEl);
-        text
-          .setPlaceholder("Transcripts")
-          .setValue(this.settings.defaultDirectory)
-          .onChange(async (value) => {
-            // Normalize path: remove leading/trailing slashes and ensure forward slashes
-            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
-            this.settings.defaultDirectory = normalizedPath;
-            await this.saveSettings();
-          });
-      });
-
     new Setting(containerEl).setName("Content Options").setHeading();
 
     new Setting(containerEl)
@@ -345,6 +311,90 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             await this.saveSettings();
           });
       });
+
+    new Setting(containerEl).setName("Saved Directories").setHeading();
+
+    new Setting(containerEl)
+      .setName("Manage directories")
+      .setDesc(
+        "Add directories to the list. These will appear in the modal dropdown when creating new transcript files.",
+      );
+
+    // Display current saved directories with remove buttons
+    const directoriesList = containerEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+
+    const renderDirectoriesList = () => {
+      directoriesList.empty();
+      const savedDirs = this.settings.savedDirectories || [];
+      if (savedDirs.length === 0) {
+        directoriesList.createEl("p", {
+          text: "No directories saved. Add one below.",
+          attr: { style: "color: var(--text-muted); font-style: italic;" },
+        });
+      } else {
+        savedDirs.forEach((dir, index) => {
+          const dirItem = directoriesList.createDiv({
+            attr: {
+              style:
+                "display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.5em;",
+            },
+          });
+          dirItem.createEl("span", {
+            text: dir,
+            attr: { style: "flex: 1; font-family: monospace;" },
+          });
+          const removeButton = dirItem.createEl("button", {
+            text: "Remove",
+            attr: { style: "font-size: 0.9em;" },
+          });
+          removeButton.onclick = async () => {
+            this.settings.savedDirectories = savedDirs.filter(
+              (_, i) => i !== index,
+            );
+            await this.saveSettings();
+            renderDirectoriesList();
+          };
+        });
+      }
+    };
+
+    renderDirectoriesList();
+
+    // Add new directory input
+    const addDirectoryContainer = containerEl.createDiv({
+      attr: {
+        style: "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
+      },
+    });
+    const addDirectoryInput = addDirectoryContainer.createEl("input", {
+      type: "text",
+      attr: {
+        placeholder: "Transcripts or Notes/YouTube",
+        style: "flex: 1;",
+      },
+    });
+    new FolderSuggest(this.app, addDirectoryInput);
+    const addButton = addDirectoryContainer.createEl("button", {
+      text: "Add",
+    });
+    addButton.onclick = async () => {
+      const newDir = addDirectoryInput.value.trim();
+      if (newDir && newDir !== "") {
+        // Normalize path: remove leading/trailing slashes, ensure forward slashes
+        const normalizedDir = newDir
+          .replace(/^\/+|\/+$/g, "")
+          .replace(/\\/g, "/");
+        const savedDirs = this.settings.savedDirectories || [];
+        if (!savedDirs.includes(normalizedDir)) {
+          this.settings.savedDirectories = [...savedDirs, normalizedDir];
+          await this.saveSettings();
+          addDirectoryInput.value = "";
+          renderDirectoriesList();
+        }
+      }
+    };
   }
 
   /**

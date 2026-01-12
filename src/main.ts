@@ -140,16 +140,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
-    // Ensure defaultDirectory and useDefaultDirectory have default values (backward compatibility)
-    if (this.settings.defaultDirectory === undefined) {
-      this.settings.defaultDirectory = DEFAULT_SETTINGS.defaultDirectory;
-      await this.saveSettings();
-    }
-    if (this.settings.useDefaultDirectory === undefined) {
-      this.settings.useDefaultDirectory = DEFAULT_SETTINGS.useDefaultDirectory;
-      await this.saveSettings();
-    }
-
     // Ensure tagWithChannelName has a default value if missing (backward compatibility)
     if (this.settings.tagWithChannelName === undefined) {
       this.settings.tagWithChannelName = DEFAULT_SETTINGS.tagWithChannelName;
@@ -174,6 +164,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Ensure localVideoDirectory has a default value if missing (backward compatibility)
     if (this.settings.localVideoDirectory === undefined) {
       this.settings.localVideoDirectory = DEFAULT_SETTINGS.localVideoDirectory;
+      await this.saveSettings();
+    }
+
+    // Ensure savedDirectories has a default value if missing (backward compatibility)
+    if (this.settings.savedDirectories === undefined) {
+      this.settings.savedDirectories = DEFAULT_SETTINGS.savedDirectories;
       await this.saveSettings();
     }
   }
@@ -214,7 +210,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         includeVideoUrl: boolean,
         generateSummary: boolean,
         llmProvider: LLMProvider,
-        overrideDirectory: string | null | undefined,
+        selectedDirectory: string | null,
         tagWithChannelName: boolean,
       ) => {
         const fetchingNotice = new Notice(
@@ -265,7 +261,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               normalizedUrl,
               summary,
               includeVideoUrl,
-              overrideDirectory,
+              selectedDirectory,
               channelName,
               tagWithChannelName,
             );
@@ -318,7 +314,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     videoUrl: string,
     summary: string | null,
     includeVideoUrl: boolean,
-    overrideDirectory: string | null | undefined, // null = use default directory, undefined = use active file's directory, string = use this directory
+    selectedDirectory: string | null, // null = use current file's directory, string = use this directory
     channelName: string | null,
     tagWithChannelName: boolean,
   ) {
@@ -326,29 +322,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Determine which directory to use
     let directory: string;
-    if (overrideDirectory === null) {
-      // Explicitly use default directory (if enabled and set)
-      directory =
-        this.settings.useDefaultDirectory &&
-        this.settings.defaultDirectory.trim() !== ""
-          ? this.settings.defaultDirectory.trim()
-          : activeFile.path.substring(0, activeFile.path.lastIndexOf("/"));
-    } else if (typeof overrideDirectory === "string") {
-      // Use the provided override directory
-      directory = overrideDirectory;
+    if (selectedDirectory === null) {
+      // Use current file's directory
+      directory = activeFile.path.substring(0, activeFile.path.lastIndexOf("/"));
     } else {
-      // overrideDirectory is undefined: use default directory if enabled, otherwise use active file's directory
-      if (
-        this.settings.useDefaultDirectory &&
-        this.settings.defaultDirectory.trim() !== ""
-      ) {
-        directory = this.settings.defaultDirectory.trim();
-      } else {
-        directory = activeFile.path.substring(
-          0,
-          activeFile.path.lastIndexOf("/"),
-        );
-      }
+      // Use the selected directory
+      directory = selectedDirectory;
     }
 
     // Ensure directory exists (create if it doesn't)
