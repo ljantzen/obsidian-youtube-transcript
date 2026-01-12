@@ -220,7 +220,11 @@ async function parseTranscript(
     );
   }
 
-  const rawTranscript = transcriptParts.join(" ");
+  // Join transcript parts with spaces, then add newlines after sentence-ending punctuation
+  // to create natural paragraph breaks while keeping sentences together
+  let rawTranscript = transcriptParts.join(" ");
+  // Add newlines after sentence-ending punctuation followed by a space and capital letter
+  rawTranscript = rawTranscript.replace(/([.!?])\s+([A-Z])/g, "$1\n\n$2");
 
   // Process through LLM if provider is configured
   const providerToUse = llmProvider || settings.llmProvider;
