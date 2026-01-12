@@ -227,132 +227,152 @@ export class YouTubeUrlModal extends Modal {
       },
     });
 
-    // Add checkbox for enabling LLM processing (placed before provider dropdown)
-    const useLLMContainer = contentEl.createDiv({
-      attr: { style: "margin-bottom: 1em;" },
-    });
-    const useLLMCheckbox = useLLMContainer.createEl("input", {
-      type: "checkbox",
-      attr: {
-        id: "use-llm-checkbox",
-      },
-    });
-    useLLMContainer.createEl("label", {
-      text: "Use LLM processing",
-      attr: {
-        for: "use-llm-checkbox",
-        style: "margin-left: 0.5em; cursor: pointer;",
-      },
-    });
+    // Check if any LLM provider is configured
+    const hasAnyProviderKey =
+      this.callbacks.hasProviderKey("openai") ||
+      this.callbacks.hasProviderKey("gemini") ||
+      this.callbacks.hasProviderKey("claude");
 
-    // Add provider selection dropdown
-    const providerContainer = contentEl.createDiv({
-      attr: {
-        style:
-          "margin-bottom: 1em; display: flex; align-items: center; gap: 0.5em;",
-      },
-    });
-    providerContainer.createEl("label", {
-      text: "LLM provider:",
-      attr: {
-        style: "white-space: nowrap;",
-      },
-    });
-    const providerDropdown = providerContainer.createEl("select", {
-      attr: {
-        id: "llm-provider-dropdown",
-        style: "flex: 1;",
-      },
-    });
+    // Only show LLM-related options if at least one provider is configured
+    let useLLMCheckbox: HTMLInputElement | null = null;
+    let providerDropdown: HTMLSelectElement | null = null;
+    let generateSummaryCheckbox: HTMLInputElement | null = null;
 
-    // Always include "None" option
-    providerDropdown.add(new Option("None (raw transcript)", "none"));
+    if (hasAnyProviderKey) {
+      // Add checkbox for enabling LLM processing (placed before provider dropdown)
+      const useLLMContainer = contentEl.createDiv({
+        attr: { style: "margin-bottom: 1em;" },
+      });
+      useLLMCheckbox = useLLMContainer.createEl("input", {
+        type: "checkbox",
+        attr: {
+          id: "use-llm-checkbox",
+        },
+      }) as HTMLInputElement;
+      useLLMContainer.createEl("label", {
+        text: "Use LLM processing",
+        attr: {
+          for: "use-llm-checkbox",
+          style: "margin-left: 0.5em; cursor: pointer;",
+        },
+      });
 
-    // Only add providers that have configured API keys
-    if (this.callbacks.hasProviderKey("openai")) {
-      providerDropdown.add(new Option("OpenAI", "openai"));
-    }
-    if (this.callbacks.hasProviderKey("gemini")) {
-      providerDropdown.add(new Option("Google Gemini", "gemini"));
-    }
-    if (this.callbacks.hasProviderKey("claude")) {
-      providerDropdown.add(new Option("Anthropic Claude", "claude"));
-    }
+      // Add provider selection dropdown
+      const providerContainer = contentEl.createDiv({
+        attr: {
+          style:
+            "margin-bottom: 1em; display: flex; align-items: center; gap: 0.5em;",
+        },
+      });
+      providerContainer.createEl("label", {
+        text: "LLM provider:",
+        attr: {
+          style: "white-space: nowrap;",
+        },
+      });
+      providerDropdown = providerContainer.createEl("select", {
+        attr: {
+          id: "llm-provider-dropdown",
+          style: "flex: 1;",
+        },
+      }) as HTMLSelectElement;
 
-    // Set default value, fallback to "none" if current provider doesn't have a key
-    const currentProvider = this.settings.llmProvider || "none";
-    const hasCurrentProviderKey =
-      currentProvider === "none" ||
-      this.callbacks.hasProviderKey(currentProvider);
-    providerDropdown.value = hasCurrentProviderKey ? currentProvider : "none";
+      // Always include "None" option
+      providerDropdown.add(new Option("None (raw transcript)", "none"));
 
-    // Default LLM checkbox to checked if a provider is selected and has a key
-    if (hasCurrentProviderKey && currentProvider !== "none") {
-      useLLMCheckbox.checked = true;
-    }
-
-    // Add checkbox for generating summary (must be defined before updateLLMDependentControls)
-    const generateSummaryContainer = contentEl.createDiv({
-      attr: { style: "margin-bottom: 1em;" },
-    });
-    const generateSummaryCheckbox = generateSummaryContainer.createEl("input", {
-      type: "checkbox",
-      attr: {
-        id: "generate-summary-checkbox",
-      },
-    });
-    if (this.settings.generateSummary) {
-      generateSummaryCheckbox.checked = true;
-    }
-
-    const generateSummaryLabel = generateSummaryContainer.createEl("label", {
-      text: `Generate summary`,
-      attr: {
-        for: "generate-summary-checkbox",
-        style: "margin-left: 0.5em; cursor: pointer;",
-      },
-    });
-
-    // Disable provider dropdown and summary checkbox when LLM processing is unchecked
-    const updateLLMDependentControls = () => {
-      const llmEnabled = useLLMCheckbox.checked;
-      providerDropdown.disabled = !llmEnabled;
-      generateSummaryCheckbox.disabled = !llmEnabled;
-      // Uncheck summary if LLM is disabled
-      if (!llmEnabled) {
-        generateSummaryCheckbox.checked = false;
+      // Only add providers that have configured API keys
+      if (this.callbacks.hasProviderKey("openai")) {
+        providerDropdown.add(new Option("OpenAI", "openai"));
       }
-    };
-    useLLMCheckbox.addEventListener("change", updateLLMDependentControls);
-    updateLLMDependentControls();
+      if (this.callbacks.hasProviderKey("gemini")) {
+        providerDropdown.add(new Option("Google Gemini", "gemini"));
+      }
+      if (this.callbacks.hasProviderKey("claude")) {
+        providerDropdown.add(new Option("Anthropic Claude", "claude"));
+      }
 
-    // Update summary label based on selected provider
-    const updateSummaryLabel = () => {
-      generateSummaryLabel.textContent = `Generate summary`;
-    };
+      // Set default value, fallback to "none" if current provider doesn't have a key
+      const currentProvider = this.settings.llmProvider || "none";
+      const hasCurrentProviderKey =
+        currentProvider === "none" ||
+        this.callbacks.hasProviderKey(currentProvider);
+      providerDropdown.value = hasCurrentProviderKey ? currentProvider : "none";
 
-    providerDropdown.addEventListener("change", updateSummaryLabel);
+      // Default LLM checkbox to checked if a provider is selected and has a key
+      if (hasCurrentProviderKey && currentProvider !== "none") {
+        useLLMCheckbox.checked = true;
+      }
+
+      // Add checkbox for generating summary (must be defined before updateLLMDependentControls)
+      const generateSummaryContainer = contentEl.createDiv({
+        attr: { style: "margin-bottom: 1em;" },
+      });
+      generateSummaryCheckbox = generateSummaryContainer.createEl("input", {
+        type: "checkbox",
+        attr: {
+          id: "generate-summary-checkbox",
+        },
+      }) as HTMLInputElement;
+      if (this.settings.generateSummary) {
+        generateSummaryCheckbox.checked = true;
+      }
+
+      const generateSummaryLabel = generateSummaryContainer.createEl("label", {
+        text: `Generate summary`,
+        attr: {
+          for: "generate-summary-checkbox",
+          style: "margin-left: 0.5em; cursor: pointer;",
+        },
+      });
+
+      // Disable provider dropdown and summary checkbox when LLM processing is unchecked
+      const updateLLMDependentControls = () => {
+        const llmEnabled = useLLMCheckbox!.checked;
+        providerDropdown!.disabled = !llmEnabled;
+        generateSummaryCheckbox!.disabled = !llmEnabled;
+        // Uncheck summary if LLM is disabled
+        if (!llmEnabled) {
+          generateSummaryCheckbox!.checked = false;
+        }
+      };
+      useLLMCheckbox.addEventListener("change", updateLLMDependentControls);
+      updateLLMDependentControls();
+
+      // Update summary label based on selected provider
+      const updateSummaryLabel = () => {
+        generateSummaryLabel.textContent = `Generate summary`;
+      };
+
+      providerDropdown.addEventListener("change", updateSummaryLabel);
+    }
 
     const buttonContainer = contentEl.createDiv({
       attr: { style: "text-align: right;" },
     });
 
     const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
-    cancelButton.onclick = () => this.close();
+    cancelButton.addEventListener("click", () => this.close());
 
     const submitButton = buttonContainer.createEl("button", {
       text: "Fetch transcript",
     });
     submitButton.setCssProps({ "margin-left": "0.5em" });
-    submitButton.onclick = () => {
-      const url = input.value.trim();
-      if (url) {
+    submitButton.addEventListener("click", () => {
+      try {
+        const url = input.value.trim();
+        if (!url) {
+          return;
+        }
         const createNewFile = createNewFileCheckbox.checked;
         const includeVideoUrl = includeUrlCheckbox.checked;
-        const generateSummary = generateSummaryCheckbox.checked;
-        const useLLM = useLLMCheckbox.checked;
-        // If LLM processing is disabled, use "none" regardless of dropdown selection
-        const llmProvider = useLLM
+        const generateSummary = hasAnyProviderKey && generateSummaryCheckbox
+          ? generateSummaryCheckbox.checked
+          : false;
+        const useLLM = hasAnyProviderKey && useLLMCheckbox
+          ? useLLMCheckbox.checked
+          : false;
+        // If LLM processing is disabled or no providers configured, use "none"
+        const llmProvider = hasAnyProviderKey && useLLM && providerDropdown
           ? (providerDropdown.value as LLMProvider)
           : "none";
         const tagWithChannelName = tagChannelCheckbox.checked;
@@ -380,8 +400,10 @@ export class YouTubeUrlModal extends Modal {
           tagWithChannelName,
         );
         this.close();
+      } catch (error) {
+        console.error("Error in submit button handler:", error);
       }
-    };
+    });
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -389,10 +411,14 @@ export class YouTubeUrlModal extends Modal {
         if (url) {
           const createNewFile = createNewFileCheckbox.checked;
           const includeVideoUrl = includeUrlCheckbox.checked;
-          const generateSummary = generateSummaryCheckbox.checked;
-          const useLLM = useLLMCheckbox.checked;
-          // If LLM processing is disabled, use "none" regardless of dropdown selection
-          const llmProvider = useLLM
+          const generateSummary = hasAnyProviderKey && generateSummaryCheckbox
+            ? generateSummaryCheckbox.checked
+            : false;
+          const useLLM = hasAnyProviderKey && useLLMCheckbox
+            ? useLLMCheckbox.checked
+            : false;
+          // If LLM processing is disabled or no providers configured, use "none"
+          const llmProvider = hasAnyProviderKey && useLLM && providerDropdown
             ? (providerDropdown.value as LLMProvider)
             : "none";
           const tagWithChannelName = tagChannelCheckbox.checked;
