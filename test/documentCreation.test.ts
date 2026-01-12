@@ -14,11 +14,13 @@ const sanitizeFilename = (filename: string): string => {
 async function simulateCreateTranscriptFile(
 	getAvailablePath: (basePath: string, extension: string) => string,
 	create: (path: string, content: string) => Promise<TFile>,
+	createBinary: (path: string, content: ArrayBuffer) => Promise<TFile>,
 	activeFile: TFile,
 	videoTitle: string,
 	transcript: string,
 	videoUrl: string,
-	includeVideoUrl: boolean
+	includeVideoUrl: boolean,
+	fileFormat: "markdown" | "pdf" = "markdown"
 ): Promise<string> {
 	const baseSanitizedTitle = sanitizeFilename(videoTitle);
 
@@ -28,11 +30,14 @@ async function simulateCreateTranscriptFile(
 		activeFilePath.lastIndexOf('/')
 	);
 
+	// Determine file extension based on format
+	const extension = fileFormat === "pdf" ? "pdf" : "md";
+
 	// Use FileManager API to get an available path (handles duplicates automatically)
 	const basePath = directory
-		? `${directory}/${baseSanitizedTitle}.md`
-		: `${baseSanitizedTitle}.md`;
-	const newFilePath = getAvailablePath(basePath, "md");
+		? `${directory}/${baseSanitizedTitle}.${extension}`
+		: `${baseSanitizedTitle}.${extension}`;
+	const newFilePath = getAvailablePath(basePath, extension);
 
 	// Build file content
 	const parts: string[] = [];
@@ -42,8 +47,16 @@ async function simulateCreateTranscriptFile(
 	parts.push(transcript);
 	const fileContent = parts.join('\n\n');
 
-	// Create the file
-	await create(newFilePath, fileContent);
+	// Create the file based on format
+	if (fileFormat === "pdf") {
+		// For PDF, create a mock ArrayBuffer
+		const encoder = new TextEncoder();
+		const pdfBuffer = encoder.encode("%PDF-1.4\nMock PDF content");
+		// Convert to ArrayBuffer for consistency with actual implementation
+		await createBinary(newFilePath, pdfBuffer.buffer);
+	} else {
+		await create(newFilePath, fileContent);
+	}
 	return newFilePath;
 }
 
@@ -51,6 +64,8 @@ async function simulateCreateTranscriptFile(
 type MockGetAvailablePath = (basePath: string, extension: string) => string;
 
 type MockCreate = (path: string, content: string) => Promise<TFile>;
+
+type MockCreateBinary = (path: string, content: ArrayBuffer) => Promise<TFile>;
 
 // Mock Obsidian types
 const createMockTFile = (path: string): TFile => {
@@ -72,6 +87,7 @@ const createMockTFile = (path: string): TFile => {
 describe('createTranscriptFile', () => {
 	let mockGetAvailablePath: MockGetAvailablePath;
 	let mockCreate: MockCreate;
+	let mockCreateBinary: MockCreateBinary;
 	let fileMap: Set<string>;
 
 	beforeEach(() => {
@@ -83,16 +99,24 @@ describe('createTranscriptFile', () => {
 				return basePath;
 			}
 			// If file exists, find next available path
-			const baseName = basePath.replace(/\.md$/, '');
+			const baseName = basePath.replace(/\.(md|pdf)$/, '');
+			const extension = basePath.match(/\.(md|pdf)$/)?.[1] || "md";
 			let counter = 1;
-			let candidatePath = `${baseName} (${counter}).md`;
+			let candidatePath = `${baseName} (${counter}).${extension}`;
 			while (fileMap.has(candidatePath)) {
 				counter++;
-				candidatePath = `${baseName} (${counter}).md`;
+				candidatePath = `${baseName} (${counter}).${extension}`;
 			}
 			return candidatePath;
 		});
 		mockCreate = vi.fn<[string, string], Promise<TFile>>().mockImplementation(async (path: string) => {
+			if (fileMap.has(path)) {
+				throw new Error(`File already exists: ${path}`);
+			}
+			fileMap.add(path);
+			return createMockTFile(path);
+		});
+		mockCreateBinary = vi.fn<[string, ArrayBuffer], Promise<TFile>>().mockImplementation(async (path: string) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
 			}
@@ -110,11 +134,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			videoUrl,
-			false
+			false,
+			"markdown"
 		);
 
 		expect(result).toBe('test/Test Video Title.md');
@@ -130,11 +156,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		expect(result).toBe('test/Test Video Title (1).md');
@@ -153,11 +181,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		expect(result).toBe('test/Test Video Title (3).md');
@@ -172,11 +202,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		expect(result).toBe('Root Video.md');
@@ -192,11 +224,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			videoUrl,
-			true
+			true,
+			"markdown"
 		);
 
 		const expectedContent = `![${videoTitle}](${videoUrl})\n\n${transcript}`;
@@ -212,11 +246,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		// Should sanitize invalid characters
@@ -239,11 +275,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		// Should create secondary file using getAvailablePath
@@ -259,15 +297,19 @@ describe('createTranscriptFile', () => {
 		const videoTitle = 'Test Video';
 		const transcript = 'Test transcript';
 
+		const errorCreateBinary: MockCreateBinary = vi.fn<[string, ArrayBuffer], Promise<TFile>>().mockRejectedValue(new Error('Permission denied'));
+
 		await expect(
 			simulateCreateTranscriptFile(
 				errorGetAvailablePath,
 				errorCreate,
+				errorCreateBinary,
 				activeFile,
 				videoTitle,
 				transcript,
 				'https://www.youtube.com/watch?v=test123',
-				false
+				false,
+				"markdown"
 			)
 		).rejects.toThrow('Permission denied');
 	});
@@ -280,11 +322,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		// Should truncate to 100 characters
@@ -301,11 +345,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		expect(result).toBe('folder/subfolder/Test Video (1).md');
@@ -321,11 +367,13 @@ describe('createTranscriptFile', () => {
 		const result = await simulateCreateTranscriptFile(
 			mockGetAvailablePath,
 			mockCreate,
+			mockCreateBinary,
 			activeFile,
 			videoTitle,
 			transcript,
 			'https://www.youtube.com/watch?v=test123',
-			false
+			false,
+			"markdown"
 		);
 
 		// Should create (1) instead of modifying existing file
@@ -333,5 +381,113 @@ describe('createTranscriptFile', () => {
 		expect(mockCreate).toHaveBeenCalledWith('test/Test Video (1).md', transcript);
 		// Verify original file still exists (not modified)
 		expect(fileMap.has('test/Test Video.md')).toBe(true);
+	});
+
+	it('should create PDF file when fileFormat is pdf', async () => {
+		const activeFile = createMockTFile('test/active.md');
+		const videoTitle = 'Test Video';
+		const transcript = 'This is a test transcript';
+		const videoUrl = 'https://www.youtube.com/watch?v=test123';
+
+		const result = await simulateCreateTranscriptFile(
+			mockGetAvailablePath,
+			mockCreate,
+			mockCreateBinary,
+			activeFile,
+			videoTitle,
+			transcript,
+			videoUrl,
+			false,
+			"pdf"
+		);
+
+		expect(result).toBe('test/Test Video.pdf');
+		expect(mockCreateBinary).toHaveBeenCalledWith(
+			'test/Test Video.pdf',
+			expect.any(ArrayBuffer)
+		);
+		expect(mockCreate).not.toHaveBeenCalled();
+	});
+
+	it('should create markdown file when fileFormat is markdown', async () => {
+		const activeFile = createMockTFile('test/active.md');
+		const videoTitle = 'Test Video';
+		const transcript = 'This is a test transcript';
+		const videoUrl = 'https://www.youtube.com/watch?v=test123';
+
+		const result = await simulateCreateTranscriptFile(
+			mockGetAvailablePath,
+			mockCreate,
+			mockCreateBinary,
+			activeFile,
+			videoTitle,
+			transcript,
+			videoUrl,
+			false,
+			"markdown"
+		);
+
+		expect(result).toBe('test/Test Video.md');
+		expect(mockCreate).toHaveBeenCalledWith('test/Test Video.md', transcript);
+		expect(mockCreateBinary).not.toHaveBeenCalled();
+	});
+
+	it('should handle duplicate PDF files', async () => {
+		fileMap.add('test/Test Video.pdf');
+		const activeFile = createMockTFile('test/active.md');
+		const videoTitle = 'Test Video';
+		const transcript = 'This is a test transcript';
+
+		const result = await simulateCreateTranscriptFile(
+			mockGetAvailablePath,
+			mockCreate,
+			mockCreateBinary,
+			activeFile,
+			videoTitle,
+			transcript,
+			'https://www.youtube.com/watch?v=test123',
+			false,
+			"pdf"
+		);
+
+		expect(result).toBe('test/Test Video (1).pdf');
+		expect(mockCreateBinary).toHaveBeenCalledWith(
+			'test/Test Video (1).pdf',
+			expect.any(ArrayBuffer)
+		);
+	});
+
+	it('should use correct extension based on format', async () => {
+		const activeFile = createMockTFile('test/active.md');
+		const videoTitle = 'Test Video';
+		const transcript = 'Test transcript';
+
+		// Test PDF format
+		const pdfResult = await simulateCreateTranscriptFile(
+			mockGetAvailablePath,
+			mockCreate,
+			mockCreateBinary,
+			activeFile,
+			videoTitle,
+			transcript,
+			'https://www.youtube.com/watch?v=test123',
+			false,
+			"pdf"
+		);
+		expect(pdfResult).toMatch(/\.pdf$/);
+
+		// Test markdown format
+		const mdResult = await simulateCreateTranscriptFile(
+			mockGetAvailablePath,
+			mockCreate,
+			mockCreateBinary,
+			activeFile,
+			videoTitle,
+			transcript,
+			'https://www.youtube.com/watch?v=test123',
+			false,
+			"markdown"
+		);
+		expect(mdResult).toMatch(/\.md$/);
 	});
 });

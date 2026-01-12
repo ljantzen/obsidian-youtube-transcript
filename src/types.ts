@@ -18,6 +18,7 @@ export interface YouTubeTranscriptPluginSettings {
   includeTimestampsInLLM: boolean; // Whether to include timestamps in LLM-processed transcripts
   localVideoDirectory: string; // Filesystem directory where local video files are stored (empty = use YouTube URLs)
   savedDirectories: string[]; // List of user-configurable directories for storing transcript files
+  fileFormat: "markdown" | "pdf"; // File format for saved transcripts
 }
 
 export interface CaptionTrack {

@@ -15,6 +15,7 @@ import { getYouTubeTranscript } from "./youtube";
 import { YouTubeUrlModal, RetryConfirmationModal } from "./modals";
 import { YouTubeTranscriptSettingTab } from "./settingsTab";
 import { UserCancelledError } from "./llm/openai";
+import { generatePdfFromMarkdown } from "./pdfGenerator";
 
 export default class YouTubeTranscriptPlugin extends Plugin {
   settings: YouTubeTranscriptPluginSettings;
@@ -172,6 +173,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.savedDirectories = DEFAULT_SETTINGS.savedDirectories;
       await this.saveSettings();
     }
+
+    // Ensure fileFormat has a default value if missing (backward compatibility)
+    if (this.settings.fileFormat === undefined) {
+      this.settings.fileFormat = DEFAULT_SETTINGS.fileFormat;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -212,6 +219,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         llmProvider: LLMProvider,
         selectedDirectory: string | null,
         tagWithChannelName: boolean,
+        fileFormat: "markdown" | "pdf",
       ) => {
         const fetchingNotice = new Notice(
           "Fetching transcript from YouTube...",
@@ -264,10 +272,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               selectedDirectory,
               channelName,
               tagWithChannelName,
+              fileFormat,
             );
-            new Notice(
-              `Transcript file created successfully! (${transcript.length} characters)`,
-            );
+            const formatNotice = fileFormat === "pdf" 
+              ? `PDF file created successfully! (${transcript.length} characters)`
+              : `Transcript file created successfully! (${transcript.length} characters)`;
+            new Notice(formatNotice);
           } else {
             const activeView =
               this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -317,6 +327,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     selectedDirectory: string | null, // null = use current file's directory, string = use this directory
     channelName: string | null,
     tagWithChannelName: boolean,
+    fileFormat: "markdown" | "pdf",
   ) {
     const baseSanitizedTitle = sanitizeFilename(videoTitle);
 
@@ -351,16 +362,19 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
+    // Determine file extension based on format
+    const fileExtension = fileFormat === "pdf" ? "pdf" : "md";
+
     // Find an available path by checking if file exists (using getAbstractFileByPath which is synchronous)
     let newFilePath = directory
-      ? `${directory}/${baseSanitizedTitle}.md`
-      : `${baseSanitizedTitle}.md`;
+      ? `${directory}/${baseSanitizedTitle}.${fileExtension}`
+      : `${baseSanitizedTitle}.${fileExtension}`;
     let counter = 1;
     while (this.app.vault.getAbstractFileByPath(newFilePath)) {
       const baseName = directory
         ? `${directory}/${baseSanitizedTitle}`
         : baseSanitizedTitle;
-      newFilePath = `${baseName} (${counter}).md`;
+      newFilePath = `${baseName} (${counter}).${fileExtension}`;
       counter++;
     }
 
@@ -381,11 +395,33 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     parts.push(transcript);
 
-    const fileContent = parts.join("\n\n");
+    const markdownContent = parts.join("\n\n");
 
-    // Create the file (with error handling for race conditions)
+    // Create the file based on format
     try {
-      await this.app.vault.create(newFilePath, fileContent);
+      if (fileFormat === "pdf") {
+        try {
+          // Generate PDF from markdown
+          const pdfBuffer = await generatePdfFromMarkdown(
+            this.app,
+            markdownContent,
+          );
+          // Create PDF file as binary
+          await this.app.vault.createBinary(newFilePath, pdfBuffer);
+        } catch (pdfError: unknown) {
+          const pdfErrorMessage =
+            pdfError instanceof Error ? pdfError.message : "Unknown error";
+          // If PDF generation fails, show error and suggest using markdown
+          new Notice(
+            `PDF generation failed: ${pdfErrorMessage}. Please try markdown format instead.`,
+            10000,
+          );
+          throw pdfError;
+        }
+      } else {
+        // Create markdown file as text
+        await this.app.vault.create(newFilePath, markdownContent);
+      }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
@@ -399,17 +435,30 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           ? `${directory}/${baseSanitizedTitle}`
           : baseSanitizedTitle;
         while (this.app.vault.getAbstractFileByPath(newFilePath)) {
-          newFilePath = `${baseName} (${counter}).md`;
+          newFilePath = `${baseName} (${counter}).${fileExtension}`;
           counter++;
         }
-        await this.app.vault.create(newFilePath, fileContent);
+        if (fileFormat === "pdf") {
+          const pdfBuffer = await generatePdfFromMarkdown(
+            this.app,
+            markdownContent,
+          );
+          await this.app.vault.createBinary(newFilePath, pdfBuffer);
+        } else {
+          await this.app.vault.create(newFilePath, markdownContent);
+        }
       } else {
         throw error;
       }
     }
 
-    // Open the file
-    await this.app.workspace.openLinkText(newFilePath, "", false);
+    // Open the file (only for markdown files, PDFs will open in system viewer)
+    if (fileFormat === "markdown") {
+      await this.app.workspace.openLinkText(newFilePath, "", false);
+    } else {
+      // For PDF, just show a notice
+      new Notice(`PDF file created: ${newFilePath}`);
+    }
   }
 
   insertTranscript(

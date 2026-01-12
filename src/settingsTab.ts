@@ -312,6 +312,22 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName("Default file format")
+      .setDesc(
+        "Default file format for new transcript files (can be overridden in the modal)",
+      )
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("markdown", "Markdown")
+          .addOption("pdf", "PDF")
+          .setValue(this.settings.fileFormat || "markdown")
+          .onChange(async (value) => {
+            this.settings.fileFormat = value as "markdown" | "pdf";
+            await this.saveSettings();
+          });
+      });
+
     new Setting(containerEl).setName("Saved Directories").setHeading();
 
     new Setting(containerEl)

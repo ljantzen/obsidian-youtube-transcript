@@ -22,6 +22,7 @@ describe("Settings", () => {
       includeTimestampsInLLM: false,
       localVideoDirectory: "",
       savedDirectories: [],
+      fileFormat: "markdown" as "markdown" | "pdf",
     };
 
     // Verify structure exists
@@ -36,6 +37,7 @@ describe("Settings", () => {
     expect(defaultSettings.timestampFrequency).toBe(0);
     expect(defaultSettings.includeTimestampsInLLM).toBe(false);
     expect(defaultSettings.localVideoDirectory).toBe("");
+    expect(defaultSettings.fileFormat).toBe("markdown");
     expect(typeof defaultSettings.prompt).toBe("string");
     expect(defaultSettings.prompt.length).toBeGreaterThan(0);
   });
@@ -165,6 +167,23 @@ describe("Settings", () => {
     expect(settings.savedDirectories).toHaveLength(2);
     expect(settings.savedDirectories).toContain('Transcripts');
     expect(settings.savedDirectories).toContain('Notes/YouTube');
+  });
+
+  it("should validate file format setting", () => {
+    const settings = {
+      fileFormat: "markdown" as "markdown" | "pdf",
+    };
+
+    expect(typeof settings.fileFormat).toBe("string");
+    expect(["markdown", "pdf"]).toContain(settings.fileFormat);
+
+    // Test switching to PDF
+    settings.fileFormat = "pdf";
+    expect(settings.fileFormat).toBe("pdf");
+
+    // Test switching back to markdown
+    settings.fileFormat = "markdown";
+    expect(settings.fileFormat).toBe("markdown");
   });
 
   it("should validate timestamp frequency values", () => {

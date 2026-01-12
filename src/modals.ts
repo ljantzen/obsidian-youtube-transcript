@@ -87,6 +87,7 @@ export class YouTubeUrlModal extends Modal {
     llmProvider: LLMProvider,
     selectedDirectory: string | null,
     tagWithChannelName: boolean,
+    fileFormat: "markdown" | "pdf",
   ) => void | Promise<void>;
   settings: YouTubeTranscriptPluginSettings;
   callbacks: YouTubeUrlModalCallbacks;
@@ -103,6 +104,7 @@ export class YouTubeUrlModal extends Modal {
       llmProvider: LLMProvider,
       selectedDirectory: string | null,
       tagWithChannelName: boolean,
+      fileFormat: "markdown" | "pdf",
     ) => void | Promise<void>,
   ) {
     super(app);
@@ -187,12 +189,40 @@ export class YouTubeUrlModal extends Modal {
       }
     });
 
-    // Show/hide directory dropdown based on createNewFile checkbox
-    const updateDirectoryVisibility = () => {
-      directoryContainer.style.display = createNewFileCheckbox.checked ? "flex" : "none";
+    // Add file format selector (only show when creating new file)
+    const fileFormatContainer = contentEl.createDiv({
+      attr: {
+        style:
+          "margin-bottom: 1em; margin-left: 1.5em; display: flex; align-items: center; gap: 0.5em;",
+      },
+    });
+    fileFormatContainer.createEl("label", {
+      text: "File format:",
+      attr: {
+        style: "white-space: nowrap;",
+      },
+    });
+    const fileFormatDropdown = fileFormatContainer.createEl("select", {
+      attr: {
+        id: "file-format-dropdown",
+        style: "flex: 1; min-width: 150px;",
+      },
+    });
+    fileFormatDropdown.add(new Option("Markdown", "markdown"));
+    fileFormatDropdown.add(new Option("PDF", "pdf"));
+    fileFormatDropdown.value = this.settings.fileFormat || "markdown";
+    
+    // Note: PDF generation requires Electron API access
+    // If it fails, users will see an error message
+
+    // Show/hide directory and file format dropdowns based on createNewFile checkbox
+    const updateCreateNewFileVisibility = () => {
+      const show = createNewFileCheckbox.checked;
+      directoryContainer.style.display = show ? "flex" : "none";
+      fileFormatContainer.style.display = show ? "flex" : "none";
     };
-    createNewFileCheckbox.addEventListener("change", updateDirectoryVisibility);
-    updateDirectoryVisibility();
+    createNewFileCheckbox.addEventListener("change", updateCreateNewFileVisibility);
+    updateCreateNewFileVisibility();
 
     // Add checkbox for including video URL
     const includeUrlContainer = contentEl.createDiv({
@@ -390,6 +420,10 @@ export class YouTubeUrlModal extends Modal {
         const selectedDirectory = createNewFile
           ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
           : null;
+        // Get file format
+        const fileFormat = createNewFile
+          ? (fileFormatDropdown.value as "markdown" | "pdf")
+          : "markdown";
         void this.onSubmit(
           url,
           createNewFile,
@@ -398,6 +432,7 @@ export class YouTubeUrlModal extends Modal {
           llmProvider,
           selectedDirectory,
           tagWithChannelName,
+          fileFormat,
         );
         this.close();
       } catch (error) {
@@ -427,6 +462,10 @@ export class YouTubeUrlModal extends Modal {
           const selectedDirectory = createNewFile
             ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
             : null;
+          // Get file format
+          const fileFormat = createNewFile
+            ? (fileFormatDropdown.value as "markdown" | "pdf")
+            : "markdown";
           void this.onSubmit(
             url,
             createNewFile,
@@ -435,6 +474,7 @@ export class YouTubeUrlModal extends Modal {
             llmProvider,
             selectedDirectory,
             tagWithChannelName,
+            fileFormat,
           );
           this.close();
         }
