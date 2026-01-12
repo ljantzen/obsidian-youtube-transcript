@@ -36,7 +36,12 @@ export async function processWithGemini(
   if (statusCallback) statusCallback(getProcessingStatusMessage("Gemini"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
-  const fullPrompt = buildPrompt(prompt, transcript, generateSummary);
+  const fullPrompt = buildPrompt(
+    prompt,
+    transcript,
+    generateSummary,
+    settings.includeTimestampsInLLM || false,
+  );
 
   const makeRequest = async (): Promise<LLMResponse> => {
     const timeoutMinutes = settings.openaiTimeout || 1;

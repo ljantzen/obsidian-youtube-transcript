@@ -26,6 +26,9 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   defaultDirectory: "", // Empty = use current file's directory
   useDefaultDirectory: false, // Default to false to maintain backward compatibility
   tagWithChannelName: false, // Default to false to maintain backward compatibility
+  includeTimestamps: true, // Default to true - timestamps are useful for navigation
+  timestampFrequency: 0, // 0 = every sentence, >0 = every N seconds
+  includeTimestampsInLLM: false, // Default to false - LLM processing may remove timestamps
 };
 
 /**

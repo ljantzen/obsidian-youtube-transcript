@@ -49,3 +49,22 @@ export function sanitizeTagName(tagName: string): string {
     .toLowerCase()
     .substring(0, 50); // Limit length for practical purposes
 }
+
+export function formatTimestamp(seconds: number, videoUrl: string): string {
+  // Format seconds as MM:SS or HH:MM:SS
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  let timeString: string;
+  if (hours > 0) {
+    timeString = `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  } else {
+    timeString = `${minutes}:${secs.toString().padStart(2, "0")}`;
+  }
+  
+  // Create markdown link to video at this timestamp
+  // YouTube URL format: https://www.youtube.com/watch?v=VIDEO_ID&t=SECONDSs
+  const timestampUrl = `${videoUrl}${videoUrl.includes("?") ? "&" : "?"}t=${Math.floor(seconds)}s`;
+  return `[${timeString}](${timestampUrl})`;
+}

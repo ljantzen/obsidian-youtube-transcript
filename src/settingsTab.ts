@@ -279,6 +279,55 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             await this.saveSettings();
           });
       });
+
+    new Setting(containerEl)
+      .setName("Include timestamps")
+      .setDesc(
+        "When enabled, timestamps will be included in transcripts as clickable links to the video at that time",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.includeTimestamps)
+          .onChange(async (value) => {
+            this.settings.includeTimestamps = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Timestamp frequency")
+      .setDesc(
+        "How often to show timestamps: 0 = every sentence, >0 = every N seconds (e.g., 30 = every 30 seconds)",
+      )
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text
+          .setPlaceholder("0")
+          .setValue(
+            this.settings.timestampFrequency?.toString() || "0",
+          )
+          .onChange(async (value) => {
+            const frequency = parseInt(value, 10);
+            if (!isNaN(frequency) && frequency >= 0) {
+              this.settings.timestampFrequency = frequency;
+              await this.saveSettings();
+            }
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Include timestamps in LLM output")
+      .setDesc(
+        "When enabled, timestamps will be preserved in LLM-processed transcripts. When disabled, timestamps are removed before LLM processing.",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.includeTimestampsInLLM)
+          .onChange(async (value) => {
+            this.settings.includeTimestampsInLLM = value;
+            await this.saveSettings();
+          });
+      });
   }
 
   /**

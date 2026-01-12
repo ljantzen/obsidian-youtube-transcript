@@ -49,7 +49,12 @@ export async function processWithOpenAI(
   if (statusCallback) statusCallback(getProcessingStatusMessage("OpenAI"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
-  const fullPrompt = buildPrompt(prompt, transcript, generateSummary);
+  const fullPrompt = buildPrompt(
+    prompt,
+    transcript,
+    generateSummary,
+    settings.includeTimestampsInLLM || false,
+  );
 
   const makeRequest = async (): Promise<LLMResponse> => {
     // Add timeout wrapper using configured timeout

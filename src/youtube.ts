@@ -8,7 +8,7 @@ import type {
   LLMResponse,
   RetryModalConstructor,
 } from "./types";
-import { extractVideoId, decodeHtmlEntities } from "./utils";
+import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
 import { processWithOpenAI } from "./llm/openai";
 import { processWithGemini } from "./llm/gemini";
 import { processWithClaude } from "./llm/claude";
@@ -133,6 +133,7 @@ export async function getYouTubeTranscript(
     generateSummary,
     llmProvider,
     settings,
+    watchPageUrl,
     statusCallback,
     RetryModal,
   );
@@ -151,10 +152,11 @@ async function parseTranscript(
   generateSummary: boolean,
   llmProvider: LLMProvider,
   settings: YouTubeTranscriptPluginSettings,
+  videoUrl: string,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
 ): Promise<LLMResponse> {
-  // Parse XML and extract text
+  // Parse XML and extract text with timestamps
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(transcriptXml, "text/xml");
 
@@ -181,7 +183,13 @@ async function parseTranscript(
     }
   }
 
-  const transcriptParts: string[] = [];
+  // Extract text with timestamps
+  interface TranscriptSegment {
+    text: string;
+    startTime: number;
+  }
+
+  const transcriptSegments: TranscriptSegment[] = [];
   for (let i = 0; i < textElements.length; i++) {
     const element = textElements[i];
     let text = element.textContent || "";
@@ -195,12 +203,18 @@ async function parseTranscript(
     }
 
     if (text && text.trim()) {
-      transcriptParts.push(text.trim());
+      // Extract start time from the element's start attribute
+      const startAttr = element.getAttribute("start");
+      const startTime = startAttr ? parseFloat(startAttr) : -1;
+      transcriptSegments.push({
+        text: text.trim(),
+        startTime: startTime,
+      });
     }
   }
 
   // If still no content, try querySelectorAll with a broader search
-  if (transcriptParts.length === 0) {
+  if (transcriptSegments.length === 0) {
     const allTextNodes = xmlDoc.querySelectorAll("*");
     for (let i = 0; i < allTextNodes.length; i++) {
       const node = allTextNodes[i];
@@ -209,12 +223,17 @@ async function parseTranscript(
         text = decodeHtmlEntities(text);
       }
       if (text && text.trim() && node.children.length === 0) {
-        transcriptParts.push(text.trim());
+        const startAttr = node.getAttribute("start");
+        const startTime = startAttr ? parseFloat(startAttr) : -1;
+        transcriptSegments.push({
+          text: text.trim(),
+          startTime: startTime,
+        });
       }
     }
   }
 
-  if (transcriptParts.length === 0) {
+  if (transcriptSegments.length === 0) {
     console.error(
       "Transcript XML structure:",
       transcriptXml.substring(0, 500),
@@ -224,20 +243,88 @@ async function parseTranscript(
     );
   }
 
-  // Join transcript parts with spaces, then add newlines after sentence-ending punctuation
-  // to create natural paragraph breaks while keeping sentences together
-  let rawTranscript = transcriptParts.join(" ");
-  // Add newlines after sentence-ending punctuation followed by a space and capital letter
-  rawTranscript = rawTranscript.replace(/([.!?])\s+([A-Z])/g, "$1\n\n$2");
+  // Build transcript with timestamps if enabled
+  let rawTranscript: string;
+  if (settings.includeTimestamps) {
+    const lines: string[] = [];
+    let currentLineParts: string[] = [];
+    let lastTimestampTime = -1;
+    const timestampFrequency = settings.timestampFrequency || 0;
+
+    for (let i = 0; i < transcriptSegments.length; i++) {
+      const segment = transcriptSegments[i];
+      const shouldAddTimestamp =
+        segment.startTime >= 0 &&
+        (timestampFrequency === 0 || // Every sentence
+          lastTimestampTime < 0 || // First timestamp
+          segment.startTime - lastTimestampTime >= timestampFrequency); // Frequency interval
+
+      if (shouldAddTimestamp) {
+        // If there's accumulated text, finish the current line first
+        if (currentLineParts.length > 0) {
+          lines.push(currentLineParts.join(" "));
+          currentLineParts = [];
+        }
+        // Start a new line with timestamp at the beginning, followed by the text
+        const timestamp = formatTimestamp(segment.startTime, videoUrl);
+        currentLineParts.push(timestamp, segment.text);
+        lastTimestampTime = segment.startTime;
+      } else {
+        // Just add text to current line (continuing from previous segments)
+        currentLineParts.push(segment.text);
+      }
+
+      // For timestampFrequency === 0, finish line after sentence-ending punctuation
+      if (timestampFrequency === 0) {
+        const text = segment.text.trim();
+        if (
+          text.endsWith(".") ||
+          text.endsWith("!") ||
+          text.endsWith("?")
+        ) {
+          if (currentLineParts.length > 0) {
+            lines.push(currentLineParts.join(" "));
+            currentLineParts = [];
+          }
+        }
+      }
+    }
+
+    // Add any remaining content
+    if (currentLineParts.length > 0) {
+      lines.push(currentLineParts.join(" "));
+    }
+
+    // Join lines with newlines
+    rawTranscript = lines.join("\n");
+  } else {
+    // No timestamps - just join text parts
+    const textParts = transcriptSegments.map((s) => s.text);
+    rawTranscript = textParts.join(" ");
+    // Add newlines after sentence-ending punctuation followed by a space and capital letter
+    rawTranscript = rawTranscript.replace(/([.!?])\s+([A-Z])/g, "$1\n\n$2");
+  }
 
   // Process through LLM if provider is configured
   const providerToUse = llmProvider || settings.llmProvider;
   if (providerToUse && providerToUse !== "none") {
     const hasKey = hasProviderKey(providerToUse, settings);
     if (hasKey) {
+      // If timestamps are included but we don't want them in LLM output, remove them
+      let transcriptForLLM = rawTranscript;
+      if (settings.includeTimestamps && !settings.includeTimestampsInLLM) {
+        // Remove timestamp links: [MM:SS](url) or [H:MM:SS](url)
+        transcriptForLLM = transcriptForLLM.replace(
+          /\[(\d{1,2}:\d{2}(?::\d{2})?)\]\([^)]+\)\s*/g,
+          "",
+        );
+        // Clean up any double spaces that might result
+        transcriptForLLM = transcriptForLLM.replace(/\s+/g, " ").trim();
+      }
+
       const processed = await processWithLLM(
         app,
-        rawTranscript,
+        transcriptForLLM,
         generateSummary,
         providerToUse,
         settings,

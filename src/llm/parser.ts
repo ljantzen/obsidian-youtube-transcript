@@ -191,6 +191,7 @@ export function buildPrompt(
   basePrompt: string,
   transcript: string,
   generateSummary: boolean,
+  includeTimestampsInLLM: boolean,
 ): string {
   let fullPrompt = basePrompt;
 
@@ -202,6 +203,10 @@ export function buildPrompt(
   } else {
     fullPrompt += `\n\nPlease format your response as follows:\n`;
     fullPrompt += `- Start with a "## Transcript" markdown header followed by the processed transcript\n`;
+  }
+
+  if (includeTimestampsInLLM) {
+    fullPrompt += `\n\nIMPORTANT: The transcript contains timestamp links in the format [MM:SS](url). You MUST preserve these timestamp links exactly as they appear in the original transcript. Do not remove, modify, or reformat them.`;
   }
 
   fullPrompt += `\nTranscript:\n${transcript}`;

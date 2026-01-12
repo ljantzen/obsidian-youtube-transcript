@@ -155,6 +155,21 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.tagWithChannelName = DEFAULT_SETTINGS.tagWithChannelName;
       await this.saveSettings();
     }
+
+    // Ensure timestamp settings have default values if missing (backward compatibility)
+    if (this.settings.includeTimestamps === undefined) {
+      this.settings.includeTimestamps = DEFAULT_SETTINGS.includeTimestamps;
+      await this.saveSettings();
+    }
+    if (this.settings.timestampFrequency === undefined) {
+      this.settings.timestampFrequency = DEFAULT_SETTINGS.timestampFrequency;
+      await this.saveSettings();
+    }
+    if (this.settings.includeTimestampsInLLM === undefined) {
+      this.settings.includeTimestampsInLLM =
+        DEFAULT_SETTINGS.includeTimestampsInLLM;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {

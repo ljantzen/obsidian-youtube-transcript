@@ -212,6 +212,24 @@ export class YouTubeUrlModal extends Modal {
       },
     });
 
+    // Add checkbox for enabling LLM processing (placed before provider dropdown)
+    const useLLMContainer = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+    const useLLMCheckbox = useLLMContainer.createEl("input", {
+      type: "checkbox",
+      attr: {
+        id: "use-llm-checkbox",
+      },
+    });
+    useLLMContainer.createEl("label", {
+      text: "Use LLM processing",
+      attr: {
+        for: "use-llm-checkbox",
+        style: "margin-left: 0.5em; cursor: pointer;",
+      },
+    });
+
     // Add provider selection dropdown
     const providerContainer = contentEl.createDiv({
       attr: {
@@ -253,7 +271,12 @@ export class YouTubeUrlModal extends Modal {
       this.callbacks.hasProviderKey(currentProvider);
     providerDropdown.value = hasCurrentProviderKey ? currentProvider : "none";
 
-    // Add checkbox for generating summary
+    // Default LLM checkbox to checked if a provider is selected and has a key
+    if (hasCurrentProviderKey && currentProvider !== "none") {
+      useLLMCheckbox.checked = true;
+    }
+
+    // Add checkbox for generating summary (must be defined before updateLLMDependentControls)
     const generateSummaryContainer = contentEl.createDiv({
       attr: { style: "margin-bottom: 1em;" },
     });
@@ -274,6 +297,19 @@ export class YouTubeUrlModal extends Modal {
         style: "margin-left: 0.5em; cursor: pointer;",
       },
     });
+
+    // Disable provider dropdown and summary checkbox when LLM processing is unchecked
+    const updateLLMDependentControls = () => {
+      const llmEnabled = useLLMCheckbox.checked;
+      providerDropdown.disabled = !llmEnabled;
+      generateSummaryCheckbox.disabled = !llmEnabled;
+      // Uncheck summary if LLM is disabled
+      if (!llmEnabled) {
+        generateSummaryCheckbox.checked = false;
+      }
+    };
+    useLLMCheckbox.addEventListener("change", updateLLMDependentControls);
+    updateLLMDependentControls();
 
     // Update summary label based on selected provider
     const updateSummaryLabel = () => {
@@ -299,7 +335,11 @@ export class YouTubeUrlModal extends Modal {
         const createNewFile = createNewFileCheckbox.checked;
         const includeVideoUrl = includeUrlCheckbox.checked;
         const generateSummary = generateSummaryCheckbox.checked;
-        const llmProvider = providerDropdown.value as LLMProvider;
+        const useLLM = useLLMCheckbox.checked;
+        // If LLM processing is disabled, use "none" regardless of dropdown selection
+        const llmProvider = useLLM
+          ? (providerDropdown.value as LLMProvider)
+          : "none";
         const tagWithChannelName = tagChannelCheckbox.checked;
         // Determine override directory:
         // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
@@ -335,7 +375,11 @@ export class YouTubeUrlModal extends Modal {
           const createNewFile = createNewFileCheckbox.checked;
           const includeVideoUrl = includeUrlCheckbox.checked;
           const generateSummary = generateSummaryCheckbox.checked;
-          const llmProvider = providerDropdown.value as LLMProvider;
+          const useLLM = useLLMCheckbox.checked;
+          // If LLM processing is disabled, use "none" regardless of dropdown selection
+          const llmProvider = useLLM
+            ? (providerDropdown.value as LLMProvider)
+            : "none";
           const tagWithChannelName = tagChannelCheckbox.checked;
           // Determine override directory:
           // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
