@@ -10,9 +10,11 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Summary generation** - Automatically generate concise summaries of video content
 - **Channel name tagging** - Automatically tag notes with the YouTube channel name
 - **Insert or create new files** - Insert transcripts into current note or create a new file based on video title
+- **Multiple file formats** - Save transcripts as Markdown (.md) or PDF files
 - **Configurable timestamp frequency** - Control how often timestamps appear (every sentence or every N seconds)
+- **Local video support** - Link timestamps to local video files instead of YouTube URLs
 - **Multiple URL formats** - Supports full URLs, short URLs, embed URLs, and direct video IDs
-- **Default directory** - Configure a default directory for new transcript files
+- **Saved directories** - Quick access to frequently used directories for transcript files
 - **Real-time feedback** - Status updates during fetching and processing
 - **Searchable content** - Transcripts are plain text, fully searchable in Obsidian
 
@@ -55,7 +57,9 @@ Required files:
 - Check the "Create new file (based on video title)" checkbox in the modal
 - The file will be created in the configured default directory (if enabled) or the same directory as the current file
 - The filename will be based on the video title (sanitized for filesystem)
-- The new file will automatically open after creation
+- Choose between Markdown (.md) or PDF format
+- Markdown files will automatically open after creation
+- PDF files will be created and a notification will be shown (PDFs open in your system's default PDF viewer)
 
 ### Timestamps
 
@@ -69,12 +73,14 @@ Timestamps are included by default and appear as clickable links at the beginnin
 - **Include timestamps in LLM output**: When enabled, timestamps are preserved in AI-processed transcripts
 - **Local video directory**: If you have downloaded videos locally, set this to the directory path. Timestamps will then point to local files (`file:///path/video-id.mp4?t=SECONDS`) instead of YouTube URLs. Videos should be named `{video-id}.mp4` in the specified directory.
 
+**Note**: PDF format does not support clickable links, so timestamps in PDF files will appear as plain text.
+
 ### LLM Processing (Optional)
 
 The plugin supports three LLM providers for cleaning and processing transcripts:
 
-1. **OpenAI** - GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo, and more
-2. **Google Gemini** - Gemini 2.0 Flash, Gemini 3 Pro, and more
+1. **OpenAI** - GPT-4o Mini, GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo, and more
+2. **Google Gemini** - Gemini 3 Pro, Gemini 3 Flash, Gemini 2.0 Flash, and more
 3. **Anthropic Claude** - Claude Sonnet 4, Claude Opus 4, Claude Haiku 4
 
 **Setup:**
@@ -111,16 +117,17 @@ Automatically tag notes with the YouTube channel name:
 2. Notes will be tagged with `#channel-name` at the top
 3. Channel names are automatically sanitized to create valid Obsidian tags
 
-### Default Directory
+### Default Directory and Saved Directories
 
-Configure a default directory for new transcript files:
+Configure directories for new transcript files:
 
 1. Go to Settings → YouTube Transcript Settings
 2. Enable "Use default directory"
 3. Enter the directory path (e.g., `Transcripts` or `Notes/YouTube`)
 4. New files will be created in this directory instead of the current file's directory
+5. You can also add frequently used directories to "Saved directories" for quick access in the modal
 
-You can override this setting per-transcript using the modal options.
+You can override the default directory per-transcript using the modal options, or select from your saved directories.
 
 ### Supported URL Formats
 
@@ -134,12 +141,13 @@ You can override this setting per-transcript using the modal options.
 When fetching a transcript, you can configure:
 
 - **Create new file**: Create a new file instead of inserting into current note
+- **File format**: Choose between Markdown (.md) or PDF format (only shown when creating new file)
 - **Include video URL**: Add the video URL as a markdown link
 - **Tag with channel name**: Add channel name as a tag
 - **Use LLM processing**: Enable/disable LLM processing for this transcript (only shown if providers are configured)
 - **LLM provider**: Select which LLM provider to use (only shown if providers are configured)
 - **Generate summary**: Generate a summary (requires LLM processing enabled and a provider configured)
-- **Override directory**: Use a different directory for this file
+- **Directory selection**: Choose from saved directories or enter a custom directory path (only shown when creating new file)
 
 **Note**: The modal automatically prefills the URL field if you have a YouTube URL in your clipboard.
 
@@ -157,6 +165,8 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 ### File Creation Settings
 - **Use default directory**: Enable to use a configured default directory
 - **Default directory**: Path where new transcript files are created
+- **Saved directories**: List of frequently used directories for quick selection in the modal
+- **File format**: Default file format for new transcript files (Markdown or PDF)
 
 ### Content Options
 - **Include video URL**: Include video URL in transcripts by default
@@ -289,6 +299,7 @@ npm run lint:fix
 - Ensure you have write permissions in the target directory
 - Check that the video title doesn't contain invalid filename characters (these are automatically sanitized)
 - Verify the default directory path is correct if using that option
+- **PDF generation**: PDF format requires Electron API access (desktop app only). If PDF generation fails, try using Markdown format instead. PDF generation may also fail if the transcript is too large or if there are formatting issues.
 
 ### Model selection issues
 - Click the refresh button next to the model dropdown to fetch latest models
