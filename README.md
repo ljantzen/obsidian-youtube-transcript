@@ -44,9 +44,11 @@ Required files:
 
 1. Open a markdown note (or any file to determine the directory for new files)
 2. Use the ribbon icon (YouTube icon) or command palette to fetch a YouTube transcript
-3. Enter the YouTube video URL or ID
+3. Enter the YouTube video URL or ID (or copy a YouTube URL to your clipboard - it will be automatically prefilled)
 4. Choose to insert into current note or create a new file
 5. The transcript will be fetched and inserted/created
+
+**Tip**: If you have a YouTube URL in your clipboard, it will be automatically prefilled in the URL field when you open the modal.
 
 ### Creating New Files
 
@@ -57,7 +59,7 @@ Required files:
 
 ### Timestamps
 
-Timestamps are included by default and appear as clickable links (e.g., `[5:30](url)`). Clicking a timestamp opens the video at that exact moment.
+Timestamps are included by default and appear as clickable links at the beginning of each line (e.g., `[5:30](url) Text content...`). Clicking a timestamp opens the video at that exact moment.
 
 **Timestamp Settings:**
 - **Include timestamps**: Toggle to enable/disable timestamps in transcripts (default: enabled)
@@ -65,6 +67,7 @@ Timestamps are included by default and appear as clickable links (e.g., `[5:30](
   - `0` = every sentence (default)
   - `>0` = every N seconds (e.g., `30` = every 30 seconds)
 - **Include timestamps in LLM output**: When enabled, timestamps are preserved in AI-processed transcripts
+- **Local video directory**: If you have downloaded videos locally, set this to the directory path. Timestamps will then point to local files (`file:///path/video-id.mp4?t=SECONDS`) instead of YouTube URLs. Videos should be named `{video-id}.mp4` in the specified directory.
 
 ### LLM Processing (Optional)
 
@@ -82,9 +85,12 @@ The plugin supports three LLM providers for cleaning and processing transcripts:
 5. Optionally customize the processing prompt
 
 **Processing Options:**
+- **Use LLM processing**: Toggle in the modal to enable/disable LLM processing for individual transcripts (even if a provider is configured)
 - **Custom prompt**: Modify the default prompt to change how transcripts are processed
 - **Generate summary**: When enabled, the LLM will generate a 2-3 sentence summary of the video
 - **Include timestamps in LLM output**: Preserve timestamps when processing with LLM
+
+**Note**: If no LLM providers are configured (no API keys), LLM-related options will be hidden from the modal to keep the interface clean.
 
 **Default Processing:**
 The default prompt removes self-promotion, calls to action, and promotional content while maintaining the original meaning and improving grammar and sentence structure.
@@ -129,10 +135,13 @@ When fetching a transcript, you can configure:
 
 - **Create new file**: Create a new file instead of inserting into current note
 - **Include video URL**: Add the video URL as a markdown link
-- **Generate summary**: Generate a summary (requires LLM provider)
-- **LLM provider**: Override the default LLM provider for this transcript
 - **Tag with channel name**: Add channel name as a tag
+- **Use LLM processing**: Enable/disable LLM processing for this transcript (only shown if providers are configured)
+- **LLM provider**: Select which LLM provider to use (only shown if providers are configured)
+- **Generate summary**: Generate a summary (requires LLM processing enabled and a provider configured)
 - **Override directory**: Use a different directory for this file
+
+**Note**: The modal automatically prefills the URL field if you have a YouTube URL in your clipboard.
 
 ## Settings
 
@@ -156,6 +165,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Include timestamps**: Include timestamps in transcripts
 - **Timestamp frequency**: How often to show timestamps (0 = every sentence, >0 = every N seconds)
 - **Include timestamps in LLM output**: Preserve timestamps when processing with LLM
+- **Local video directory**: Filesystem directory where local video files are stored. If set, timestamp links will point to local files (`file:///path/video-id.mp4?t=SECONDS`) instead of YouTube URLs. Leave empty to use YouTube URLs.
 
 ## Development
 
@@ -228,8 +238,10 @@ Test coverage includes:
 - Filename sanitization
 - XML transcript parsing
 - HTML entity decoding
-- Timestamp formatting
+- Timestamp formatting (YouTube URLs and local file URLs)
+- Path normalization for cross-platform compatibility
 - LLM provider integration
+- Settings validation
 - Error handling
 - Integration tests for complete workflows
 
