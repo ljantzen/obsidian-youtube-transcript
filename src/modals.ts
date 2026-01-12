@@ -1,5 +1,6 @@
 import { App, Modal } from "obsidian";
 import type { LLMProvider, YouTubeTranscriptPluginSettings } from "./types";
+import { extractVideoId } from "./utils";
 
 export class RetryConfirmationModal extends Modal {
   result: boolean | null = null;
@@ -110,7 +111,7 @@ export class YouTubeUrlModal extends Modal {
     this.onSubmit = onSubmit;
   }
 
-  onOpen() {
+  async onOpen() {
     const { contentEl } = this;
 
     contentEl.createEl("h2", { text: "Enter YouTube URL" });
@@ -122,6 +123,20 @@ export class YouTubeUrlModal extends Modal {
         style: "width: 100%; margin-bottom: 1em;",
       },
     });
+
+    // Check clipboard for YouTube URL and prefill if found
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (clipboardText && extractVideoId(clipboardText.trim())) {
+        input.value = clipboardText.trim();
+        // Select the text so user can easily replace it if needed
+        input.select();
+      }
+    } catch (error) {
+      // Clipboard access may fail due to permissions or other reasons
+      // Silently ignore and continue without prefilling
+      console.debug("Could not read clipboard:", error);
+    }
 
     // Add checkbox for creating new file
     const createNewFileContainer = contentEl.createDiv({
