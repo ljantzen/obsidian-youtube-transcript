@@ -19,6 +19,7 @@ export interface YouTubeTranscriptPluginSettings {
   localVideoDirectory: string; // Filesystem directory where local video files are stored (empty = use YouTube URLs)
   savedDirectories: string[]; // List of user-configurable directories for storing transcript files
   fileFormat: "markdown" | "pdf"; // File format for saved transcripts
+  createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
 }
 
 export interface CaptionTrack {

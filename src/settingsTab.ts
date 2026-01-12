@@ -313,6 +313,20 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName("Create new file")
+      .setDesc(
+        "When enabled, the modal will default to creating a new file instead of inserting into the current file (can be overridden in the modal)",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.createNewFile ?? false)
+          .onChange(async (value) => {
+            this.settings.createNewFile = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
       .setName("Default file format")
       .setDesc(
         "Default file format for new transcript files (can be overridden in the modal)",

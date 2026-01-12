@@ -150,6 +150,10 @@ export class YouTubeUrlModal extends Modal {
         id: "create-new-file-checkbox",
       },
     });
+    // Set default value from settings
+    if (this.settings.createNewFile) {
+      createNewFileCheckbox.checked = true;
+    }
     createNewFileContainer.createEl("label", {
       text: "Create new file (based on video title)",
       attr: {

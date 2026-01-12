@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   localVideoDirectory: "", // Empty = use YouTube URLs, set to use local file:// URLs
   savedDirectories: [], // Empty array = no saved directories, users can add directories in settings
   fileFormat: "markdown", // Default to markdown for backward compatibility
+  createNewFile: false, // Default to false - insert into current file by default
 };
 
 /**

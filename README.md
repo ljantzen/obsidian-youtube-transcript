@@ -54,7 +54,7 @@ Required files:
 
 ### Creating New Files
 
-- Check the "Create new file (based on video title)" checkbox in the modal
+- Check the "Create new file (based on video title)" checkbox in the modal (default can be configured in settings)
 - The file will be created in the configured default directory (if enabled) or the same directory as the current file
 - The filename will be based on the video title (sanitized for filesystem)
 - Choose between Markdown (.md) or PDF format
@@ -140,7 +140,7 @@ You can override the default directory per-transcript using the modal options, o
 
 When fetching a transcript, you can configure:
 
-- **Create new file**: Create a new file instead of inserting into current note
+- **Create new file**: Create a new file instead of inserting into current note (default can be set in settings)
 - **File format**: Choose between Markdown (.md) or PDF format (only shown when creating new file)
 - **Include video URL**: Add the video URL as a markdown link
 - **Tag with channel name**: Add channel name as a tag
@@ -149,7 +149,7 @@ When fetching a transcript, you can configure:
 - **Generate summary**: Generate a summary (requires LLM processing enabled and a provider configured)
 - **Directory selection**: Choose from saved directories or enter a custom directory path (only shown when creating new file)
 
-**Note**: The modal automatically prefills the URL field if you have a YouTube URL in your clipboard.
+**Note**: The modal automatically prefills the URL field if you have a YouTube URL in your clipboard. All modal options can be overridden per-transcript, regardless of your default settings.
 
 ## Settings
 
@@ -163,12 +163,14 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **LLM timeout**: Set timeout for API requests (default: 1 minute)
 
 ### File Creation Settings
+- **Create new file**: Default behavior for the "Create new file" checkbox in the modal (default: disabled - inserts into current file)
 - **Use default directory**: Enable to use a configured default directory
 - **Default directory**: Path where new transcript files are created
 - **Saved directories**: List of frequently used directories for quick selection in the modal
 - **File format**: Default file format for new transcript files (Markdown or PDF)
 
 ### Content Options
+- **Create new file**: Default behavior for the "Create new file" checkbox in the modal (default: disabled - inserts into current file)
 - **Include video URL**: Include video URL in transcripts by default
 - **Generate summary**: Generate summaries by default
 - **Tag with channel name**: Tag notes with channel names by default

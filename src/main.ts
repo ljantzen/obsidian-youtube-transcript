@@ -179,6 +179,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.fileFormat = DEFAULT_SETTINGS.fileFormat;
       await this.saveSettings();
     }
+
+    // Ensure createNewFile has a default value if missing (backward compatibility)
+    if (this.settings.createNewFile === undefined) {
+      this.settings.createNewFile = DEFAULT_SETTINGS.createNewFile;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
