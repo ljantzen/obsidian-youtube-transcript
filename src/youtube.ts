@@ -134,6 +134,7 @@ export async function getYouTubeTranscript(
     llmProvider,
     settings,
     watchPageUrl,
+    videoId,
     statusCallback,
     RetryModal,
   );
@@ -153,6 +154,7 @@ async function parseTranscript(
   llmProvider: LLMProvider,
   settings: YouTubeTranscriptPluginSettings,
   videoUrl: string,
+  videoId: string,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
 ): Promise<LLMResponse> {
@@ -266,7 +268,12 @@ async function parseTranscript(
           currentLineParts = [];
         }
         // Start a new line with timestamp at the beginning, followed by the text
-        const timestamp = formatTimestamp(segment.startTime, videoUrl);
+        const timestamp = formatTimestamp(
+          segment.startTime,
+          videoUrl,
+          videoId,
+          settings.localVideoDirectory,
+        );
         currentLineParts.push(timestamp, segment.text);
         lastTimestampTime = segment.startTime;
       } else {

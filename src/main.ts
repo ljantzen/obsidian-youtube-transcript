@@ -170,6 +170,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         DEFAULT_SETTINGS.includeTimestampsInLLM;
       await this.saveSettings();
     }
+
+    // Ensure localVideoDirectory has a default value if missing (backward compatibility)
+    if (this.settings.localVideoDirectory === undefined) {
+      this.settings.localVideoDirectory = DEFAULT_SETTINGS.localVideoDirectory;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {

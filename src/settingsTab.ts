@@ -328,6 +328,23 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             await this.saveSettings();
           });
       });
+
+    new Setting(containerEl)
+      .setName("Local video directory")
+      .setDesc(
+        "Filesystem directory where local video files are stored. If set, timestamp links will point to local files (file:///path/video-id.mp4?t=SECONDS) instead of YouTube URLs. Leave empty to use YouTube URLs.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("/path/to/videos")
+          .setValue(this.settings.localVideoDirectory || "")
+          .onChange(async (value) => {
+            // Normalize path: remove trailing slashes, ensure forward slashes
+            const normalizedPath = value.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+            this.settings.localVideoDirectory = normalizedPath;
+            await this.saveSettings();
+          });
+      });
   }
 
   /**

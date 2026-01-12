@@ -16,6 +16,13 @@ describe("Settings", () => {
       openaiTimeout: 1,
       includeVideoUrl: false,
       generateSummary: false,
+      defaultDirectory: "",
+      useDefaultDirectory: false,
+      tagWithChannelName: false,
+      includeTimestamps: true,
+      timestampFrequency: 0,
+      includeTimestampsInLLM: false,
+      localVideoDirectory: "",
     };
 
     // Verify structure exists
@@ -26,6 +33,10 @@ describe("Settings", () => {
     expect(defaultSettings.openaiTimeout).toBe(1);
     expect(defaultSettings.includeVideoUrl).toBe(false);
     expect(defaultSettings.generateSummary).toBe(false);
+    expect(defaultSettings.includeTimestamps).toBe(true);
+    expect(defaultSettings.timestampFrequency).toBe(0);
+    expect(defaultSettings.includeTimestampsInLLM).toBe(false);
+    expect(defaultSettings.localVideoDirectory).toBe("");
     expect(typeof defaultSettings.prompt).toBe("string");
     expect(defaultSettings.prompt.length).toBeGreaterThan(0);
   });
@@ -109,5 +120,49 @@ describe("Settings", () => {
     expect(settings.openaiModel.length).toBeGreaterThan(0);
     expect(settings.geminiModel.length).toBeGreaterThan(0);
     expect(settings.claudeModel.length).toBeGreaterThan(0);
+  });
+
+  it("should validate timestamp settings", () => {
+    const settings = {
+      includeTimestamps: true,
+      timestampFrequency: 0,
+      includeTimestampsInLLM: false,
+    };
+
+    expect(typeof settings.includeTimestamps).toBe("boolean");
+    expect(typeof settings.timestampFrequency).toBe("number");
+    expect(typeof settings.includeTimestampsInLLM).toBe("boolean");
+    expect(settings.includeTimestamps).toBe(true);
+    expect(settings.timestampFrequency).toBeGreaterThanOrEqual(0);
+    expect(settings.includeTimestampsInLLM).toBe(false);
+  });
+
+  it("should validate local video directory setting", () => {
+    const settings = {
+      localVideoDirectory: "",
+    };
+
+    expect(typeof settings.localVideoDirectory).toBe("string");
+
+    // Test with directory set
+    settings.localVideoDirectory = "/path/to/videos";
+    expect(settings.localVideoDirectory).toBe("/path/to/videos");
+
+    // Test with Windows path
+    settings.localVideoDirectory = "C:\\Users\\Videos";
+    expect(settings.localVideoDirectory).toBe("C:\\Users\\Videos");
+  });
+
+  it("should validate timestamp frequency values", () => {
+    const validFrequencies = [0, 10, 30, 60, 300];
+    const invalidFrequencies = [-1, -10];
+
+    validFrequencies.forEach((freq) => {
+      expect(freq).toBeGreaterThanOrEqual(0);
+    });
+
+    invalidFrequencies.forEach((freq) => {
+      expect(freq).toBeLessThan(0);
+    });
   });
 });

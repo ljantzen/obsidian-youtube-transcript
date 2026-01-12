@@ -18,6 +18,7 @@ export interface YouTubeTranscriptPluginSettings {
   includeTimestamps: boolean; // Whether to include timestamps in transcripts
   timestampFrequency: number; // How often to show timestamps (in seconds). 0 = every sentence, >0 = every N seconds
   includeTimestampsInLLM: boolean; // Whether to include timestamps in LLM-processed transcripts
+  localVideoDirectory: string; // Filesystem directory where local video files are stored (empty = use YouTube URLs)
 }
 
 export interface CaptionTrack {

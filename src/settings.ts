@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   includeTimestamps: true, // Default to true - timestamps are useful for navigation
   timestampFrequency: 0, // 0 = every sentence, >0 = every N seconds
   includeTimestampsInLLM: false, // Default to false - LLM processing may remove timestamps
+  localVideoDirectory: "", // Empty = use YouTube URLs, set to use local file:// URLs
 };
 
 /**
