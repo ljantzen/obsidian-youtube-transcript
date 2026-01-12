@@ -350,6 +350,7 @@ async function parseTranscript(
     );
     new Notice(
       `Summary generation requested but ${providerName} API key is not configured. Using raw transcript instead.`,
+      10000,
     );
   }
   return { transcript: rawTranscript, summary: null };
@@ -371,6 +372,7 @@ async function processWithLLM(
     );
     new Notice(
       `${providerName} processing requested but API key is not configured. Using raw transcript instead.`,
+      10000,
     );
     return { transcript, summary: null };
   }
@@ -404,7 +406,7 @@ async function processWithLLM(
         RetryModal,
       );
     default:
-      new Notice(`Unsupported LLM provider: ${String(provider)}`);
+      new Notice(`Unsupported LLM provider: ${String(provider)}`, 10000);
       return { transcript, summary: null };
   }
 }

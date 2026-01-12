@@ -108,7 +108,7 @@ export async function processWithOpenAI(
       if (response.status === 401 || response.status === 403) {
         if (statusCallback) statusCallback(null); // Hide notice
         const errorMsg = `OpenAI API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(errorMsg);
       }
 
@@ -117,13 +117,13 @@ export async function processWithOpenAI(
         if (statusCallback) statusCallback(null); // Hide notice
         const model = settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
         const errorMsg = `OpenAI API error (404): Model "${model}" not found. Please check your model selection in settings.`;
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(errorMsg);
       }
 
       if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `OpenAI API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
-      new Notice(errorMsg);
+      new Notice(errorMsg, 10000);
       throw new Error(errorMsg);
     }
 
@@ -165,7 +165,7 @@ export async function processWithOpenAI(
           const retryErrorMessage =
             retryError instanceof Error ? retryError.message : "Unknown error";
           const errorMsg = `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`;
-          new Notice(errorMsg);
+          new Notice(errorMsg, 10000);
           throw new Error(errorMsg);
         }
       } else {
@@ -216,7 +216,7 @@ export async function processWithOpenAI(
             return { transcript, summary: null };
           }
           const errorMsg = `Failed to process transcript with OpenAI after retry: ${retryErrorMessage}`;
-          new Notice(errorMsg);
+          new Notice(errorMsg, 10000);
           throw new Error(errorMsg);
         }
       } else {
@@ -231,7 +231,7 @@ export async function processWithOpenAI(
     // For other errors, show notice and throw
     if (statusCallback) statusCallback(null); // Hide notice
     const errorMsg = `Failed to process transcript with OpenAI: ${errorMessage}`;
-    new Notice(errorMsg);
+    new Notice(errorMsg, 10000);
     console.error("OpenAI processing error:", error);
     throw new Error(errorMsg);
   }

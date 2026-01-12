@@ -44,18 +44,38 @@ Required files:
 
 ### Basic Usage
 
-1. Open a markdown note (or any file to determine the directory for new files)
+1. Open a markdown note (or any file to determine the directory for new files, unless you have a default directory set)
 2. Use the ribbon icon (YouTube icon) or command palette to fetch a YouTube transcript
 3. Enter the YouTube video URL or ID (or copy a YouTube URL to your clipboard - it will be automatically prefilled)
 4. Choose to insert into current note or create a new file
 5. The transcript will be fetched and inserted/created
 
-**Tip**: If you have a YouTube URL in your clipboard, it will be automatically prefilled in the URL field when you open the modal.
+**Tip**: If you have a YouTube URL in your clipboard, it will be automatically prefilled in the URL field when you open the modal. If you have a default directory configured, you can create new files even when no document is open.
+
+### Clipboard Command (Keyboard Shortcut)
+
+The plugin includes a command that automatically fetches transcripts from your clipboard using default settings:
+
+1. Copy a YouTube URL to your clipboard
+2. Use the command "Fetch YouTube transcript from clipboard" (can be assigned a keyboard shortcut in Settings → Hotkeys)
+3. The transcript will be fetched and processed using your default settings
+4. If you have a default directory set, the file will be created there (even if no document is open)
+5. If no default directory is set and no document is open, you'll get an error message
+
+**Requirements for clipboard command without an open document:**
+- A default directory must be set in settings
+- The "Create new file" default setting should be enabled (or the file will try to insert into a non-existent document)
+
+**Error handling**: If the clipboard doesn't contain a valid YouTube URL, you'll see an error message that stays visible for 10 seconds.
 
 ### Creating New Files
 
 - Check the "Create new file (based on video title)" checkbox in the modal (default can be configured in settings)
-- The file will be created in the configured default directory (if enabled) or the same directory as the current file
+- The file will be created in:
+  - The default directory (if one is set in settings), or
+  - The directory you select from the dropdown in the modal, or
+  - The same directory as the current file (if no default directory is set and no directory is selected)
+- **With a default directory set**: You can create new files even when no document is open (useful for the clipboard command)
 - The filename will be based on the video title (sanitized for filesystem)
 - Choose between Markdown (.md) or PDF format
 - Markdown files will automatically open after creation
@@ -122,12 +142,15 @@ Automatically tag notes with the YouTube channel name:
 Configure directories for new transcript files:
 
 1. Go to Settings → YouTube Transcript Settings
-2. Enable "Use default directory"
-3. Enter the directory path (e.g., `Transcripts` or `Notes/YouTube`)
-4. New files will be created in this directory instead of the current file's directory
-5. You can also add frequently used directories to "Saved directories" for quick access in the modal
+2. Add directories to "Saved directories" (e.g., `Transcripts` or `Notes/YouTube`)
+3. If you have multiple saved directories, you can designate one as the "Default directory"
+4. When creating new files:
+   - If a default directory is set, files will be created there (even if no document is open)
+   - If no default directory is set, files will be created in the current file's directory
+5. The default directory is automatically pre-selected in the modal dropdown
+6. You can override the directory per-transcript using the modal options
 
-You can override the default directory per-transcript using the modal options, or select from your saved directories.
+**Note**: Setting a default directory allows you to use the clipboard command even when no document is open, as the plugin knows where to create the file.
 
 ### Supported URL Formats
 
@@ -164,13 +187,11 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 
 ### File Creation Settings
 - **Create new file**: Default behavior for the "Create new file" checkbox in the modal (default: disabled - inserts into current file)
-- **Use default directory**: Enable to use a configured default directory
-- **Default directory**: Path where new transcript files are created
-- **Saved directories**: List of frequently used directories for quick selection in the modal
+- **Default directory**: Select one of your saved directories as the default (only shown when you have saved directories). When set, new files will be created in this directory by default, and you can use the clipboard command even when no document is open
+- **Saved directories**: List of frequently used directories for quick selection in the modal. Add directories here, then optionally select one as the default
 - **File format**: Default file format for new transcript files (Markdown or PDF)
 
 ### Content Options
-- **Create new file**: Default behavior for the "Create new file" checkbox in the modal (default: disabled - inserts into current file)
 - **Include video URL**: Include video URL in transcripts by default
 - **Generate summary**: Generate summaries by default
 - **Tag with channel name**: Tag notes with channel names by default

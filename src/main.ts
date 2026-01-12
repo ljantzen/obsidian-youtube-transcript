@@ -46,6 +46,15 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         this.fetchTranscript();
       },
     });
+
+    // This adds a command that fetches transcript from clipboard using default settings
+    this.addCommand({
+      id: "fetch-youtube-transcript-from-clipboard",
+      name: "Fetch YouTube transcript from clipboard",
+      callback: () => {
+        this.fetchTranscriptFromClipboard();
+      },
+    });
   }
 
   onunload() {
@@ -185,6 +194,22 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.createNewFile = DEFAULT_SETTINGS.createNewFile;
       await this.saveSettings();
     }
+
+    // Ensure defaultDirectory has a default value if missing (backward compatibility)
+    if (this.settings.defaultDirectory === undefined) {
+      this.settings.defaultDirectory = DEFAULT_SETTINGS.defaultDirectory;
+      await this.saveSettings();
+    }
+
+    // Validate that defaultDirectory is still in savedDirectories (if set)
+    if (this.settings.defaultDirectory) {
+      const savedDirs = this.settings.savedDirectories || [];
+      if (!savedDirs.includes(this.settings.defaultDirectory)) {
+        // Default directory no longer exists in saved directories, clear it
+        this.settings.defaultDirectory = null;
+        await this.saveSettings();
+      }
+    }
   }
 
   async saveSettings() {
@@ -227,104 +252,190 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         tagWithChannelName: boolean,
         fileFormat: "markdown" | "pdf",
       ) => {
-        const fetchingNotice = new Notice(
-          "Fetching transcript from YouTube...",
-          0,
+        await this.processTranscript(
+          url,
+          createNewFile,
+          includeVideoUrl,
+          generateSummary,
+          llmProvider,
+          selectedDirectory,
+          tagWithChannelName,
+          fileFormat,
         );
-        try {
-          const result = await getYouTubeTranscript(
-            this.app,
-            url,
-            generateSummary,
-            llmProvider,
-            this.settings,
-            (status: string | null) => {
-              if (status === null) {
-                fetchingNotice.hide();
-              } else {
-                fetchingNotice.setMessage(status);
-              }
-            },
-            RetryConfirmationModal,
-          );
-
-          const { transcript, title, summary, channelName } = result;
-
-          if (!transcript || transcript.trim().length === 0) {
-            throw new Error("Transcript is empty");
-          }
-
-          // Normalize the URL to watch format
-          const videoId = extractVideoId(url);
-          const normalizedUrl = videoId
-            ? `https://www.youtube.com/watch?v=${videoId}`
-            : url;
-
-          if (createNewFile) {
-            const activeFile = this.app.workspace.getActiveFile();
-            if (!activeFile) {
-              throw new Error(
-                "Please open a file first to determine the directory",
-              );
-            }
-
-            await this.createTranscriptFile(
-              activeFile,
-              title,
-              transcript,
-              normalizedUrl,
-              summary,
-              includeVideoUrl,
-              selectedDirectory,
-              channelName,
-              tagWithChannelName,
-              fileFormat,
-            );
-            const formatNotice = fileFormat === "pdf" 
-              ? `PDF file created successfully! (${transcript.length} characters)`
-              : `Transcript file created successfully! (${transcript.length} characters)`;
-            new Notice(formatNotice);
-          } else {
-            const activeView =
-              this.app.workspace.getActiveViewOfType(MarkdownView);
-            if (!activeView) {
-              new Notice("Please open a markdown file first");
-              return;
-            }
-
-            this.insertTranscript(
-              activeView,
-              transcript,
-              title,
-              normalizedUrl,
-              summary,
-              includeVideoUrl,
-              channelName,
-              tagWithChannelName,
-            );
-            new Notice(
-              `Transcript fetched successfully! (${transcript.length} characters)`,
-            );
-          }
-        } catch (error: unknown) {
-          // If user cancelled, don't show an error - just silently abort
-          if (error instanceof UserCancelledError) {
-            fetchingNotice.hide();
-            return;
-          }
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          new Notice(`Error fetching transcript: ${errorMessage}`);
-          console.error("Transcript fetch error:", error);
-        } finally {
-          fetchingNotice.hide();
-        }
       },
     ).open();
   }
 
+  async fetchTranscriptFromClipboard() {
+    try {
+      // Read clipboard
+      const clipboardText = await navigator.clipboard.readText();
+      
+      if (!clipboardText || clipboardText.trim() === "") {
+        new Notice("No text found in clipboard", 10000);
+        return;
+      }
+
+      // Validate YouTube URL
+      const trimmedUrl = clipboardText.trim();
+      const videoId = extractVideoId(trimmedUrl);
+      
+      if (!videoId) {
+        new Notice("Invalid YouTube URL in clipboard. Please copy a valid YouTube URL or video ID.", 10000);
+        return;
+      }
+
+      // Use default settings
+      const createNewFile = this.settings.createNewFile ?? false;
+      const includeVideoUrl = this.settings.includeVideoUrl ?? false;
+      const generateSummary = this.settings.generateSummary ?? false;
+      const tagWithChannelName = this.settings.tagWithChannelName ?? false;
+      const fileFormat = this.settings.fileFormat ?? "markdown";
+
+      // Determine LLM provider - use configured provider if available, otherwise "none"
+      let llmProvider: LLMProvider = "none";
+      if (this.settings.llmProvider && this.settings.llmProvider !== "none") {
+        if (this.hasProviderKey(this.settings.llmProvider)) {
+          llmProvider = this.settings.llmProvider;
+        }
+      }
+
+      // Determine selected directory - use default directory if set, otherwise null
+      const selectedDirectory = this.settings.defaultDirectory || null;
+
+      // Process transcript with default settings
+      await this.processTranscript(
+        trimmedUrl,
+        createNewFile,
+        includeVideoUrl,
+        generateSummary,
+        llmProvider,
+        selectedDirectory,
+        tagWithChannelName,
+        fileFormat,
+      );
+    } catch (error: unknown) {
+      // Handle clipboard access errors
+      if (error instanceof Error && error.name === "NotAllowedError") {
+        new Notice("Clipboard access denied. Please grant clipboard permissions.", 10000);
+      } else if (error instanceof Error && error.name === "NotFoundError") {
+        new Notice("No text found in clipboard", 10000);
+      } else {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        new Notice(`Error reading clipboard: ${errorMessage}`, 10000);
+        console.error("Clipboard read error:", error);
+      }
+    }
+  }
+
+  async processTranscript(
+    url: string,
+    createNewFile: boolean,
+    includeVideoUrl: boolean,
+    generateSummary: boolean,
+    llmProvider: LLMProvider,
+    selectedDirectory: string | null,
+    tagWithChannelName: boolean,
+    fileFormat: "markdown" | "pdf",
+  ) {
+    const fetchingNotice = new Notice(
+      "Fetching transcript from YouTube...",
+      0,
+    );
+    try {
+      const result = await getYouTubeTranscript(
+        this.app,
+        url,
+        generateSummary,
+        llmProvider,
+        this.settings,
+        (status: string | null) => {
+          if (status === null) {
+            fetchingNotice.hide();
+          } else {
+            fetchingNotice.setMessage(status);
+          }
+        },
+        RetryConfirmationModal,
+      );
+
+      const { transcript, title, summary, channelName } = result;
+
+      if (!transcript || transcript.trim().length === 0) {
+        throw new Error("Transcript is empty");
+      }
+
+      // Normalize the URL to watch format
+      const videoId = extractVideoId(url);
+      const normalizedUrl = videoId
+        ? `https://www.youtube.com/watch?v=${videoId}`
+        : url;
+
+      if (createNewFile) {
+        const activeFile = this.app.workspace.getActiveFile();
+        // Only require active file if no directory is selected (need to use current file's directory)
+        if (!activeFile && !selectedDirectory) {
+          throw new Error(
+            "Please open a file first to determine the directory, or set a default directory in settings",
+          );
+        }
+
+        await this.createTranscriptFile(
+          activeFile || null,
+          title,
+          transcript,
+          normalizedUrl,
+          summary,
+          includeVideoUrl,
+          selectedDirectory,
+          channelName,
+          tagWithChannelName,
+          fileFormat,
+        );
+        const formatNotice = fileFormat === "pdf" 
+          ? `PDF file created successfully! (${transcript.length} characters)`
+          : `Transcript file created successfully! (${transcript.length} characters)`;
+        new Notice(formatNotice);
+      } else {
+        const activeView =
+          this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!activeView) {
+          new Notice("Please open a markdown file first", 10000);
+          return;
+        }
+
+        this.insertTranscript(
+          activeView,
+          transcript,
+          title,
+          normalizedUrl,
+          summary,
+          includeVideoUrl,
+          channelName,
+          tagWithChannelName,
+        );
+        new Notice(
+          `Transcript fetched successfully! (${transcript.length} characters)`,
+        );
+      }
+    } catch (error: unknown) {
+      // If user cancelled, don't show an error - just silently abort
+      if (error instanceof UserCancelledError) {
+        fetchingNotice.hide();
+        return;
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      new Notice(`Error fetching transcript: ${errorMessage}`, 10000);
+      console.error("Transcript fetch error:", error);
+    } finally {
+      fetchingNotice.hide();
+    }
+  }
+
   async createTranscriptFile(
-    activeFile: TFile,
+    activeFile: TFile | null,
     videoTitle: string,
     transcript: string,
     videoUrl: string,
@@ -340,7 +451,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Determine which directory to use
     let directory: string;
     if (selectedDirectory === null) {
-      // Use current file's directory
+      // Use current file's directory (activeFile must exist in this case)
+      if (!activeFile) {
+        throw new Error(
+          "Cannot determine directory: no active file and no directory specified",
+        );
+      }
       directory = activeFile.path.substring(0, activeFile.path.lastIndexOf("/"));
     } else {
       // Use the selected directory
@@ -355,15 +471,22 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         try {
           await this.app.vault.createFolder(directory);
         } catch (error) {
-          // If folder creation fails, fall back to active file's directory
-          console.warn(
-            `Failed to create directory ${directory}, using active file's directory:`,
-            error,
-          );
-          directory = activeFile.path.substring(
-            0,
-            activeFile.path.lastIndexOf("/"),
-          );
+          // If folder creation fails, try to fall back to active file's directory if available
+          if (activeFile) {
+            console.warn(
+              `Failed to create directory ${directory}, using active file's directory:`,
+              error,
+            );
+            directory = activeFile.path.substring(
+              0,
+              activeFile.path.lastIndexOf("/"),
+            );
+          } else {
+            // If no active file, throw the error since we can't fall back
+            throw new Error(
+              `Failed to create directory ${directory}: ${error instanceof Error ? error.message : "Unknown error"}`,
+            );
+          }
         }
       }
     }
@@ -481,7 +604,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const editor = view.editor;
       if (!editor) {
         console.error("Editor not available");
-        new Notice("The editor is not available");
+        new Notice("The editor is not available", 10000);
         return;
       }
 
@@ -520,6 +643,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       console.error("Error inserting transcript:", error);
       new Notice(
         `Error inserting transcript: ${error instanceof Error ? error.message : "Unknown error"}`,
+        10000,
       );
     }
   }

@@ -106,14 +106,14 @@ export async function processWithClaude(
         } else {
           errorMsg += ` Please wait a few minutes before retrying.`;
         }
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(errorMsg);
       }
 
       if (response.status === 401 || response.status === 403) {
         if (statusCallback) statusCallback(null); // Hide notice
         const errorMsg = `Claude API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(errorMsg);
       }
 
@@ -122,7 +122,7 @@ export async function processWithClaude(
         const errorDetail =
           errorData.error?.message || response.text || "Unknown error";
         const errorMsg = `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid.`;
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(
           `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Error: ${errorDetail}`,
         );
@@ -130,7 +130,7 @@ export async function processWithClaude(
 
       if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Claude API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
-      new Notice(errorMsg);
+      new Notice(errorMsg, 10000);
       throw new Error(errorMsg);
     }
 
@@ -155,7 +155,7 @@ export async function processWithClaude(
       const model = settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
       if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Claude API error (404): Model "${model}" not found. Please check your model selection and API key in settings.`;
-      new Notice(errorMsg);
+      new Notice(errorMsg, 10000);
       throw new Error(
         `Claude API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Common issues: model name typo, API key doesn't have access to Claude API, or API key is invalid.`,
       );
@@ -181,7 +181,7 @@ export async function processWithClaude(
           const retryErrorMessage =
             retryError instanceof Error ? retryError.message : "Unknown error";
           const errorMsg = `Failed to process transcript with Claude after retry: ${retryErrorMessage}`;
-          new Notice(errorMsg);
+          new Notice(errorMsg, 10000);
           throw new Error(errorMsg);
         }
       } else {
@@ -231,7 +231,7 @@ export async function processWithClaude(
             return { transcript, summary: null };
           }
           const errorMsg = `Failed to process transcript with Claude after retry: ${retryErrorMessage}`;
-          new Notice(errorMsg);
+          new Notice(errorMsg, 10000);
           throw new Error(errorMsg);
         }
       } else {
@@ -245,7 +245,7 @@ export async function processWithClaude(
 
     if (statusCallback) statusCallback(null); // Hide notice
     const errorMsg = `Failed to process transcript with Claude: ${errorMessage}`;
-    new Notice(errorMsg);
+    new Notice(errorMsg, 10000);
     console.error("Claude processing error:", error);
     throw new Error(errorMsg);
   }

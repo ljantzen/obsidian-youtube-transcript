@@ -193,6 +193,14 @@ export class YouTubeUrlModal extends Modal {
       }
     });
 
+    // Set default directory if configured
+    if (this.settings.defaultDirectory) {
+      // Check if the default directory is in the saved directories
+      if (savedDirs.includes(this.settings.defaultDirectory)) {
+        directoryDropdown.value = this.settings.defaultDirectory;
+      }
+    }
+
     // Add file format selector (only show when creating new file)
     const fileFormatContainer = contentEl.createDiv({
       attr: {

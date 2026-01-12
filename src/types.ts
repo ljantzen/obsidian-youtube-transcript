@@ -18,6 +18,7 @@ export interface YouTubeTranscriptPluginSettings {
   includeTimestampsInLLM: boolean; // Whether to include timestamps in LLM-processed transcripts
   localVideoDirectory: string; // Filesystem directory where local video files are stored (empty = use YouTube URLs)
   savedDirectories: string[]; // List of user-configurable directories for storing transcript files
+  defaultDirectory: string | null; // Default directory from savedDirectories to use when creating new files (null = use current file's directory)
   fileFormat: "markdown" | "pdf"; // File format for saved transcripts
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
 }

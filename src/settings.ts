@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   includeTimestampsInLLM: false, // Default to false - LLM processing may remove timestamps
   localVideoDirectory: "", // Empty = use YouTube URLs, set to use local file:// URLs
   savedDirectories: [], // Empty array = no saved directories, users can add directories in settings
+  defaultDirectory: null, // null = use current file's directory, or set to one of the savedDirectories paths
   fileFormat: "markdown", // Default to markdown for backward compatibility
   createNewFile: false, // Default to false - insert into current file by default
 };

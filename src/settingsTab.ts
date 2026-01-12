@@ -344,6 +344,32 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("Saved Directories").setHeading();
 
+    // Default directory selection (only show if there are saved directories)
+    const savedDirs = this.settings.savedDirectories || [];
+    if (savedDirs.length > 0) {
+      new Setting(containerEl)
+        .setName("Default directory")
+        .setDesc(
+          "Select which saved directory to use by default when creating new transcript files. Leave as 'None' to use the current file's directory.",
+        )
+        .addDropdown((dropdown) => {
+          dropdown.addOption("", "None (use current file's directory)");
+          savedDirs.forEach((dir) => {
+            if (dir && dir.trim() !== "") {
+              dropdown.addOption(dir, dir);
+            }
+          });
+          dropdown
+            .setValue(this.settings.defaultDirectory || "")
+            .onChange(async (value) => {
+              this.settings.defaultDirectory = value === "" ? null : value;
+              await this.saveSettings();
+              // Refresh the display to update the default indicator
+              this.display();
+            });
+        });
+    }
+
     new Setting(containerEl)
       .setName("Manage directories")
       .setDesc(
@@ -358,6 +384,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     const renderDirectoriesList = () => {
       directoriesList.empty();
       const savedDirs = this.settings.savedDirectories || [];
+      const defaultDir = this.settings.defaultDirectory;
       if (savedDirs.length === 0) {
         directoriesList.createEl("p", {
           text: "No directories saved. Add one below.",
@@ -375,16 +402,31 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             text: dir,
             attr: { style: "flex: 1; font-family: monospace;" },
           });
+          // Show default indicator
+          if (defaultDir === dir) {
+            dirItem.createEl("span", {
+              text: "(Default)",
+              attr: {
+                style:
+                  "color: var(--text-accent); font-size: 0.9em; font-weight: 500;",
+              },
+            });
+          }
           const removeButton = dirItem.createEl("button", {
             text: "Remove",
             attr: { style: "font-size: 0.9em;" },
           });
           removeButton.onclick = async () => {
+            // If removing the default directory, clear the default
+            if (defaultDir === dir) {
+              this.settings.defaultDirectory = null;
+            }
             this.settings.savedDirectories = savedDirs.filter(
               (_, i) => i !== index,
             );
             await this.saveSettings();
-            renderDirectoriesList();
+            // Refresh the entire display to update the default directory dropdown
+            this.display();
           };
         });
       }
@@ -421,7 +463,8 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           this.settings.savedDirectories = [...savedDirs, normalizedDir];
           await this.saveSettings();
           addDirectoryInput.value = "";
-          renderDirectoriesList();
+          // Refresh the entire display to update the default directory dropdown
+          this.display();
         }
       }
     };

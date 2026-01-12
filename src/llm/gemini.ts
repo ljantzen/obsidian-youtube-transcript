@@ -103,14 +103,14 @@ export async function processWithGemini(
         } else {
           errorMsg += ` Please wait a few minutes before retrying.`;
         }
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(errorMsg);
       }
 
       if (response.status === 401 || response.status === 403) {
         if (statusCallback) statusCallback(null); // Hide notice
         const errorMsg = `Gemini API authentication error (${response.status}): Invalid API key. Please check your API key in settings.`;
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(errorMsg);
       }
 
@@ -119,7 +119,7 @@ export async function processWithGemini(
         const errorDetail =
           errorData.error?.message || response.text || "Unknown error";
         const errorMsg = `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid.`;
-        new Notice(errorMsg);
+        new Notice(errorMsg, 10000);
         throw new Error(
           `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Error: ${errorDetail}`,
         );
@@ -127,7 +127,7 @@ export async function processWithGemini(
 
       if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Gemini API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`;
-      new Notice(errorMsg);
+      new Notice(errorMsg, 10000);
       throw new Error(errorMsg);
     }
 
@@ -157,7 +157,7 @@ export async function processWithGemini(
       const model = settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
       if (statusCallback) statusCallback(null); // Hide notice
       const errorMsg = `Gemini API error (404): Model "${model}" not found. Please check your model selection and API key in settings.`;
-      new Notice(errorMsg);
+      new Notice(errorMsg, 10000);
       throw new Error(
         `Gemini API error (404): Model "${model}" not found or invalid API endpoint. Please check that the model name is correct and your API key is valid. Common issues: model name typo, API key doesn't have access to Gemini API, or API key is invalid.`,
       );
@@ -183,7 +183,7 @@ export async function processWithGemini(
           const retryErrorMessage =
             retryError instanceof Error ? retryError.message : "Unknown error";
           const errorMsg = `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`;
-          new Notice(errorMsg);
+          new Notice(errorMsg, 10000);
           throw new Error(errorMsg);
         }
       } else {
@@ -233,7 +233,7 @@ export async function processWithGemini(
             return { transcript, summary: null };
           }
           const errorMsg = `Failed to process transcript with Gemini after retry: ${retryErrorMessage}`;
-          new Notice(errorMsg);
+          new Notice(errorMsg, 10000);
           throw new Error(errorMsg);
         }
       } else {
@@ -247,7 +247,7 @@ export async function processWithGemini(
 
     if (statusCallback) statusCallback(null); // Hide notice
     const errorMsg = `Failed to process transcript with Gemini: ${errorMessage}`;
-    new Notice(errorMsg);
+    new Notice(errorMsg, 10000);
     console.error("Gemini processing error:", error);
     throw new Error(errorMsg);
   }
