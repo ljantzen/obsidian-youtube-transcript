@@ -91,6 +91,9 @@ export async function getYouTubeTranscript(
   // Extract video title
   const videoTitle = videoData?.videoDetails?.title || "YouTube Transcript";
 
+  // Extract channel name
+  const channelName = videoData?.videoDetails?.author || null;
+
   // Extract caption tracks
   const captionTracks =
     videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
@@ -138,6 +141,7 @@ export async function getYouTubeTranscript(
     transcript: parsedResult.transcript,
     title: videoTitle,
     summary: parsedResult.summary,
+    channelName: channelName,
   };
 }
 

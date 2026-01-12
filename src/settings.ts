@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   generateSummary: false,
   defaultDirectory: "", // Empty = use current file's directory
   useDefaultDirectory: false, // Default to false to maintain backward compatibility
+  tagWithChannelName: false, // Default to false to maintain backward compatibility
 };
 
 /**

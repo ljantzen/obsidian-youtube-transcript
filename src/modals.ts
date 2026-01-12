@@ -85,6 +85,7 @@ export class YouTubeUrlModal extends Modal {
     generateSummary: boolean,
     llmProvider: LLMProvider,
     overrideDirectory: string | null | undefined,
+    tagWithChannelName: boolean,
   ) => void | Promise<void>;
   settings: YouTubeTranscriptPluginSettings;
   callbacks: YouTubeUrlModalCallbacks;
@@ -100,6 +101,7 @@ export class YouTubeUrlModal extends Modal {
       generateSummary: boolean,
       llmProvider: LLMProvider,
       overrideDirectory: string | null | undefined,
+      tagWithChannelName: boolean,
     ) => void | Promise<void>,
   ) {
     super(app);
@@ -185,6 +187,27 @@ export class YouTubeUrlModal extends Modal {
       text: "Include video URL",
       attr: {
         for: "include-video-url-checkbox",
+        style: "margin-left: 0.5em; cursor: pointer;",
+      },
+    });
+
+    // Add checkbox for tagging with channel name
+    const tagChannelContainer = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+    const tagChannelCheckbox = tagChannelContainer.createEl("input", {
+      type: "checkbox",
+      attr: {
+        id: "tag-channel-checkbox",
+      },
+    });
+    if (this.settings.tagWithChannelName) {
+      tagChannelCheckbox.checked = true;
+    }
+    tagChannelContainer.createEl("label", {
+      text: "Tag with channel name",
+      attr: {
+        for: "tag-channel-checkbox",
         style: "margin-left: 0.5em; cursor: pointer;",
       },
     });
@@ -277,6 +300,7 @@ export class YouTubeUrlModal extends Modal {
         const includeVideoUrl = includeUrlCheckbox.checked;
         const generateSummary = generateSummaryCheckbox.checked;
         const llmProvider = providerDropdown.value as LLMProvider;
+        const tagWithChannelName = tagChannelCheckbox.checked;
         // Determine override directory:
         // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
         // - If default directory is enabled and override checkbox is unchecked: use default directory (pass null)
@@ -298,6 +322,7 @@ export class YouTubeUrlModal extends Modal {
           generateSummary,
           llmProvider,
           overrideDirectory,
+          tagWithChannelName,
         );
         this.close();
       }
@@ -311,6 +336,7 @@ export class YouTubeUrlModal extends Modal {
           const includeVideoUrl = includeUrlCheckbox.checked;
           const generateSummary = generateSummaryCheckbox.checked;
           const llmProvider = providerDropdown.value as LLMProvider;
+          const tagWithChannelName = tagChannelCheckbox.checked;
           // Determine override directory:
           // - If default directory is enabled and override checkbox is checked: use current file's directory (pass undefined)
           // - If default directory is enabled and override checkbox is unchecked: use default directory (pass null)
@@ -332,6 +358,7 @@ export class YouTubeUrlModal extends Modal {
             generateSummary,
             llmProvider,
             overrideDirectory,
+            tagWithChannelName,
           );
           this.close();
         }

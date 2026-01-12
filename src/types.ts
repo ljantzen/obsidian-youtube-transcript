@@ -14,6 +14,7 @@ export interface YouTubeTranscriptPluginSettings {
   generateSummary: boolean;
   defaultDirectory: string; // Default directory for new transcript files (empty = use current file's directory)
   useDefaultDirectory: boolean; // Whether to use the default directory
+  tagWithChannelName: boolean; // Whether to tag notes with the YouTube channel name
 }
 
 export interface CaptionTrack {
@@ -25,6 +26,7 @@ export interface TranscriptResult {
   transcript: string;
   title: string;
   summary: string | null;
+  channelName: string | null;
 }
 
 export interface LLMResponse {

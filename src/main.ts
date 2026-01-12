@@ -10,7 +10,7 @@ import type {
   LLMProvider,
 } from "./types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
-import { extractVideoId, sanitizeFilename, validateClaudeModelName } from "./utils";
+import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
 import { getYouTubeTranscript } from "./youtube";
 import { YouTubeUrlModal, RetryConfirmationModal } from "./modals";
 import { YouTubeTranscriptSettingTab } from "./settingsTab";
@@ -149,6 +149,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.useDefaultDirectory = DEFAULT_SETTINGS.useDefaultDirectory;
       await this.saveSettings();
     }
+
+    // Ensure tagWithChannelName has a default value if missing (backward compatibility)
+    if (this.settings.tagWithChannelName === undefined) {
+      this.settings.tagWithChannelName = DEFAULT_SETTINGS.tagWithChannelName;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -188,6 +194,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         generateSummary: boolean,
         llmProvider: LLMProvider,
         overrideDirectory: string | null | undefined,
+        tagWithChannelName: boolean,
       ) => {
         const fetchingNotice = new Notice(
           "Fetching transcript from YouTube...",
@@ -210,7 +217,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             RetryConfirmationModal,
           );
 
-          const { transcript, title, summary } = result;
+          const { transcript, title, summary, channelName } = result;
 
           if (!transcript || transcript.trim().length === 0) {
             throw new Error("Transcript is empty");
@@ -238,6 +245,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               summary,
               includeVideoUrl,
               overrideDirectory,
+              channelName,
+              tagWithChannelName,
             );
             new Notice(
               `Transcript file created successfully! (${transcript.length} characters)`,
@@ -257,6 +266,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               normalizedUrl,
               summary,
               includeVideoUrl,
+              channelName,
+              tagWithChannelName,
             );
             new Notice(
               `Transcript fetched successfully! (${transcript.length} characters)`,
@@ -286,7 +297,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     videoUrl: string,
     summary: string | null,
     includeVideoUrl: boolean,
-    overrideDirectory?: string | null, // null = use default directory, undefined = use active file's directory, string = use this directory
+    overrideDirectory: string | null | undefined, // null = use default directory, undefined = use active file's directory, string = use this directory
+    channelName: string | null,
+    tagWithChannelName: boolean,
   ) {
     const baseSanitizedTitle = sanitizeFilename(videoTitle);
 
@@ -354,6 +367,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Build file content with URL, summary, and transcript
     const parts: string[] = [];
 
+    // Add channel tag if enabled and channel name is available
+    if (tagWithChannelName && channelName) {
+      const sanitizedTag = sanitizeTagName(channelName);
+      if (sanitizedTag) {
+        parts.push(`#${sanitizedTag}`);
+      }
+    }
+
     if (includeVideoUrl) {
       parts.push(`![${videoTitle}](${videoUrl})`);
     }
@@ -398,6 +419,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     videoUrl: string,
     summary: string | null,
     includeVideoUrl: boolean,
+    channelName: string | null,
+    tagWithChannelName: boolean,
   ) {
     try {
       const editor = view.editor;
@@ -410,6 +433,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const cursor = editor.getCursor();
 
       const parts: string[] = [];
+
+      // Add channel tag if enabled and channel name is available
+      if (tagWithChannelName && channelName) {
+        const sanitizedTag = sanitizeTagName(channelName);
+        if (sanitizedTag) {
+          parts.push(`#${sanitizedTag}`);
+        }
+      }
 
       if (includeVideoUrl) {
         parts.push(`![${videoTitle}](${videoUrl})`);

@@ -235,6 +235,50 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             await this.saveSettings();
           });
       });
+
+    new Setting(containerEl).setName("Content Options").setHeading();
+
+    new Setting(containerEl)
+      .setName("Include video URL")
+      .setDesc(
+        "When enabled, the video URL will be included in the transcript (can be overridden in the modal)",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.includeVideoUrl)
+          .onChange(async (value) => {
+            this.settings.includeVideoUrl = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Generate summary")
+      .setDesc(
+        "When enabled and an LLM provider is selected, generate a summary of the video (can be overridden in the modal)",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.generateSummary)
+          .onChange(async (value) => {
+            this.settings.generateSummary = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Tag with channel name")
+      .setDesc(
+        "When enabled, notes will be tagged with the YouTube channel name (can be overridden in the modal)",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.tagWithChannelName)
+          .onChange(async (value) => {
+            this.settings.tagWithChannelName = value;
+            await this.saveSettings();
+          });
+      });
   }
 
   /**

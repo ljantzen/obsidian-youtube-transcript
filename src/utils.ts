@@ -38,3 +38,14 @@ export function validateClaudeModelName(modelName: string): boolean {
   const validPattern = /^claude-(opus|sonnet|haiku)-4(-[0-9]+)?(-[0-9]{8})?$/;
   return validPattern.test(modelName);
 }
+
+export function sanitizeTagName(tagName: string): string {
+  // Remove or replace invalid tag characters to create valid Obsidian tags
+  return tagName
+    .replace(/\s+/g, "-") // Replace spaces with hyphens
+    .replace(/[^\w\-]/g, "") // Remove non-alphanumeric characters except hyphens and underscores
+    .replace(/-+/g, "-") // Collapse multiple hyphens
+    .replace(/^-+|-+$/g, "") // Remove leading/trailing hyphens
+    .toLowerCase()
+    .substring(0, 50); // Limit length for practical purposes
+}
