@@ -12,6 +12,8 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Insert or create new files** - Insert transcripts into current note or create a new file based on video title
 - **Multiple file formats** - Save transcripts as Markdown (.md) or PDF files
 - **PDF attachment folder integration** - Store PDFs in Obsidian's attachment folder setting (respects "below the current folder" option)
+- **PDF cover notes** - Automatically create markdown cover notes for PDF transcripts with customizable templates
+- **Video metadata** - Automatically extract and include video metadata (upload date, view count, duration, etc.) in transcripts and cover notes
 - **Default directory** - Set a default directory for new files, enabling clipboard command without an open document
 - **Configurable timestamp frequency** - Control how often timestamps appear (every sentence or every N seconds)
 - **Single line transcript** - Option to keep transcript on a single line without line breaks (useful for compact formatting)
@@ -87,6 +89,43 @@ The plugin includes a command that automatically fetches transcripts from your c
 
 **PDF Attachment Folder**: When enabled, PDF files can be stored in Obsidian's attachment folder (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option, which stores PDFs in the same directory as the current file. This setting only affects PDF files; Markdown files use normal directory selection.
 
+### PDF Cover Notes
+
+When creating PDF transcripts, you can automatically generate markdown cover notes that link to the PDF:
+
+1. Enable "Create PDF cover note" in Settings → YouTube Transcript Settings → PDF
+2. Configure the cover note location (supports template variables: `{ChannelName}`, `{VideoName}`)
+3. Optionally specify a custom template file for cover notes
+4. When a PDF is created, a markdown cover note will be automatically generated and opened
+
+**Cover Note Template Variables:**
+- `{ChannelName}` - Sanitized channel name
+- `{VideoName}` - Sanitized video title
+- `{VideoUrl}` - YouTube video URL
+- `{Summary}` - Video summary (if available)
+- `{PdfLink}` - Path to the PDF file (for Obsidian links)
+- `{VideoId}` - YouTube video ID
+- `{LengthSeconds}` - Video duration in seconds
+- `{ViewCount}` - Number of views
+- `{PublishDate}` - Upload/publish date
+- `{Description}` - Video description
+- `{ChannelId}` - YouTube channel ID
+- `{IsLive}` - Whether the video is a live stream (true/false)
+- `{IsPrivate}` - Whether the video is private (true/false)
+- `{IsUnlisted}` - Whether the video is unlisted (true/false)
+- `{VideoDetails.*}` - Access any videoDetails field using dot notation (e.g., `{VideoDetails.thumbnail.thumbnails[0].url}`)
+
+**Cover Note Location:**
+- Supports template variables `{ChannelName}` and `{VideoName}` for dynamic folder organization
+- If empty, cover notes are created in the same directory as the PDF
+- Folders are automatically created if they don't exist
+
+**Custom Templates:**
+- Create a markdown template file with any of the template variables above
+- Set the template path in Settings → YouTube Transcript Settings → PDF → PDF cover note template
+- The template will be processed with all available variables
+- If the template file is not found, the default template will be used
+
 ### Timestamps
 
 Timestamps are included by default and appear as clickable links. In multi-line mode, they appear at the beginning of each line (e.g., `[5:30](url) Text content...`). In single-line mode, timestamps are inline with the text (e.g., `[0:05](url) Hello [0:10](url) world`). Clicking a timestamp opens the video at that exact moment.
@@ -144,6 +183,19 @@ Automatically tag notes with the YouTube channel name:
 2. Notes will be tagged with `#channel-name` at the top
 3. Channel names are automatically sanitized to create valid Obsidian tags
 
+### Video Metadata
+
+The plugin automatically extracts and includes video metadata:
+
+**In Markdown Files:**
+- Metadata is included as YAML frontmatter at the top of the file
+- Includes: title, url, videoId, channel, channelId, duration, views, published date, description, and more
+- Fully searchable and queryable in Obsidian
+
+**In PDF Cover Notes:**
+- All metadata is available as template variables (see PDF Cover Notes section above)
+- Use template variables to customize how metadata is displayed in cover notes
+
 ### Default Directory and Saved Directories
 
 Configure directories for new transcript files:
@@ -197,7 +249,12 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Default directory**: Select one of your saved directories as the default (only shown when you have saved directories). When set, new files will be created in this directory by default, and you can use the clipboard command even when no document is open
 - **Saved directories**: List of frequently used directories for quick selection in the modal. Add directories here, then optionally select one as the default
 - **File format**: Default file format for new transcript files (Markdown or PDF)
+
+### PDF Settings
 - **Use attachment folder for PDFs**: When enabled, PDF files will be stored in the folder specified by Obsidian's "Attachment folder" setting (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option. Markdown files are not affected and use normal directory selection.
+- **Create PDF cover note**: When enabled, a markdown cover note will be automatically created for each PDF transcript
+- **PDF cover note location**: Directory path where cover notes should be created. Supports template variables `{ChannelName}` and `{VideoName}`. Leave empty to use the same location as the PDF file.
+- **PDF cover note template**: Path to a markdown template file for custom cover note formatting. Supports all template variables listed in the PDF Cover Notes section. Leave empty to use the default template.
 
 ### Content Options
 - **Include video URL**: Include video URL in transcripts by default
@@ -291,6 +348,9 @@ Test coverage includes:
 - Create new file setting
 - Clipboard command with default settings
 - Single line transcript formatting
+- PDF cover note functionality
+- VideoDetails extraction and template variables
+- Frontmatter generation
 
 See [test/README.md](test/README.md) for more details.
 
