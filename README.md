@@ -14,6 +14,7 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **PDF attachment folder integration** - Store PDFs in Obsidian's attachment folder setting (respects "below the current folder" option)
 - **Default directory** - Set a default directory for new files, enabling clipboard command without an open document
 - **Configurable timestamp frequency** - Control how often timestamps appear (every sentence or every N seconds)
+- **Single line transcript** - Option to keep transcript on a single line without line breaks (useful for compact formatting)
 - **Local video support** - Link timestamps to local video files instead of YouTube URLs
 - **Multiple URL formats** - Supports full URLs, short URLs, embed URLs, and direct video IDs
 - **Saved directories** - Quick access to frequently used directories for transcript files
@@ -88,7 +89,7 @@ The plugin includes a command that automatically fetches transcripts from your c
 
 ### Timestamps
 
-Timestamps are included by default and appear as clickable links at the beginning of each line (e.g., `[5:30](url) Text content...`). Clicking a timestamp opens the video at that exact moment.
+Timestamps are included by default and appear as clickable links. In multi-line mode, they appear at the beginning of each line (e.g., `[5:30](url) Text content...`). In single-line mode, timestamps are inline with the text (e.g., `[0:05](url) Hello [0:10](url) world`). Clicking a timestamp opens the video at that exact moment.
 
 **Timestamp Settings:**
 - **Include timestamps**: Toggle to enable/disable timestamps in transcripts (default: enabled)
@@ -96,6 +97,7 @@ Timestamps are included by default and appear as clickable links at the beginnin
   - `0` = every sentence (default)
   - `>0` = every N seconds (e.g., `30` = every 30 seconds)
 - **Include timestamps in LLM output**: When enabled, timestamps are preserved in AI-processed transcripts
+- **Single line transcript**: When enabled, timestamps are displayed inline within a single continuous line of text
 - **Local video directory**: If you have downloaded videos locally, set this to the directory path. Timestamps will then point to local files (`file:///path/video-id.mp4?t=SECONDS`) instead of YouTube URLs. Videos should be named `{video-id}.mp4` in the specified directory.
 
 **Note**: PDF format does not support clickable links, so timestamps in PDF files will appear as plain text.
@@ -204,6 +206,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Include timestamps**: Include timestamps in transcripts
 - **Timestamp frequency**: How often to show timestamps (0 = every sentence, >0 = every N seconds)
 - **Include timestamps in LLM output**: Preserve timestamps when processing with LLM
+- **Single line transcript**: When enabled, the transcript will be kept on a single line without line breaks. Timestamps (if enabled) will be inline. Useful for compact formatting or when copying to other applications.
 - **Local video directory**: Filesystem directory where local video files are stored. If set, timestamp links will point to local files (`file:///path/video-id.mp4?t=SECONDS`) instead of YouTube URLs. Leave empty to use YouTube URLs.
 
 ## Development
@@ -287,6 +290,7 @@ Test coverage includes:
 - Attachment folder for PDFs
 - Create new file setting
 - Clipboard command with default settings
+- Single line transcript formatting
 
 See [test/README.md](test/README.md) for more details.
 

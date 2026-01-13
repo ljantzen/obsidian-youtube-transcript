@@ -22,6 +22,7 @@ export interface YouTubeTranscriptPluginSettings {
   fileFormat: "markdown" | "pdf"; // File format for saved transcripts
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
   useAttachmentFolderForPdf: boolean; // When enabled, PDFs will be stored in Obsidian's attachment folder setting
+  singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks
 }
 
 export interface CaptionTrack {

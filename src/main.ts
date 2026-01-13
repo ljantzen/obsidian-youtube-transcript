@@ -216,6 +216,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.useAttachmentFolderForPdf = DEFAULT_SETTINGS.useAttachmentFolderForPdf;
       await this.saveSettings();
     }
+
+    // Ensure singleLineTranscript has a default value if missing (backward compatibility)
+    if (this.settings.singleLineTranscript === undefined) {
+      this.settings.singleLineTranscript = DEFAULT_SETTINGS.singleLineTranscript;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -405,7 +411,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       if (createNewFile) {
         const activeFile = this.app.workspace.getActiveFile();
         // Only require active file if no directory is selected (need to use current file's directory)
-        if (!activeFile && !selectedDirectory) {
+        // Exception: For PDFs with attachment folder enabled, we can use the attachment folder even without an active file
+        let canUseAttachmentFolder = false;
+        if (fileFormat === "pdf" && this.settings.useAttachmentFolderForPdf) {
+          const attachmentFolder = this.getAttachmentFolderPath();
+          canUseAttachmentFolder = attachmentFolder !== null && attachmentFolder !== ".";
+        }
+        if (!activeFile && !selectedDirectory && !canUseAttachmentFolder) {
           throw new Error(
             "Please open a file first to determine the directory, or set a default directory in settings",
           );

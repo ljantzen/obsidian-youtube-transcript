@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   fileFormat: "markdown", // Default to markdown for backward compatibility
   createNewFile: false, // Default to false - insert into current file by default
   useAttachmentFolderForPdf: false, // Default to false - use selected directory instead of attachment folder
+  singleLineTranscript: false, // Default to false - use line breaks for readability
 };
 
 /**

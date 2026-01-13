@@ -247,69 +247,107 @@ async function parseTranscript(
 
   // Build transcript with timestamps if enabled
   let rawTranscript: string;
-  if (settings.includeTimestamps) {
-    const lines: string[] = [];
-    let currentLineParts: string[] = [];
-    let lastTimestampTime = -1;
-    const timestampFrequency = settings.timestampFrequency || 0;
+  if (settings.singleLineTranscript) {
+    // Single line mode: join everything with spaces
+    if (settings.includeTimestamps) {
+      const parts: string[] = [];
+      let lastTimestampTime = -1;
+      const timestampFrequency = settings.timestampFrequency || 0;
 
-    for (let i = 0; i < transcriptSegments.length; i++) {
-      const segment = transcriptSegments[i];
-      const shouldAddTimestamp =
-        segment.startTime >= 0 &&
-        (timestampFrequency === 0 || // Every sentence
-          lastTimestampTime < 0 || // First timestamp
-          segment.startTime - lastTimestampTime >= timestampFrequency); // Frequency interval
+      for (let i = 0; i < transcriptSegments.length; i++) {
+        const segment = transcriptSegments[i];
+        const shouldAddTimestamp =
+          segment.startTime >= 0 &&
+          (timestampFrequency === 0 || // Every sentence
+            lastTimestampTime < 0 || // First timestamp
+            segment.startTime - lastTimestampTime >= timestampFrequency); // Frequency interval
 
-      if (shouldAddTimestamp) {
-        // If there's accumulated text, finish the current line first
-        if (currentLineParts.length > 0) {
-          lines.push(currentLineParts.join(" "));
-          currentLineParts = [];
+        if (shouldAddTimestamp) {
+          const timestamp = formatTimestamp(
+            segment.startTime,
+            videoUrl,
+            videoId,
+            settings.localVideoDirectory,
+          );
+          parts.push(timestamp, segment.text);
+          lastTimestampTime = segment.startTime;
+        } else {
+          parts.push(segment.text);
         }
-        // Start a new line with timestamp at the beginning, followed by the text
-        const timestamp = formatTimestamp(
-          segment.startTime,
-          videoUrl,
-          videoId,
-          settings.localVideoDirectory,
-        );
-        currentLineParts.push(timestamp, segment.text);
-        lastTimestampTime = segment.startTime;
-      } else {
-        // Just add text to current line (continuing from previous segments)
-        currentLineParts.push(segment.text);
       }
 
-      // For timestampFrequency === 0, finish line after sentence-ending punctuation
-      if (timestampFrequency === 0) {
-        const text = segment.text.trim();
-        if (
-          text.endsWith(".") ||
-          text.endsWith("!") ||
-          text.endsWith("?")
-        ) {
+      rawTranscript = parts.join(" ");
+    } else {
+      // No timestamps - just join text parts with spaces
+      const textParts = transcriptSegments.map((s) => s.text);
+      rawTranscript = textParts.join(" ");
+    }
+  } else {
+    // Multi-line mode (original behavior)
+    if (settings.includeTimestamps) {
+      const lines: string[] = [];
+      let currentLineParts: string[] = [];
+      let lastTimestampTime = -1;
+      const timestampFrequency = settings.timestampFrequency || 0;
+
+      for (let i = 0; i < transcriptSegments.length; i++) {
+        const segment = transcriptSegments[i];
+        const shouldAddTimestamp =
+          segment.startTime >= 0 &&
+          (timestampFrequency === 0 || // Every sentence
+            lastTimestampTime < 0 || // First timestamp
+            segment.startTime - lastTimestampTime >= timestampFrequency); // Frequency interval
+
+        if (shouldAddTimestamp) {
+          // If there's accumulated text, finish the current line first
           if (currentLineParts.length > 0) {
             lines.push(currentLineParts.join(" "));
             currentLineParts = [];
           }
+          // Start a new line with timestamp at the beginning, followed by the text
+          const timestamp = formatTimestamp(
+            segment.startTime,
+            videoUrl,
+            videoId,
+            settings.localVideoDirectory,
+          );
+          currentLineParts.push(timestamp, segment.text);
+          lastTimestampTime = segment.startTime;
+        } else {
+          // Just add text to current line (continuing from previous segments)
+          currentLineParts.push(segment.text);
+        }
+
+        // For timestampFrequency === 0, finish line after sentence-ending punctuation
+        if (timestampFrequency === 0) {
+          const text = segment.text.trim();
+          if (
+            text.endsWith(".") ||
+            text.endsWith("!") ||
+            text.endsWith("?")
+          ) {
+            if (currentLineParts.length > 0) {
+              lines.push(currentLineParts.join(" "));
+              currentLineParts = [];
+            }
+          }
         }
       }
-    }
 
-    // Add any remaining content
-    if (currentLineParts.length > 0) {
-      lines.push(currentLineParts.join(" "));
-    }
+      // Add any remaining content
+      if (currentLineParts.length > 0) {
+        lines.push(currentLineParts.join(" "));
+      }
 
-    // Join lines with newlines
-    rawTranscript = lines.join("\n");
-  } else {
-    // No timestamps - just join text parts
-    const textParts = transcriptSegments.map((s) => s.text);
-    rawTranscript = textParts.join(" ");
-    // Add newlines after sentence-ending punctuation followed by a space and capital letter
-    rawTranscript = rawTranscript.replace(/([.!?])\s+([A-Z])/g, "$1\n\n$2");
+      // Join lines with newlines
+      rawTranscript = lines.join("\n");
+    } else {
+      // No timestamps - just join text parts
+      const textParts = transcriptSegments.map((s) => s.text);
+      rawTranscript = textParts.join(" ");
+      // Add newlines after sentence-ending punctuation followed by a space and capital letter
+      rawTranscript = rawTranscript.replace(/([.!?])\s+([A-Z])/g, "$1\n\n$2");
+    }
   }
 
   // Process through LLM if provider is configured

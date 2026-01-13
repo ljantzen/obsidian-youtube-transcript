@@ -296,6 +296,20 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName("Single line transcript")
+      .setDesc(
+        "When enabled, the transcript will be kept on a single line without line breaks. Timestamps (if enabled) will be inline. Useful for compact formatting or when copying to other applications.",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.singleLineTranscript ?? false)
+          .onChange(async (value) => {
+            this.settings.singleLineTranscript = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
       .setName("Local video directory")
       .setDesc(
         "Filesystem directory where local video files are stored. If set, timestamp links will point to local files (file:///path/video-id.mp4?t=SECONDS) instead of YouTube URLs. Leave empty to use YouTube URLs.",
