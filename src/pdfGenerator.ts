@@ -1,4 +1,4 @@
-import { App, MarkdownRenderer, MarkdownView } from "obsidian";
+import { App, MarkdownRenderer, Component } from "obsidian";
 
 /**
  * Converts markdown content to HTML
@@ -20,6 +20,9 @@ async function markdownToHtml(
   container.style.zIndex = "-1000";
   document.body.appendChild(container);
 
+  // Create a Component to avoid memory leaks
+  const component = new Component();
+
   try {
     // Use Obsidian's MarkdownRenderer to convert markdown to HTML
     await MarkdownRenderer.render(
@@ -27,7 +30,7 @@ async function markdownToHtml(
       markdown,
       container,
       "",
-      null as unknown as MarkdownView,
+      component,
     );
 
     // Wait a bit for rendering to complete (images, embeds, etc.)
@@ -36,12 +39,14 @@ async function markdownToHtml(
     // Get the HTML content
     const html = container.innerHTML;
     
-    // Clean up
+    // Clean up component and container
+    component.unload();
     document.body.removeChild(container);
     
     return html;
   } catch (error) {
     // Clean up on error
+    component.unload();
     if (container.parentNode) {
       document.body.removeChild(container);
     }

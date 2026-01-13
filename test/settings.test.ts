@@ -23,6 +23,9 @@ describe("Settings", () => {
       localVideoDirectory: "",
       savedDirectories: [],
       fileFormat: "markdown" as "markdown" | "pdf",
+      createPdfCoverNote: false,
+      pdfCoverNoteLocation: "",
+      pdfCoverNoteTemplate: "",
     };
 
     // Verify structure exists
@@ -38,6 +41,9 @@ describe("Settings", () => {
     expect(defaultSettings.includeTimestampsInLLM).toBe(false);
     expect(defaultSettings.localVideoDirectory).toBe("");
     expect(defaultSettings.fileFormat).toBe("markdown");
+    expect(defaultSettings.createPdfCoverNote).toBe(false);
+    expect(defaultSettings.pdfCoverNoteLocation).toBe("");
+    expect(defaultSettings.pdfCoverNoteTemplate).toBe("");
     expect(typeof defaultSettings.prompt).toBe("string");
     expect(defaultSettings.prompt.length).toBeGreaterThan(0);
   });
@@ -197,5 +203,29 @@ describe("Settings", () => {
     invalidFrequencies.forEach((freq) => {
       expect(freq).toBeLessThan(0);
     });
+  });
+
+  it("should validate PDF cover note settings", () => {
+    const settings = {
+      createPdfCoverNote: false,
+      pdfCoverNoteLocation: "",
+      pdfCoverNoteTemplate: "",
+    };
+
+    expect(typeof settings.createPdfCoverNote).toBe("boolean");
+    expect(typeof settings.pdfCoverNoteLocation).toBe("string");
+    expect(typeof settings.pdfCoverNoteTemplate).toBe("string");
+    expect(settings.createPdfCoverNote).toBe(false);
+    expect(settings.pdfCoverNoteLocation).toBe("");
+    expect(settings.pdfCoverNoteTemplate).toBe("");
+
+    // Test with values set
+    settings.createPdfCoverNote = true;
+    settings.pdfCoverNoteLocation = "Notes/{ChannelName}";
+    settings.pdfCoverNoteTemplate = "Templates/Cover Note.md";
+
+    expect(settings.createPdfCoverNote).toBe(true);
+    expect(settings.pdfCoverNoteLocation).toBe("Notes/{ChannelName}");
+    expect(settings.pdfCoverNoteTemplate).toBe("Templates/Cover Note.md");
   });
 });

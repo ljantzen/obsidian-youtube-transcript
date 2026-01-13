@@ -22,6 +22,9 @@ export interface YouTubeTranscriptPluginSettings {
   fileFormat: "markdown" | "pdf"; // File format for saved transcripts
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
   useAttachmentFolderForPdf: boolean; // When enabled, PDFs will be stored in Obsidian's attachment folder setting
+  createPdfCoverNote: boolean; // When enabled, a cover note will be created for PDF files
+  pdfCoverNoteLocation: string; // Location/path for PDF cover notes
+  pdfCoverNoteTemplate: string; // Path to template file for PDF cover notes (empty = use default template)
   singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks
 }
 
@@ -30,11 +33,36 @@ export interface CaptionTrack {
   baseUrl: string;
 }
 
+export interface VideoDetails {
+  [key: string]: unknown; // Allow any fields from YouTube API
+  title?: string;
+  author?: string;
+  videoId?: string;
+  lengthSeconds?: string;
+  viewCount?: string;
+  publishDate?: string;
+  description?: string;
+  channelId?: string;
+  isLiveContent?: boolean;
+  isPrivate?: boolean;
+  isUnlisted?: boolean;
+  keywords?: string[];
+  shortDescription?: string;
+  thumbnail?: {
+    thumbnails?: Array<{
+      url?: string;
+      width?: number;
+      height?: number;
+    }>;
+  };
+}
+
 export interface TranscriptResult {
   transcript: string;
   title: string;
   summary: string | null;
   channelName: string | null;
+  videoDetails: VideoDetails | null;
 }
 
 export interface LLMResponse {

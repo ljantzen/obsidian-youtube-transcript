@@ -28,15 +28,13 @@ export abstract class PathSuggest extends AbstractInputSuggest<TAbstractFile> {
 	abstract getSuggestionsInternal(input: string): TAbstractFile[];
 
 	renderSuggestion(file: TAbstractFile, el: HTMLElement): void {
-		// Only render folders - this is a safety check
-		// FolderSuggest should only return folders, but this ensures we never render files
+		// Default implementation - can be overridden by subclasses
 		if (file instanceof TFolder) {
 			el.createDiv({
 				text: file.name,
 				cls: "suggestion-item",
 			});
 		}
-		// If somehow a non-folder gets through, don't render it
 	}
 
 	selectSuggestion(file: TAbstractFile): void {

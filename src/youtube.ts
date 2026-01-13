@@ -7,6 +7,7 @@ import type {
   StatusCallback,
   LLMResponse,
   RetryModalConstructor,
+  VideoDetails,
 } from "./types";
 import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
 import { processWithOpenAI } from "./llm/openai";
@@ -94,6 +95,11 @@ export async function getYouTubeTranscript(
   // Extract channel name
   const channelName = videoData?.videoDetails?.author || null;
 
+  // Extract all videoDetails
+  const videoDetails: VideoDetails | null = videoData?.videoDetails
+    ? (videoData.videoDetails as VideoDetails)
+    : null;
+
   // Extract caption tracks
   const captionTracks =
     videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
@@ -144,6 +150,7 @@ export async function getYouTubeTranscript(
     title: videoTitle,
     summary: parsedResult.summary,
     channelName: channelName,
+    videoDetails: videoDetails,
   };
 }
 

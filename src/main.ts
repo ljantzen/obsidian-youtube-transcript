@@ -8,6 +8,7 @@ import {
 import type {
   YouTubeTranscriptPluginSettings,
   LLMProvider,
+  VideoDetails,
 } from "./types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
@@ -222,6 +223,24 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.singleLineTranscript = DEFAULT_SETTINGS.singleLineTranscript;
       await this.saveSettings();
     }
+
+    // Ensure createPdfCoverNote has a default value if missing (backward compatibility)
+    if (this.settings.createPdfCoverNote === undefined) {
+      this.settings.createPdfCoverNote = DEFAULT_SETTINGS.createPdfCoverNote;
+      await this.saveSettings();
+    }
+
+    // Ensure pdfCoverNoteLocation has a default value if missing (backward compatibility)
+    if (this.settings.pdfCoverNoteLocation === undefined) {
+      this.settings.pdfCoverNoteLocation = DEFAULT_SETTINGS.pdfCoverNoteLocation;
+      await this.saveSettings();
+    }
+
+    // Ensure pdfCoverNoteTemplate has a default value if missing (backward compatibility)
+    if (this.settings.pdfCoverNoteTemplate === undefined) {
+      this.settings.pdfCoverNoteTemplate = DEFAULT_SETTINGS.pdfCoverNoteTemplate;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -322,11 +341,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       // Use default settings
-      const createNewFile = this.settings.createNewFile ?? false;
+      let createNewFile = this.settings.createNewFile ?? false;
       const includeVideoUrl = this.settings.includeVideoUrl ?? false;
       const generateSummary = this.settings.generateSummary ?? false;
       const tagWithChannelName = this.settings.tagWithChannelName ?? false;
       const fileFormat = this.settings.fileFormat ?? "markdown";
+
+      // PDF format always requires creating a new file
+      if (fileFormat === "pdf") {
+        createNewFile = true;
+      }
 
       // Determine LLM provider - use configured provider if available, otherwise "none"
       let llmProvider: LLMProvider = "none";
@@ -396,7 +420,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         RetryConfirmationModal,
       );
 
-      const { transcript, title, summary, channelName } = result;
+      const { transcript, title, summary, channelName, videoDetails } = result;
 
       if (!transcript || transcript.trim().length === 0) {
         throw new Error("Transcript is empty");
@@ -434,12 +458,19 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           channelName,
           tagWithChannelName,
           fileFormat,
+          videoDetails,
         );
         const formatNotice = fileFormat === "pdf" 
           ? `PDF file created successfully! (${transcript.length} characters)`
           : `Transcript file created successfully! (${transcript.length} characters)`;
         new Notice(formatNotice);
       } else {
+        // PDF format cannot be inserted into existing files, must create new file
+        if (fileFormat === "pdf") {
+          new Notice("PDF format requires creating a new file. Please enable 'Create new file' in settings or use the modal to create a PDF.", 10000);
+          return;
+        }
+
         const activeView =
           this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!activeView) {
@@ -487,6 +518,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     channelName: string | null,
     tagWithChannelName: boolean,
     fileFormat: "markdown" | "pdf",
+    videoDetails: VideoDetails | null,
   ) {
     const baseSanitizedTitle = sanitizeFilename(videoTitle);
 
@@ -594,6 +626,41 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Build file content with URL, summary, and transcript
     const parts: string[] = [];
 
+    // Add frontmatter with videoDetails if available
+    if (videoDetails) {
+      const frontmatter: Record<string, unknown> = {
+        title: videoTitle,
+        url: videoUrl,
+      };
+
+      // Add common videoDetails fields to frontmatter
+      if (videoDetails.videoId) frontmatter.videoId = videoDetails.videoId;
+      if (videoDetails.author) frontmatter.channel = videoDetails.author;
+      if (videoDetails.channelId) frontmatter.channelId = videoDetails.channelId;
+      if (videoDetails.lengthSeconds) frontmatter.duration = videoDetails.lengthSeconds;
+      if (videoDetails.viewCount) frontmatter.views = videoDetails.viewCount;
+      if (videoDetails.publishDate) frontmatter.published = videoDetails.publishDate;
+      if (videoDetails.description) frontmatter.description = videoDetails.description;
+      if (videoDetails.isLiveContent !== undefined) frontmatter.isLive = videoDetails.isLiveContent;
+      if (videoDetails.isPrivate !== undefined) frontmatter.isPrivate = videoDetails.isPrivate;
+      if (videoDetails.isUnlisted !== undefined) frontmatter.isUnlisted = videoDetails.isUnlisted;
+
+      // Add frontmatter block
+      const frontmatterLines = ["---"];
+      for (const [key, value] of Object.entries(frontmatter)) {
+        if (value !== null && value !== undefined) {
+          const stringValue = typeof value === "string" && value.includes("\n")
+            ? `"${value.replace(/"/g, '\\"')}"`
+            : typeof value === "string"
+            ? `"${value}"`
+            : String(value);
+          frontmatterLines.push(`${key}: ${stringValue}`);
+        }
+      }
+      frontmatterLines.push("---");
+      parts.push(frontmatterLines.join("\n"));
+    }
+
     // Add channel tag if enabled and channel name is available
     if (tagWithChannelName && channelName) {
       const sanitizedTag = sanitizeTagName(channelName);
@@ -665,6 +732,19 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
+    // Create cover note for PDF if enabled
+    if (fileFormat === "pdf" && this.settings.createPdfCoverNote) {
+      await this.createPdfCoverNote(
+        newFilePath,
+        videoTitle,
+        videoUrl,
+        summary,
+        channelName,
+        tagWithChannelName,
+        videoDetails,
+      );
+    }
+
     // Open the file (only for markdown files, PDFs will open in system viewer)
     if (fileFormat === "markdown") {
       await this.app.workspace.openLinkText(newFilePath, "", false);
@@ -672,6 +752,271 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // For PDF, just show a notice
       new Notice(`PDF file created: ${newFilePath}`);
     }
+  }
+
+  async createPdfCoverNote(
+    pdfFilePath: string,
+    videoTitle: string,
+    videoUrl: string,
+    summary: string | null,
+    channelName: string | null,
+    tagWithChannelName: boolean,
+    videoDetails: VideoDetails | null,
+  ) {
+    // Process template variables in cover note location
+    let coverNoteLocation = this.settings.pdfCoverNoteLocation || "";
+    
+    // Replace template variables
+    if (channelName) {
+      const sanitizedChannelName = sanitizeFilename(channelName);
+      coverNoteLocation = coverNoteLocation.replace(/{ChannelName}/g, sanitizedChannelName);
+    } else {
+      coverNoteLocation = coverNoteLocation.replace(/{ChannelName}/g, "");
+    }
+    
+    const sanitizedVideoName = sanitizeFilename(videoTitle);
+    coverNoteLocation = coverNoteLocation.replace(/{VideoName}/g, sanitizedVideoName);
+    
+    // Clean up any double slashes or trailing slashes
+    coverNoteLocation = coverNoteLocation.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+
+    // Determine cover note directory
+    let coverNoteDirectory: string;
+    if (coverNoteLocation && coverNoteLocation.trim() !== "") {
+      // Use the specified cover note location
+      coverNoteDirectory = coverNoteLocation;
+    } else {
+      // Use the same directory as the PDF file
+      const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
+      coverNoteDirectory = pdfDir || "";
+    }
+
+    // Ensure cover note directory exists
+    if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
+      const dirFile = this.app.vault.getAbstractFileByPath(coverNoteDirectory);
+      if (!dirFile || !(dirFile instanceof TFolder)) {
+        try {
+          await this.app.vault.createFolder(coverNoteDirectory);
+        } catch (error) {
+          // If folder creation fails, fall back to PDF's directory
+          const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
+          coverNoteDirectory = pdfDir || "";
+          console.warn(
+            `Failed to create cover note directory, using PDF directory:`,
+            error,
+          );
+        }
+      }
+    }
+
+    // Get PDF filename without extension for the cover note title
+    const pdfFileName = pdfFilePath.substring(pdfFilePath.lastIndexOf("/") + 1);
+    const pdfFileNameWithoutExt = pdfFileName.replace(/\.pdf$/, "");
+    
+    // Use absolute path from vault root for the PDF link (Obsidian supports this)
+    // Remove leading slash if present, as Obsidian paths are relative to vault root
+    const pdfLinkPath = pdfFilePath.startsWith("/") ? pdfFilePath.substring(1) : pdfFilePath;
+
+    // Build cover note content - use template if specified, otherwise use default
+    let coverNoteContent: string;
+    
+    if (this.settings.pdfCoverNoteTemplate && this.settings.pdfCoverNoteTemplate.trim() !== "") {
+      // Use template file
+      try {
+        const templateFile = this.app.vault.getAbstractFileByPath(this.settings.pdfCoverNoteTemplate);
+        if (templateFile && templateFile instanceof TFile) {
+          const templateContent = await this.app.vault.read(templateFile);
+          
+          // Replace template variables
+          let processedContent = templateContent;
+          
+          // Replace {ChannelName}
+          if (channelName) {
+            const sanitizedChannelName = sanitizeFilename(channelName);
+            processedContent = processedContent.replace(/{ChannelName}/g, sanitizedChannelName);
+          } else {
+            processedContent = processedContent.replace(/{ChannelName}/g, "");
+          }
+          
+          // Replace {VideoName}
+          const sanitizedVideoName = sanitizeFilename(videoTitle);
+          processedContent = processedContent.replace(/{VideoName}/g, sanitizedVideoName);
+          
+          // Replace {VideoUrl}
+          processedContent = processedContent.replace(/{VideoUrl}/g, videoUrl);
+          
+          // Replace {Summary}
+          const summaryText = summary || "";
+          processedContent = processedContent.replace(/{Summary}/g, summaryText);
+          
+          // Replace {PdfLink}
+          processedContent = processedContent.replace(/{PdfLink}/g, pdfLinkPath);
+          
+          // Replace videoDetails variables
+          if (videoDetails) {
+            processedContent = this.replaceVideoDetailsVariables(processedContent, videoDetails);
+          }
+          
+          coverNoteContent = processedContent;
+        } else {
+          // Template file not found, use default
+          console.warn(`Template file not found: ${this.settings.pdfCoverNoteTemplate}, using default template`);
+          coverNoteContent = this.buildDefaultCoverNoteContent(
+            videoTitle,
+            videoUrl,
+            summary,
+            channelName,
+            tagWithChannelName,
+            pdfLinkPath,
+          );
+        }
+      } catch (error) {
+        // Error reading template, use default
+        console.error(`Error reading template file: ${error}`);
+        new Notice(`Error reading template file: ${error instanceof Error ? error.message : "Unknown error"}`, 10000);
+        coverNoteContent = this.buildDefaultCoverNoteContent(
+          videoTitle,
+          videoUrl,
+          summary,
+          channelName,
+          tagWithChannelName,
+          pdfLinkPath,
+        );
+      }
+    } else {
+      // Use default template
+      coverNoteContent = this.buildDefaultCoverNoteContent(
+        videoTitle,
+        videoUrl,
+        summary,
+        channelName,
+        tagWithChannelName,
+        pdfLinkPath,
+      );
+    }
+
+    // Create cover note file
+    const coverNoteFileName = `${pdfFileNameWithoutExt}.md`;
+    const coverNotePath = coverNoteDirectory
+      ? `${coverNoteDirectory}/${coverNoteFileName}`
+      : coverNoteFileName;
+
+    // Check if cover note already exists and handle naming conflicts
+    let finalCoverNotePath = coverNotePath;
+    let coverNoteCounter = 1;
+    while (this.app.vault.getAbstractFileByPath(finalCoverNotePath)) {
+      const baseName = coverNoteDirectory
+        ? `${coverNoteDirectory}/${pdfFileNameWithoutExt}`
+        : pdfFileNameWithoutExt;
+      finalCoverNotePath = `${baseName} (${coverNoteCounter}).md`;
+      coverNoteCounter++;
+    }
+
+    try {
+      await this.app.vault.create(finalCoverNotePath, coverNoteContent);
+      new Notice(`Cover note created: ${finalCoverNotePath}`);
+      // Open the cover note
+      await this.app.workspace.openLinkText(finalCoverNotePath, "", false);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      console.error("Error creating cover note:", error);
+      new Notice(`Error creating cover note: ${errorMessage}`, 10000);
+    }
+  }
+
+  private buildDefaultCoverNoteContent(
+    videoTitle: string,
+    videoUrl: string,
+    summary: string | null,
+    channelName: string | null,
+    tagWithChannelName: boolean,
+    pdfLinkPath: string,
+  ): string {
+    const coverNoteParts: string[] = [];
+
+    // Add channel tag if enabled and channel name is available
+    if (tagWithChannelName && channelName) {
+      const sanitizedTag = sanitizeTagName(channelName);
+      if (sanitizedTag) {
+        coverNoteParts.push(`#${sanitizedTag}`);
+      }
+    }
+
+    // Add video URL if available
+    coverNoteParts.push(`![${videoTitle}](${videoUrl})`);
+
+    // Add link to PDF (using absolute path from vault root)
+    coverNoteParts.push(`[[${pdfLinkPath}|View PDF Transcript]]`);
+
+    // Add summary if available
+    if (summary) {
+      coverNoteParts.push(`## Summary\n\n${summary}`);
+    }
+
+    return coverNoteParts.join("\n\n");
+  }
+
+  /**
+   * Replaces videoDetails variables in template content
+   * Supports {VideoDetails.*} syntax for any field in videoDetails
+   */
+  private replaceVideoDetailsVariables(
+    content: string,
+    videoDetails: VideoDetails,
+  ): string {
+    let processedContent = content;
+
+    // Replace common videoDetails fields with specific variable names
+    const commonFields: Record<string, string> = {
+      VideoId: videoDetails.videoId || "",
+      LengthSeconds: videoDetails.lengthSeconds || "",
+      ViewCount: videoDetails.viewCount || "",
+      PublishDate: videoDetails.publishDate || "",
+      Description: videoDetails.description || videoDetails.shortDescription || "",
+      ChannelId: videoDetails.channelId || "",
+      IsLive: videoDetails.isLiveContent ? "true" : "false",
+      IsPrivate: videoDetails.isPrivate ? "true" : "false",
+      IsUnlisted: videoDetails.isUnlisted ? "true" : "false",
+    };
+
+    // Replace common field variables
+    for (const [key, value] of Object.entries(commonFields)) {
+      const regex = new RegExp(`\\{${key}\\}`, "g");
+      processedContent = processedContent.replace(regex, String(value));
+    }
+
+    // Replace {VideoDetails.*} pattern for any field
+    const videoDetailsRegex = /\{VideoDetails\.([^}]+)\}/g;
+    processedContent = processedContent.replace(
+      videoDetailsRegex,
+      (match, fieldPath) => {
+        const value = this.getNestedValue(videoDetails, fieldPath);
+        return value !== undefined && value !== null ? String(value) : "";
+      },
+    );
+
+    return processedContent;
+  }
+
+  /**
+   * Gets a nested value from an object using dot notation
+   */
+  private getNestedValue(obj: unknown, path: string): unknown {
+    const parts = path.split(".");
+    let current: unknown = obj;
+    for (const part of parts) {
+      if (
+        current &&
+        typeof current === "object" &&
+        part in current
+      ) {
+        current = (current as Record<string, unknown>)[part];
+      } else {
+        return undefined;
+      }
+    }
+    return current;
   }
 
   insertTranscript(

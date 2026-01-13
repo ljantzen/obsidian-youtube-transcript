@@ -15,7 +15,7 @@ import {
   fetchGeminiModels,
   type ModelInfo,
 } from "./llm/modelFetcher";
-import { FolderSuggest } from "./suggester";
+import { FolderSuggest, FileSuggest } from "./suggester";
 import {
   populateModelDropdown,
   createModelRefreshButton,
@@ -56,6 +56,39 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       .setName("Version")
       .setDesc(`Plugin version: ${version}`)
       .setDisabled(true);
+
+    // Files and folders section
+    new Setting(containerEl).setName("Files and folders").setHeading();
+
+    new Setting(containerEl)
+      .setName("Create new file")
+      .setDesc(
+        "When enabled, the modal will default to creating a new file instead of inserting into the current file (can be overridden in the modal)",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.createNewFile ?? false)
+          .onChange(async (value) => {
+            this.settings.createNewFile = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Default file format")
+      .setDesc(
+        "Default file format for new transcript files (can be overridden in the modal)",
+      )
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("markdown", "Markdown")
+          .addOption("pdf", "PDF")
+          .setValue(this.settings.fileFormat || "markdown")
+          .onChange(async (value) => {
+            this.settings.fileFormat = value as "markdown" | "pdf";
+            await this.saveSettings();
+          });
+      });
 
     // Transcript section
     new Setting(containerEl).setName("Transcript").setHeading();
@@ -185,41 +218,8 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
-    // Files and folders section
-    new Setting(containerEl).setName("Files and folders").setHeading();
-
-    new Setting(containerEl)
-      .setName("Create new file")
-      .setDesc(
-        "When enabled, the modal will default to creating a new file instead of inserting into the current file (can be overridden in the modal)",
-      )
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.settings.createNewFile ?? false)
-          .onChange(async (value) => {
-            this.settings.createNewFile = value;
-            await this.saveSettings();
-          });
-      });
-
     // PDF section
     new Setting(containerEl).setName("PDF").setHeading();
-
-    new Setting(containerEl)
-      .setName("Default file format")
-      .setDesc(
-        "Default file format for new transcript files (can be overridden in the modal)",
-      )
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption("markdown", "Markdown")
-          .addOption("pdf", "PDF")
-          .setValue(this.settings.fileFormat || "markdown")
-          .onChange(async (value) => {
-            this.settings.fileFormat = value as "markdown" | "pdf";
-            await this.saveSettings();
-          });
-      });
 
     new Setting(containerEl)
       .setName("Use attachment folder for PDFs")
@@ -233,6 +233,55 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             this.settings.useAttachmentFolderForPdf = value;
             await this.saveSettings();
           });
+      });
+
+    new Setting(containerEl)
+      .setName("Create PDF cover note")
+      .setDesc(
+        "When enabled, a cover note will be created for PDF files",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.createPdfCoverNote ?? false)
+          .onChange(async (value) => {
+            this.settings.createPdfCoverNote = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("PDF cover note location")
+      .setDesc(
+        "Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Supports template variables: {ChannelName} and {VideoName}.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("Notes/PDF Covers or Notes/{ChannelName}")
+          .setValue(this.settings.pdfCoverNoteLocation || "")
+          .onChange(async (value) => {
+            // Normalize path: remove leading/trailing slashes, ensure forward slashes
+            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+            this.settings.pdfCoverNoteLocation = normalizedPath;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("PDF cover note template")
+      .setDesc(
+        "Path to a markdown template file for PDF cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("Templates/PDF Cover Note.md")
+          .setValue(this.settings.pdfCoverNoteTemplate || "")
+          .onChange(async (value) => {
+            // Normalize path: remove leading/trailing slashes, ensure forward slashes
+            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+            this.settings.pdfCoverNoteTemplate = normalizedPath;
+            await this.saveSettings();
+          });
+        new FileSuggest(this.app, text.inputEl);
       });
 
     new Setting(containerEl).setName("Saved Directories").setHeading();
