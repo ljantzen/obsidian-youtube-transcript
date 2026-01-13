@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   defaultDirectory: null, // null = use current file's directory, or set to one of the savedDirectories paths
   fileFormat: "markdown", // Default to markdown for backward compatibility
   createNewFile: false, // Default to false - insert into current file by default
+  useAttachmentFolderForPdf: false, // Default to false - use selected directory instead of attachment folder
 };
 
 /**

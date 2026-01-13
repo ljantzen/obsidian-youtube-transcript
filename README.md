@@ -11,6 +11,8 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Channel name tagging** - Automatically tag notes with the YouTube channel name
 - **Insert or create new files** - Insert transcripts into current note or create a new file based on video title
 - **Multiple file formats** - Save transcripts as Markdown (.md) or PDF files
+- **PDF attachment folder integration** - Store PDFs in Obsidian's attachment folder setting (respects "below the current folder" option)
+- **Default directory** - Set a default directory for new files, enabling clipboard command without an open document
 - **Configurable timestamp frequency** - Control how often timestamps appear (every sentence or every N seconds)
 - **Local video support** - Link timestamps to local video files instead of YouTube URLs
 - **Multiple URL formats** - Supports full URLs, short URLs, embed URLs, and direct video IDs
@@ -72,6 +74,7 @@ The plugin includes a command that automatically fetches transcripts from your c
 
 - Check the "Create new file (based on video title)" checkbox in the modal (default can be configured in settings)
 - The file will be created in:
+  - **For PDFs with attachment folder enabled**: The folder specified by Obsidian's "Attachment folder" setting (respects "below the current folder" option), or
   - The default directory (if one is set in settings), or
   - The directory you select from the dropdown in the modal, or
   - The same directory as the current file (if no default directory is set and no directory is selected)
@@ -80,6 +83,8 @@ The plugin includes a command that automatically fetches transcripts from your c
 - Choose between Markdown (.md) or PDF format
 - Markdown files will automatically open after creation
 - PDF files will be created and a notification will be shown (PDFs open in your system's default PDF viewer)
+
+**PDF Attachment Folder**: When enabled, PDF files can be stored in Obsidian's attachment folder (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option, which stores PDFs in the same directory as the current file. This setting only affects PDF files; Markdown files use normal directory selection.
 
 ### Timestamps
 
@@ -190,6 +195,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Default directory**: Select one of your saved directories as the default (only shown when you have saved directories). When set, new files will be created in this directory by default, and you can use the clipboard command even when no document is open
 - **Saved directories**: List of frequently used directories for quick selection in the modal. Add directories here, then optionally select one as the default
 - **File format**: Default file format for new transcript files (Markdown or PDF)
+- **Use attachment folder for PDFs**: When enabled, PDF files will be stored in the folder specified by Obsidian's "Attachment folder" setting (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option. Markdown files are not affected and use normal directory selection.
 
 ### Content Options
 - **Include video URL**: Include video URL in transcripts by default
@@ -277,6 +283,10 @@ Test coverage includes:
 - Settings validation
 - Error handling
 - Integration tests for complete workflows
+- Default directory functionality
+- Attachment folder for PDFs
+- Create new file setting
+- Clipboard command with default settings
 
 See [test/README.md](test/README.md) for more details.
 
@@ -323,6 +333,7 @@ npm run lint:fix
 - Check that the video title doesn't contain invalid filename characters (these are automatically sanitized)
 - Verify the default directory path is correct if using that option
 - **PDF generation**: PDF format requires Electron API access (desktop app only). If PDF generation fails, try using Markdown format instead. PDF generation may also fail if the transcript is too large or if there are formatting issues.
+- **PDF attachment folder**: If using the attachment folder setting for PDFs, ensure Obsidian's attachment folder is properly configured. If set to "below the current folder", you must have an active file open when creating PDFs.
 
 ### Model selection issues
 - Click the refresh button next to the model dropdown to fetch latest models

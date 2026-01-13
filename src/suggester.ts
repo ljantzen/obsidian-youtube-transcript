@@ -8,14 +8,13 @@ export class FolderSuggest extends PathSuggest {
 		const lowerCaseInput = input.toLowerCase();
 
 		for (const file of abstractFiles) {
-			if (
-				file instanceof TFolder &&
-				file.path.toLowerCase().includes(lowerCaseInput)
-			) {
+			// Only include directories (folders), explicitly exclude files
+			if (file instanceof TFolder && file.path.toLowerCase().includes(lowerCaseInput)) {
 				folders.push(file);
 			}
 		}
 
-		return folders;
+		// Return only folders - type assertion is safe since we've filtered
+		return folders as TAbstractFile[];
 	}
 }

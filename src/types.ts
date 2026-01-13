@@ -21,6 +21,7 @@ export interface YouTubeTranscriptPluginSettings {
   defaultDirectory: string | null; // Default directory from savedDirectories to use when creating new files (null = use current file's directory)
   fileFormat: "markdown" | "pdf"; // File format for saved transcripts
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
+  useAttachmentFolderForPdf: boolean; // When enabled, PDFs will be stored in Obsidian's attachment folder setting
 }
 
 export interface CaptionTrack {

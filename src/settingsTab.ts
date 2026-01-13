@@ -342,6 +342,20 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName("Use attachment folder for PDFs")
+      .setDesc(
+        "When enabled, PDF files will be stored in the folder specified by Obsidian's 'Attachment folder' setting (Settings → Files & Links → Default location for new attachments). This respects the 'below the current folder' option. Markdown files are not affected.",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.useAttachmentFolderForPdf ?? false)
+          .onChange(async (value) => {
+            this.settings.useAttachmentFolderForPdf = value;
+            await this.saveSettings();
+          });
+      });
+
     new Setting(containerEl).setName("Saved Directories").setHeading();
 
     // Default directory selection (only show if there are saved directories)

@@ -210,6 +210,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         await this.saveSettings();
       }
     }
+
+    // Ensure useAttachmentFolderForPdf has a default value if missing (backward compatibility)
+    if (this.settings.useAttachmentFolderForPdf === undefined) {
+      this.settings.useAttachmentFolderForPdf = DEFAULT_SETTINGS.useAttachmentFolderForPdf;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -233,6 +239,30 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       default:
         return false;
     }
+  }
+
+  /**
+   * Gets the attachment folder path from Obsidian settings
+   * Returns null if not set or if attachment folder is disabled
+   * Handles "below the current folder" case (returns "." which means relative to current file)
+   */
+  getAttachmentFolderPath(): string | null {
+    // Access Obsidian's attachment folder setting through the vault config
+    // Note: attachmentFolderPath is not in the public Vault type but exists at runtime
+    const vaultConfig = (this.app.vault as unknown as { config?: { attachmentFolderPath?: string } }).config;
+    const attachmentFolderPath = vaultConfig?.attachmentFolderPath;
+
+    if (!attachmentFolderPath || attachmentFolderPath.trim() === "") {
+      return null;
+    }
+
+    // "." means "below the current folder" - return it as-is, caller will handle it
+    if (attachmentFolderPath === ".") {
+      return ".";
+    }
+
+    // Return the configured folder path
+    return attachmentFolderPath;
   }
 
   fetchTranscript() {
@@ -450,17 +480,59 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Determine which directory to use
     let directory: string;
-    if (selectedDirectory === null) {
-      // Use current file's directory (activeFile must exist in this case)
-      if (!activeFile) {
-        throw new Error(
-          "Cannot determine directory: no active file and no directory specified",
-        );
+    
+    // For PDFs, check if we should use the attachment folder
+    if (
+      fileFormat === "pdf" &&
+      this.settings.useAttachmentFolderForPdf
+    ) {
+      const attachmentFolder = this.getAttachmentFolderPath();
+      if (attachmentFolder) {
+        if (attachmentFolder === ".") {
+          // "below the current folder" - use current file's directory
+          if (!activeFile) {
+            throw new Error(
+              "Cannot use 'below the current folder' attachment setting: no active file",
+            );
+          }
+          directory = activeFile.path.substring(
+            0,
+            activeFile.path.lastIndexOf("/"),
+          );
+        } else {
+          // Use the configured attachment folder
+          directory = attachmentFolder;
+        }
+      } else {
+        // Attachment folder not set, fall back to normal directory selection
+        if (selectedDirectory === null) {
+          if (!activeFile) {
+            throw new Error(
+              "Cannot determine directory: no active file and no directory specified",
+            );
+          }
+          directory = activeFile.path.substring(
+            0,
+            activeFile.path.lastIndexOf("/"),
+          );
+        } else {
+          directory = selectedDirectory;
+        }
       }
-      directory = activeFile.path.substring(0, activeFile.path.lastIndexOf("/"));
     } else {
-      // Use the selected directory
-      directory = selectedDirectory;
+      // Normal directory selection for markdown files or when attachment folder is disabled
+      if (selectedDirectory === null) {
+        // Use current file's directory (activeFile must exist in this case)
+        if (!activeFile) {
+          throw new Error(
+            "Cannot determine directory: no active file and no directory specified",
+          );
+        }
+        directory = activeFile.path.substring(0, activeFile.path.lastIndexOf("/"));
+      } else {
+        // Use the selected directory
+        directory = selectedDirectory;
+      }
     }
 
     // Ensure directory exists (create if it doesn't)
