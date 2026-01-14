@@ -17,6 +17,8 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Default directory** - Set a default directory for new files, enabling clipboard command without an open document
 - **Configurable timestamp frequency** - Control how often timestamps appear (every sentence or every N seconds)
 - **Single line transcript** - Option to keep transcript on a single line without line breaks (useful for compact formatting)
+- **Language selection** - Choose your preferred transcript language with automatic fallback to English or first available language
+- **Force LLM output language** - Option to ensure LLM-processed transcripts maintain the same language as the original transcript
 - **Local video support** - Link timestamps to local video files instead of YouTube URLs
 - **Multiple URL formats** - Supports full URLs, short URLs, embed URLs, and direct video IDs
 - **Saved directories** - Quick access to frequently used directories for transcript files
@@ -55,7 +57,7 @@ Required files:
 4. Choose to insert into current note or create a new file
 5. The transcript will be fetched and inserted/created
 
-**Tip**: If you have a YouTube URL in your clipboard, it will be automatically prefilled in the URL field when you open the modal. If you have a default directory configured, you can create new files even when no document is open.
+**Tip**: If you have a YouTube URL in your clipboard, it will be automatically prefilled in the URL field when you open the modal. The modal will also automatically fetch and display available transcript languages for the video. If you have a default directory configured, you can create new files even when no document is open.
 
 ### Clipboard Command (Keyboard Shortcut)
 
@@ -161,6 +163,7 @@ The plugin supports three LLM providers for cleaning and processing transcripts:
 - **Custom prompt**: Modify the default prompt to change how transcripts are processed
 - **Generate summary**: When enabled, the LLM will generate a 2-3 sentence summary of the video
 - **Include timestamps in LLM output**: Preserve timestamps when processing with LLM
+- **Force LLM output language**: When enabled, the LLM will be instructed to output in the same language as the selected transcript language, preventing unwanted translations
 
 **Note**: If no LLM providers are configured (no API keys), LLM-related options will be hidden from the modal to keep the interface clean.
 
@@ -174,6 +177,24 @@ When enabled, the plugin can generate concise summaries of video content:
 1. Enable "Generate summary" in settings or the modal
 2. Ensure an LLM provider is configured with a valid API key
 3. The summary will appear at the top of the transcript with a "## Summary" header
+
+### Language Selection
+
+Choose your preferred transcript language for YouTube videos:
+
+1. **In the modal**: When you enter a YouTube URL, the plugin automatically fetches available transcript languages
+2. Select your preferred language from the dropdown (or choose "Auto" to use your preferred language setting)
+3. The plugin will try to use your selected language, falling back to English or the first available language if your preference isn't available
+4. **In settings**: Set a default preferred language (or comma-separated list like "en,es,fr") that will be used automatically
+5. The modal selection overrides your settings preference, allowing per-video language selection
+
+**Language Selection Priority:**
+- Modal selection (if specified)
+- Settings preferred language (if set)
+- English (if available)
+- First available language
+
+**Supported Languages**: The plugin supports 30+ languages including English, Spanish, French, German, Italian, Portuguese, Russian, Japanese, Korean, Chinese, Arabic, Hindi, and many more. Available languages are automatically detected from each video's caption tracks.
 
 ### Channel Name Tagging
 
@@ -222,6 +243,7 @@ Configure directories for new transcript files:
 
 When fetching a transcript, you can configure:
 
+- **Transcript language**: Select your preferred transcript language from available options. The dropdown automatically populates when you enter a YouTube URL. Choose "Auto" to use your preferred language setting, or select a specific language to override it for this video.
 - **Create new file**: Create a new file instead of inserting into current note (default can be set in settings)
 - **File format**: Choose between Markdown (.md) or PDF format (only shown when creating new file)
 - **Include video URL**: Add the video URL as a markdown link
@@ -231,7 +253,7 @@ When fetching a transcript, you can configure:
 - **Generate summary**: Generate a summary (requires LLM processing enabled and a provider configured)
 - **Directory selection**: Choose from saved directories or enter a custom directory path (only shown when creating new file)
 
-**Note**: The modal automatically prefills the URL field if you have a YouTube URL in your clipboard. All modal options can be overridden per-transcript, regardless of your default settings.
+**Note**: The modal automatically prefills the URL field if you have a YouTube URL in your clipboard, and automatically fetches available languages for the video. All modal options can be overridden per-transcript, regardless of your default settings.
 
 ## Settings
 
@@ -243,6 +265,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Model selection**: Choose from available models (automatically fetched)
 - **Processing prompt**: Customize how transcripts are processed
 - **LLM timeout**: Set timeout for API requests (default: 1 minute)
+- **Force LLM output language**: When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures processed transcripts maintain the original language and prevents unwanted translations. The language is automatically detected from the transcript you're processing.
 
 ### File Creation Settings
 - **Create new file**: Default behavior for the "Create new file" checkbox in the modal (default: disabled - inserts into current file)
@@ -257,6 +280,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **PDF cover note template**: Path to a markdown template file for custom cover note formatting. Supports all template variables listed in the PDF Cover Notes section. Leave empty to use the default template.
 
 ### Content Options
+- **Preferred languages**: Comma-separated list of preferred transcript language codes in order of preference (e.g., "en,es,fr" for English, then Spanish, then French). Languages will be tried in order until one is available. Leave empty for auto-select (prefers English). You can override this in the modal when multiple languages are available.
 - **Include video URL**: Include video URL in transcripts by default
 - **Generate summary**: Generate summaries by default
 - **Tag with channel name**: Tag notes with channel names by default
@@ -351,6 +375,8 @@ Test coverage includes:
 - PDF cover note functionality
 - VideoDetails extraction and template variables
 - Frontmatter generation
+- Language selection and fallback logic
+- Force LLM output language functionality
 
 See [test/README.md](test/README.md) for more details.
 
