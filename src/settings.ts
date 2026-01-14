@@ -37,6 +37,8 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   pdfCoverNoteLocation: "", // Default to empty string - no specific location set
   pdfCoverNoteTemplate: "", // Default to empty string - use default template
   singleLineTranscript: false, // Default to false - use line breaks for readability
+  preferredLanguage: "", // Default to empty string - auto-select (prefers English)
+  forceLLMLanguage: false, // Default to false - LLM can output in any language
 };
 
 /**

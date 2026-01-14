@@ -241,6 +241,18 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.pdfCoverNoteTemplate = DEFAULT_SETTINGS.pdfCoverNoteTemplate;
       await this.saveSettings();
     }
+
+    // Ensure preferredLanguage has a default value if missing (backward compatibility)
+    if (this.settings.preferredLanguage === undefined) {
+      this.settings.preferredLanguage = DEFAULT_SETTINGS.preferredLanguage;
+      await this.saveSettings();
+    }
+
+    // Ensure forceLLMLanguage has a default value if missing (backward compatibility)
+    if (this.settings.forceLLMLanguage === undefined) {
+      this.settings.forceLLMLanguage = DEFAULT_SETTINGS.forceLLMLanguage;
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -306,6 +318,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         selectedDirectory: string | null,
         tagWithChannelName: boolean,
         fileFormat: "markdown" | "pdf",
+        languageCode: string | null,
       ) => {
         await this.processTranscript(
           url,
@@ -316,6 +329,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           selectedDirectory,
           tagWithChannelName,
           fileFormat,
+          languageCode,
         );
       },
     ).open();
@@ -363,6 +377,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Determine selected directory - use default directory if set, otherwise null
       const selectedDirectory = this.settings.defaultDirectory || null;
 
+      // Use preferred language setting, or null for auto-select
+      const languageCode = this.settings.preferredLanguage && this.settings.preferredLanguage.trim() !== ""
+        ? this.settings.preferredLanguage
+        : null;
+
       // Process transcript with default settings
       await this.processTranscript(
         trimmedUrl,
@@ -373,6 +392,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         selectedDirectory,
         tagWithChannelName,
         fileFormat,
+        languageCode,
       );
     } catch (error: unknown) {
       // Handle clipboard access errors
@@ -398,12 +418,21 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     selectedDirectory: string | null,
     tagWithChannelName: boolean,
     fileFormat: "markdown" | "pdf",
+    languageCode: string | null,
   ) {
     const fetchingNotice = new Notice(
       "Fetching transcript from YouTube...",
       0,
     );
     try {
+      // Use provided language code, or fall back to preferred languages setting, or null for auto-select
+      // Note: preferredLanguage can be a comma-separated list, which will be handled in getYouTubeTranscript
+      const languageToUse = languageCode !== null 
+        ? languageCode 
+        : (this.settings.preferredLanguage && this.settings.preferredLanguage.trim() !== "" 
+            ? this.settings.preferredLanguage 
+            : null);
+
       const result = await getYouTubeTranscript(
         this.app,
         url,
@@ -418,6 +447,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           }
         },
         RetryConfirmationModal,
+        languageToUse,
       );
 
       const { transcript, title, summary, channelName, videoDetails } = result;

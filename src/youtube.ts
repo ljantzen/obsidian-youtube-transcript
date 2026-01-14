@@ -10,6 +10,48 @@ import type {
   VideoDetails,
 } from "./types";
 import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
+
+/**
+ * Gets available caption languages for a YouTube video
+ */
+export async function getAvailableLanguages(
+  videoId: string,
+  apiKey: string,
+): Promise<CaptionTrack[]> {
+  const innertubeResponse = await requestUrl({
+    url: `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      context: {
+        client: {
+          clientName: "WEB",
+          clientVersion: "2.20231219.00.00",
+          hl: "en",
+          gl: "US",
+        },
+      },
+      videoId: videoId,
+    }),
+  });
+
+  if (innertubeResponse.status < 200 || innertubeResponse.status >= 300) {
+    throw new Error(
+      `Failed to fetch video info: ${innertubeResponse.status}`,
+    );
+  }
+
+  const videoData = innertubeResponse.json;
+  const captionTracks =
+    videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+
+  return captionTracks || [];
+}
 import { processWithOpenAI } from "./llm/openai";
 import { processWithGemini } from "./llm/gemini";
 import { processWithClaude } from "./llm/claude";
@@ -22,6 +64,7 @@ export async function getYouTubeTranscript(
   settings: YouTubeTranscriptPluginSettings,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
+  preferredLanguageCode?: string | null,
 ): Promise<TranscriptResult> {
   const videoId = extractVideoId(url);
   if (!videoId) {
@@ -107,12 +150,53 @@ export async function getYouTubeTranscript(
     throw new Error("No captions available for this video");
   }
 
-  // Prefer English, fallback to first available
-  let captionTrack = captionTracks.find(
-    (track: CaptionTrack) => track.languageCode === "en",
-  );
+  // Select caption track based on preferred language(s)
+  let captionTrack: CaptionTrack | undefined;
+  
+  if (preferredLanguageCode && preferredLanguageCode.trim() !== "") {
+    // Parse comma-separated list of preferred languages
+    const preferredLanguages = preferredLanguageCode
+      .split(",")
+      .map((lang) => lang.trim().toLowerCase())
+      .filter((lang) => lang.length > 0);
+    
+    // Try each preferred language in order until one is found
+    for (const langCode of preferredLanguages) {
+      captionTrack = captionTracks.find(
+        (track: CaptionTrack) => track.languageCode === langCode,
+      );
+      if (captionTrack) {
+        if (statusCallback) {
+          statusCallback(`Using transcript language: ${captionTrack.languageCode.toUpperCase()}`);
+        }
+        break; // Found a match, stop searching
+      }
+    }
+    
+    // If none of the preferred languages were found, show warning but continue
+    if (!captionTrack && statusCallback) {
+      statusCallback(
+        `Preferred languages "${preferredLanguageCode}" not available. Using fallback.`,
+      );
+    }
+  }
+  
+  // Fallback: prefer English, then first available
   if (!captionTrack) {
-    captionTrack = captionTracks[0];
+    captionTrack = captionTracks.find(
+      (track: CaptionTrack) => track.languageCode === "en",
+    );
+    if (!captionTrack) {
+      captionTrack = captionTracks[0];
+    }
+    if (captionTrack && statusCallback && (!preferredLanguageCode || preferredLanguageCode.trim() === "")) {
+      statusCallback(`Using transcript language: ${captionTrack.languageCode.toUpperCase()}`);
+    }
+  }
+
+  // Ensure we have a caption track (should never happen, but TypeScript needs this)
+  if (!captionTrack) {
+    throw new Error("No caption track available");
   }
 
   // Step 4: Fetch the transcript XML using the baseUrl
@@ -143,6 +227,7 @@ export async function getYouTubeTranscript(
     videoId,
     statusCallback,
     RetryModal,
+    captionTrack.languageCode,
   );
 
   return {
@@ -164,6 +249,7 @@ async function parseTranscript(
   videoId: string,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
+  transcriptLanguageCode?: string,
 ): Promise<LLMResponse> {
   // Parse XML and extract text with timestamps
   const parser = new DOMParser();
@@ -382,6 +468,7 @@ async function parseTranscript(
         settings,
         statusCallback,
         RetryModal,
+        transcriptLanguageCode,
       );
       return processed;
     }
@@ -409,6 +496,7 @@ async function processWithLLM(
   settings: YouTubeTranscriptPluginSettings,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
+  transcriptLanguageCode?: string,
 ): Promise<LLMResponse> {
   if (!provider || provider === "none" || !hasProviderKey(provider, settings)) {
     const providerName = getProviderName(provider || "none");
@@ -431,6 +519,7 @@ async function processWithLLM(
         settings,
         statusCallback,
         RetryModal,
+        transcriptLanguageCode,
       );
     case "gemini":
       return await processWithGemini(
@@ -440,6 +529,7 @@ async function processWithLLM(
         settings,
         statusCallback,
         RetryModal,
+        transcriptLanguageCode,
       );
     case "claude":
       return await processWithClaude(
@@ -449,6 +539,7 @@ async function processWithLLM(
         settings,
         statusCallback,
         RetryModal,
+        transcriptLanguageCode,
       );
     default:
       new Notice(`Unsupported LLM provider: ${String(provider)}`, 10000);

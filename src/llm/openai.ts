@@ -33,6 +33,7 @@ export async function processWithOpenAI(
   settings: YouTubeTranscriptPluginSettings,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
+  transcriptLanguageCode?: string,
 ): Promise<LLMResponse> {
   if (!settings.openaiKey || settings.openaiKey.trim() === "") {
     console.debug(
@@ -54,6 +55,8 @@ export async function processWithOpenAI(
     transcript,
     generateSummary,
     settings.includeTimestampsInLLM || false,
+    settings.forceLLMLanguage || false,
+    transcriptLanguageCode,
   );
 
   const makeRequest = async (): Promise<LLMResponse> => {

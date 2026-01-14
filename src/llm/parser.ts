@@ -187,11 +187,56 @@ export function parseLLMResponse(
   return { transcript: processedTranscript, summary };
 }
 
+/**
+ * Maps language codes to language names for LLM instructions
+ */
+function getLanguageName(languageCode: string): string {
+  const languageNames: Record<string, string> = {
+    en: "English",
+    es: "Spanish",
+    fr: "French",
+    de: "German",
+    it: "Italian",
+    pt: "Portuguese",
+    ru: "Russian",
+    ja: "Japanese",
+    ko: "Korean",
+    zh: "Chinese",
+    ar: "Arabic",
+    hi: "Hindi",
+    nl: "Dutch",
+    pl: "Polish",
+    tr: "Turkish",
+    no: "Norwegian",
+    sv: "Swedish",
+    da: "Danish",
+    fi: "Finnish",
+    cs: "Czech",
+    hu: "Hungarian",
+    ro: "Romanian",
+    uk: "Ukrainian",
+    vi: "Vietnamese",
+    th: "Thai",
+    id: "Indonesian",
+    ms: "Malay",
+    he: "Hebrew",
+    el: "Greek",
+    bg: "Bulgarian",
+    hr: "Croatian",
+    sk: "Slovak",
+    sl: "Slovenian",
+  };
+  
+  return languageNames[languageCode.toLowerCase()] || languageCode.toUpperCase();
+}
+
 export function buildPrompt(
   basePrompt: string,
   transcript: string,
   generateSummary: boolean,
   includeTimestampsInLLM: boolean,
+  forceLLMLanguage: boolean,
+  transcriptLanguageCode?: string,
 ): string {
   let fullPrompt = basePrompt;
 
@@ -207,6 +252,11 @@ export function buildPrompt(
 
   if (includeTimestampsInLLM) {
     fullPrompt += `\n\nIMPORTANT: The transcript contains timestamp links in the format [MM:SS](url). You MUST preserve these timestamp links exactly as they appear in the original transcript. Do not remove, modify, or reformat them.`;
+  }
+
+  if (forceLLMLanguage && transcriptLanguageCode && transcriptLanguageCode.trim() !== "") {
+    const languageName = getLanguageName(transcriptLanguageCode);
+    fullPrompt += `\n\nCRITICAL LANGUAGE REQUIREMENT: The transcript you are processing is in ${languageName} (language code: ${transcriptLanguageCode.toUpperCase()}). You MUST output your processed transcript and summary (if requested) in the SAME LANGUAGE (${languageName}). Do not translate or convert the content to any other language. Maintain the original language throughout your entire response.`;
   }
 
   fullPrompt += `\nTranscript:\n${transcript}`;

@@ -20,6 +20,7 @@ export async function processWithGemini(
   settings: YouTubeTranscriptPluginSettings,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
+  transcriptLanguageCode?: string,
 ): Promise<LLMResponse> {
   if (!settings.geminiKey || settings.geminiKey.trim() === "") {
     console.debug(
@@ -41,6 +42,8 @@ export async function processWithGemini(
     transcript,
     generateSummary,
     settings.includeTimestampsInLLM || false,
+    settings.forceLLMLanguage || false,
+    transcriptLanguageCode,
   );
 
   const makeRequest = async (): Promise<LLMResponse> => {

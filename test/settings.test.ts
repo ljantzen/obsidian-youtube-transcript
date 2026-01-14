@@ -26,6 +26,8 @@ describe("Settings", () => {
       createPdfCoverNote: false,
       pdfCoverNoteLocation: "",
       pdfCoverNoteTemplate: "",
+      preferredLanguage: "",
+      forceLLMLanguage: false,
     };
 
     // Verify structure exists
@@ -44,6 +46,8 @@ describe("Settings", () => {
     expect(defaultSettings.createPdfCoverNote).toBe(false);
     expect(defaultSettings.pdfCoverNoteLocation).toBe("");
     expect(defaultSettings.pdfCoverNoteTemplate).toBe("");
+    expect(defaultSettings.preferredLanguage).toBe("");
+    expect(defaultSettings.forceLLMLanguage).toBe(false);
     expect(typeof defaultSettings.prompt).toBe("string");
     expect(defaultSettings.prompt.length).toBeGreaterThan(0);
   });
@@ -210,22 +214,55 @@ describe("Settings", () => {
       createPdfCoverNote: false,
       pdfCoverNoteLocation: "",
       pdfCoverNoteTemplate: "",
+      preferredLanguage: "",
+      forceLLMLanguage: false,
     };
 
     expect(typeof settings.createPdfCoverNote).toBe("boolean");
     expect(typeof settings.pdfCoverNoteLocation).toBe("string");
     expect(typeof settings.pdfCoverNoteTemplate).toBe("string");
+    expect(typeof settings.preferredLanguage).toBe("string");
+    expect(typeof settings.forceLLMLanguage).toBe("boolean");
     expect(settings.createPdfCoverNote).toBe(false);
     expect(settings.pdfCoverNoteLocation).toBe("");
     expect(settings.pdfCoverNoteTemplate).toBe("");
+    expect(settings.preferredLanguage).toBe("");
+    expect(settings.forceLLMLanguage).toBe(false);
 
     // Test with values set
     settings.createPdfCoverNote = true;
     settings.pdfCoverNoteLocation = "Notes/{ChannelName}";
     settings.pdfCoverNoteTemplate = "Templates/Cover Note.md";
+    settings.preferredLanguage = "es";
+    settings.forceLLMLanguage = true;
 
     expect(settings.createPdfCoverNote).toBe(true);
     expect(settings.pdfCoverNoteLocation).toBe("Notes/{ChannelName}");
     expect(settings.pdfCoverNoteTemplate).toBe("Templates/Cover Note.md");
+    expect(settings.preferredLanguage).toBe("es");
+    expect(settings.forceLLMLanguage).toBe(true);
+  });
+
+  it("should validate preferred language setting", () => {
+    const settings = {
+      preferredLanguage: "",
+    };
+
+    expect(typeof settings.preferredLanguage).toBe("string");
+    expect(settings.preferredLanguage).toBe("");
+
+    // Test with single language code
+    settings.preferredLanguage = "en";
+    expect(settings.preferredLanguage).toBe("en");
+
+    settings.preferredLanguage = "es";
+    expect(settings.preferredLanguage).toBe("es");
+
+    // Test with comma-separated list
+    settings.preferredLanguage = "en,es,fr";
+    expect(settings.preferredLanguage).toBe("en,es,fr");
+
+    settings.preferredLanguage = "es,fr";
+    expect(settings.preferredLanguage).toBe("es,fr");
   });
 });

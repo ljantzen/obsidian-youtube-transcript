@@ -1,6 +1,8 @@
 import { App, Modal } from "obsidian";
-import type { LLMProvider, YouTubeTranscriptPluginSettings } from "./types";
+import type { LLMProvider, YouTubeTranscriptPluginSettings, CaptionTrack } from "./types";
 import { extractVideoId } from "./utils";
+import { getAvailableLanguages } from "./youtube";
+import { requestUrl } from "obsidian";
 
 export class RetryConfirmationModal extends Modal {
   result: boolean | null = null;
@@ -88,6 +90,7 @@ export class YouTubeUrlModal extends Modal {
     selectedDirectory: string | null,
     tagWithChannelName: boolean,
     fileFormat: "markdown" | "pdf",
+    languageCode: string | null,
   ) => void | Promise<void>;
   settings: YouTubeTranscriptPluginSettings;
   callbacks: YouTubeUrlModalCallbacks;
@@ -105,6 +108,7 @@ export class YouTubeUrlModal extends Modal {
       selectedDirectory: string | null,
       tagWithChannelName: boolean,
       fileFormat: "markdown" | "pdf",
+      languageCode: string | null,
     ) => void | Promise<void>,
   ) {
     super(app);
@@ -126,18 +130,218 @@ export class YouTubeUrlModal extends Modal {
       },
     });
 
+    // Add language selector
+    const languageContainer = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+    languageContainer.createEl("label", {
+      text: "Transcript language:",
+      attr: {
+        style: "margin-right: 0.5em;",
+      },
+    });
+    const languageDropdown = languageContainer.createEl("select", {
+      attr: {
+        id: "language-dropdown",
+        style: "flex: 1; min-width: 200px;",
+      },
+    });
+    languageDropdown.add(new Option("Auto (prefer English)", ""));
+    
+    let availableLanguages: CaptionTrack[] = [];
+    let apiKey: string | null = null;
+
+    // Function to fetch and populate languages
+    const fetchLanguages = async () => {
+      const url = input.value.trim();
+      const videoId = extractVideoId(url);
+      
+      if (!videoId) {
+        // Clear language dropdown if URL is invalid
+        while (languageDropdown.options.length > 1) {
+          languageDropdown.remove(1);
+        }
+        availableLanguages = [];
+        return;
+      }
+
+      // Show loading state
+      const loadingOption = languageDropdown.querySelector('option[value="__loading__"]');
+      if (!loadingOption) {
+        const loadingOpt = new Option("Loading languages...", "__loading__");
+        loadingOpt.disabled = true;
+        languageDropdown.add(loadingOpt);
+      }
+
+      try {
+        // Fetch the watch page to get API key
+        const watchPageUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const watchPageResponse = await requestUrl({
+          url: watchPageUrl,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+          },
+        });
+
+        if (watchPageResponse.status >= 200 && watchPageResponse.status < 300) {
+          const pageHtml = watchPageResponse.text;
+          const apiKeyMatch = pageHtml.match(
+            /"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"/,
+          );
+          
+          if (apiKeyMatch && apiKeyMatch[1]) {
+            apiKey = apiKeyMatch[1];
+            try {
+              availableLanguages = await getAvailableLanguages(videoId, apiKey);
+            } catch (langError) {
+              console.error("Error fetching available languages:", langError);
+              // Keep existing options if fetch fails
+              return;
+            }
+            
+            // Clear existing options except "Auto" (and remove loading if present)
+            while (languageDropdown.options.length > 1) {
+              const option = languageDropdown.options[1];
+              if (option.value !== "__loading__") {
+                languageDropdown.remove(1);
+              } else {
+                languageDropdown.remove(1);
+                break; // Remove loading and continue
+              }
+            }
+            
+            // Remove loading indicator
+            const loadingOption = languageDropdown.querySelector('option[value="__loading__"]');
+            if (loadingOption) {
+              loadingOption.remove();
+            }
+            
+            // If no languages found, something went wrong
+            if (availableLanguages.length === 0) {
+              console.warn("No languages found for video:", videoId);
+              return;
+            }
+            
+            // Add language options
+            const languageNames: Record<string, string> = {
+              en: "English",
+              es: "Spanish",
+              fr: "French",
+              de: "German",
+              it: "Italian",
+              pt: "Portuguese",
+              ru: "Russian",
+              ja: "Japanese",
+              ko: "Korean",
+              zh: "Chinese",
+              ar: "Arabic",
+              hi: "Hindi",
+              nl: "Dutch",
+              pl: "Polish",
+              tr: "Turkish",
+              no: "Norwegian",
+              sv: "Swedish",
+              da: "Danish",
+              fi: "Finnish",
+              cs: "Czech",
+              hu: "Hungarian",
+              ro: "Romanian",
+              uk: "Ukrainian",
+              vi: "Vietnamese",
+              th: "Thai",
+              id: "Indonesian",
+              ms: "Malay",
+              he: "Hebrew",
+              el: "Greek",
+              bg: "Bulgarian",
+              hr: "Croatian",
+              sk: "Slovak",
+              sl: "Slovenian",
+            };
+            
+            availableLanguages.forEach((track) => {
+              const langCode = track.languageCode;
+              const langName = languageNames[langCode] || langCode.toUpperCase();
+              const option = new Option(`${langName} (${langCode})`, langCode);
+              languageDropdown.add(option);
+            });
+            
+            // Set to first preferred language if set and available
+            if (this.settings.preferredLanguage && this.settings.preferredLanguage.trim() !== "") {
+              // Parse comma-separated list and find first available
+              const preferredLanguages = this.settings.preferredLanguage
+                .split(",")
+                .map((lang) => lang.trim().toLowerCase())
+                .filter((lang) => lang.length > 0);
+              
+              for (const preferredLang of preferredLanguages) {
+                const preferredOption = Array.from(languageDropdown.options).find(
+                  (opt) => opt.value === preferredLang,
+                );
+                if (preferredOption) {
+                  languageDropdown.value = preferredLang;
+                  break; // Use first available preferred language
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Remove loading indicator on error
+        const loadingOption = languageDropdown.querySelector('option[value="__loading__"]');
+        if (loadingOption) {
+          loadingOption.remove();
+        }
+        // Silently fail - languages will default to auto-select
+        console.error("Failed to fetch available languages:", error);
+        // Keep the dropdown with just "Auto" option if fetch fails
+      }
+    };
+
+    // Fetch languages when URL changes (debounced)
+    let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+    input.addEventListener("input", () => {
+      if (fetchTimeout) {
+        clearTimeout(fetchTimeout);
+      }
+      fetchTimeout = setTimeout(() => {
+        fetchLanguages().catch((error) => {
+          // Error is already handled in fetchLanguages, but we need to catch
+          // to prevent unhandled promise rejection
+          console.debug("Language fetch error (already handled):", error);
+        });
+      }, 500); // Wait 500ms after user stops typing
+    });
+
     // Check clipboard for YouTube URL and prefill if found
+    // This happens after language dropdown is set up so fetchLanguages can be called
+    let prefilledUrl = false;
     try {
       const clipboardText = await navigator.clipboard.readText();
       if (clipboardText && extractVideoId(clipboardText.trim())) {
         input.value = clipboardText.trim();
         // Select the text so user can easily replace it if needed
         input.select();
+        prefilledUrl = true;
       }
     } catch (error) {
       // Clipboard access may fail due to permissions or other reasons
       // Silently ignore and continue without prefilling
       console.debug("Could not read clipboard:", error);
+    }
+
+    // Fetch languages if URL was prefilled from clipboard
+    // Use a small delay to ensure the modal is fully rendered
+    if (prefilledUrl) {
+      setTimeout(() => {
+        fetchLanguages().catch((error) => {
+          // Error is already handled in fetchLanguages, but we need to catch
+          // to prevent unhandled promise rejection
+          console.debug("Language fetch error (already handled):", error);
+        });
+      }, 100);
     }
 
     // Add checkbox for creating new file
@@ -436,7 +640,9 @@ export class YouTubeUrlModal extends Modal {
         const fileFormat = createNewFile
           ? (fileFormatDropdown.value as "markdown" | "pdf")
           : "markdown";
-        void this.onSubmit(
+        // Get selected language (empty string = auto-select)
+        const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
+        const result = this.onSubmit(
           url,
           createNewFile,
           includeVideoUrl,
@@ -445,8 +651,18 @@ export class YouTubeUrlModal extends Modal {
           selectedDirectory,
           tagWithChannelName,
           fileFormat,
+          languageCode,
         );
-        this.close();
+        if (result instanceof Promise) {
+          result.then(() => {
+            this.close();
+          }).catch((error: unknown) => {
+            console.error("Error in onSubmit callback:", error);
+            // Don't close modal on error so user can retry
+          });
+        } else {
+          this.close();
+        }
       } catch (error) {
         console.error("Error in submit button handler:", error);
       }
@@ -478,7 +694,9 @@ export class YouTubeUrlModal extends Modal {
           const fileFormat = createNewFile
             ? (fileFormatDropdown.value as "markdown" | "pdf")
             : "markdown";
-          void this.onSubmit(
+          // Get selected language (empty string = auto-select)
+          const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
+          const result = this.onSubmit(
             url,
             createNewFile,
             includeVideoUrl,
@@ -487,8 +705,18 @@ export class YouTubeUrlModal extends Modal {
             selectedDirectory,
             tagWithChannelName,
             fileFormat,
+            languageCode,
           );
-          this.close();
+          if (result instanceof Promise) {
+            result.then(() => {
+              this.close();
+            }).catch((error: unknown) => {
+              console.error("Error in onSubmit callback:", error);
+              // Don't close modal on error so user can retry
+            });
+          } else {
+            this.close();
+          }
         }
       }
     });

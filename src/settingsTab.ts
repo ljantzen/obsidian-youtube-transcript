@@ -94,6 +94,27 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Transcript").setHeading();
 
     new Setting(containerEl)
+      .setName("Preferred languages")
+      .setDesc(
+        "Comma-separated list of preferred transcript language codes in order of preference (e.g., 'en,es,fr' for English, then Spanish, then French). Languages will be tried in order until one is available. Leave empty for auto-select (prefers English). You can override this in the modal when multiple languages are available.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("en,es,fr")
+          .setValue(this.settings.preferredLanguage || "")
+          .onChange(async (value) => {
+            // Normalize: trim, lowercase, remove extra spaces
+            const normalizedValue = value
+              .split(",")
+              .map((lang) => lang.trim().toLowerCase())
+              .filter((lang) => lang.length > 0)
+              .join(",");
+            this.settings.preferredLanguage = normalizedValue;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
       .setName("Include video URL")
       .setDesc(
         "When enabled, the video URL will be included in the transcript (can be overridden in the modal)",
@@ -556,6 +577,20 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
               this.settings.openaiTimeout = timeout;
               await this.saveSettings();
             }
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Force LLM output language")
+      .setDesc(
+        "When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures the processed transcript matches the original language.",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.forceLLMLanguage ?? false)
+          .onChange(async (value) => {
+            this.settings.forceLLMLanguage = value;
+            await this.saveSettings();
           });
       });
   }

@@ -21,6 +21,7 @@ export async function processWithClaude(
   settings: YouTubeTranscriptPluginSettings,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
+  transcriptLanguageCode?: string,
 ): Promise<LLMResponse> {
   if (!settings.claudeKey || settings.claudeKey.trim() === "") {
     console.debug(
@@ -42,6 +43,8 @@ export async function processWithClaude(
     transcript,
     generateSummary,
     settings.includeTimestampsInLLM || false,
+    settings.forceLLMLanguage || false,
+    transcriptLanguageCode,
   );
 
   const makeRequest = async (): Promise<LLMResponse> => {

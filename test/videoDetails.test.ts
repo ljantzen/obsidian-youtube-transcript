@@ -30,7 +30,7 @@ describe("VideoDetails Type", () => {
   });
 
   it("should handle optional videoDetails fields", () => {
-    const videoDetails = {
+    const videoDetails: Record<string, unknown> = {
       title: "Test Video",
       author: "Test Channel",
     };
