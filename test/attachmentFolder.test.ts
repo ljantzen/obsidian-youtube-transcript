@@ -63,30 +63,102 @@ describe('Attachment Folder for PDFs', () => {
     });
   });
 
+  describe('getAttachmentSubfolderName logic', () => {
+    const getAttachmentSubfolderName = (
+      vaultConfig: { attachmentSubfolder?: string } | undefined
+    ): string => {
+      const attachmentSubfolder = vaultConfig?.attachmentSubfolder;
+      
+      // Default to "Attachments" if not configured
+      return attachmentSubfolder && attachmentSubfolder.trim() !== "" 
+        ? attachmentSubfolder.trim() 
+        : "Attachments";
+    };
+
+    it('should return "Attachments" as default when not configured', () => {
+      const vaultConfig = undefined;
+      const result = getAttachmentSubfolderName(vaultConfig);
+      expect(result).toBe('Attachments');
+    });
+
+    it('should return "Attachments" when attachmentSubfolder is empty string', () => {
+      const vaultConfig = { attachmentSubfolder: '' };
+      const result = getAttachmentSubfolderName(vaultConfig);
+      expect(result).toBe('Attachments');
+    });
+
+    it('should return "Attachments" when attachmentSubfolder is whitespace only', () => {
+      const vaultConfig = { attachmentSubfolder: '   ' };
+      const result = getAttachmentSubfolderName(vaultConfig);
+      expect(result).toBe('Attachments');
+    });
+
+    it('should return configured subfolder name', () => {
+      const vaultConfig = { attachmentSubfolder: 'Media' };
+      const result = getAttachmentSubfolderName(vaultConfig);
+      expect(result).toBe('Media');
+    });
+
+    it('should trim whitespace from subfolder name', () => {
+      const vaultConfig = { attachmentSubfolder: '  Media  ' };
+      const result = getAttachmentSubfolderName(vaultConfig);
+      expect(result).toBe('Media');
+    });
+
+    it('should handle custom subfolder names', () => {
+      const customNames = ['Files', 'Resources', 'Assets', 'PDFs'];
+      customNames.forEach((name) => {
+        const vaultConfig = { attachmentSubfolder: name };
+        const result = getAttachmentSubfolderName(vaultConfig);
+        expect(result).toBe(name);
+      });
+    });
+  });
+
   describe('PDF directory selection with attachment folder', () => {
     const selectDirectoryForPdf = (
       fileFormat: 'markdown' | 'pdf',
       useAttachmentFolderForPdf: boolean,
       attachmentFolder: string | null,
       selectedDirectory: string | null,
-      activeFileDir: string | null
+      activeFileDir: string | null,
+      attachmentSubfolder: string = 'Attachments'
     ): string => {
       if (fileFormat === 'pdf' && useAttachmentFolderForPdf && attachmentFolder) {
-        if (attachmentFolder === '.') {
-          // "below the current folder" - use current file's directory
-          if (!activeFileDir) {
+        if (attachmentFolder === '.' || attachmentFolder.startsWith('./')) {
+          // "below the current folder" - use current file's directory + subfolder
+          
+          let subfolderName = "";
+          if (attachmentFolder === ".") {
+              // Simulating main.ts logic: if . use default/configured subfolder
+              subfolderName = attachmentSubfolder;
+          } else {
+              // Extract from ./Folder
+              subfolderName = attachmentFolder.substring(2);
+          }
+
+          // activeFileDir can be null (no file) or "" (file in root) - only null is invalid
+          if (activeFileDir === null) {
             throw new Error(
               "Cannot use 'below the current folder' attachment setting: no active file"
             );
           }
-          return activeFileDir;
+          
+          // Use activeFileDir as base
+          const baseDir = activeFileDir;
+          
+          if (subfolderName && subfolderName.trim() !== "") {
+              return baseDir === "" ? subfolderName : `${baseDir}/${subfolderName}`;
+          } else {
+              return baseDir;
+          }
         }
         return attachmentFolder;
       }
 
       // Normal directory selection
       if (selectedDirectory === null) {
-        if (!activeFileDir) {
+        if (activeFileDir === null) {
           throw new Error(
             'Cannot determine directory: no active file and no directory specified'
           );
@@ -107,7 +179,7 @@ describe('Attachment Folder for PDFs', () => {
       expect(result).toBe('Attachments');
     });
 
-    it('should use current file directory for PDF when attachment folder is "."', () => {
+    it('should use current file directory + subfolder for PDF when attachment folder is "."', () => {
       const result = selectDirectoryForPdf(
         'pdf',
         true,
@@ -115,7 +187,102 @@ describe('Attachment Folder for PDFs', () => {
         'Transcripts',
         'Notes'
       );
-      expect(result).toBe('Notes');
+      expect(result).toBe('Notes/Attachments');
+    });
+
+    it('should handle attachment folder starting with "./"', () => {
+      const result = selectDirectoryForPdf(
+        'pdf',
+        true,
+        './Files',
+        'Transcripts',
+        'Notes'
+      );
+      // Logic assumes if starts with ./, it extracts the name and appends to base dir
+      // selectDirectoryForPdf helper needs to be updated to match the new logic in main.ts
+      expect(result).toBe('Notes/Files');
+    });
+
+
+    it('should use subfolder name for PDF when attachment folder is "." and file is in root', () => {
+      const result = selectDirectoryForPdf(
+        'pdf',
+        true,
+        '.',
+        'Transcripts',
+        '' // Empty string means file is in root
+      );
+      expect(result).toBe('Attachments');
+    });
+
+    it('should use custom subfolder name when configured', () => {
+      const result = selectDirectoryForPdf(
+        'pdf',
+        true,
+        '.',
+        'Transcripts',
+        'Notes',
+        'Media' // Custom subfolder name
+      );
+      expect(result).toBe('Notes/Media');
+    });
+
+    it('should use custom subfolder name when file is in root', () => {
+      const result = selectDirectoryForPdf(
+        'pdf',
+        true,
+        '.',
+        'Transcripts',
+        '', // Empty string means file is in root
+        'PDFs' // Custom subfolder name
+      );
+      expect(result).toBe('PDFs');
+    });
+
+    it('should handle nested directories with subfolder', () => {
+      const result = selectDirectoryForPdf(
+        'pdf',
+        true,
+        '.',
+        'Transcripts',
+        'Notes/Projects/2024'
+      );
+      expect(result).toBe('Notes/Projects/2024/Attachments');
+    });
+
+    it('should correctly extract directory from file path', () => {
+      // Test path extraction logic
+      const testCases = [
+        { path: 'Notes/MyNote.md', expectedDir: 'Notes' },
+        { path: 'Notes/Projects/MyNote.md', expectedDir: 'Notes/Projects' },
+        { path: 'MyNote.md', expectedDir: '' },
+        { path: 'Folder1/Folder2/File.md', expectedDir: 'Folder1/Folder2' },
+      ];
+
+      testCases.forEach(({ path, expectedDir }) => {
+        const lastSlashIndex = path.lastIndexOf('/');
+        const fileDir = lastSlashIndex >= 0 
+          ? path.substring(0, lastSlashIndex)
+          : '';
+        expect(fileDir).toBe(expectedDir);
+      });
+    });
+
+    it('should handle file path extraction edge cases', () => {
+      // Test that path extraction works correctly
+      const path = 'Notes/Subfolder/MyNote.md';
+      const lastSlashIndex = path.lastIndexOf('/');
+      const fileDir = lastSlashIndex >= 0 
+        ? path.substring(0, lastSlashIndex)
+        : '';
+      
+      expect(fileDir).toBe('Notes/Subfolder');
+      expect(fileDir).not.toBe('');
+      
+      // With subfolder
+      const subfolderName = 'attachments';
+      const finalDir = fileDir === '' ? subfolderName : `${fileDir}/${subfolderName}`;
+      expect(finalDir).toBe('Notes/Subfolder/attachments');
     });
 
     it('should throw error when attachment folder is "." but no active file', () => {

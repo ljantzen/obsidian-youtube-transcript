@@ -1,4 +1,4 @@
-import { App, Modal } from "obsidian";
+import { App, Modal, TextComponent } from "obsidian";
 import type { LLMProvider, YouTubeTranscriptPluginSettings, CaptionTrack } from "./types";
 import { extractVideoId } from "./utils";
 import { getAvailableLanguages } from "./youtube";
@@ -122,13 +122,11 @@ export class YouTubeUrlModal extends Modal {
 
     contentEl.createEl("h2", { text: "Enter YouTube URL" });
 
-    const input = contentEl.createEl("input", {
-      type: "text",
-      placeholder: "https://www.youtube.com/watch?v=... or video ID",
-      attr: {
-        style: "width: 100%; margin-bottom: 1em;",
-      },
-    });
+    const textComponent = new TextComponent(contentEl);
+    textComponent.setPlaceholder("https://www.youtube.com/watch?v=... or video ID");
+    textComponent.inputEl.style.width = "100%";
+    textComponent.inputEl.style.marginBottom = "1em";
+    const input = textComponent.inputEl;
 
     // Add language selector
     const languageContainer = contentEl.createDiv({

@@ -286,7 +286,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   getAttachmentFolderPath(): string | null {
     // Access Obsidian's attachment folder setting through the vault config
     // Note: attachmentFolderPath is not in the public Vault type but exists at runtime
-    const vaultConfig = (this.app.vault as unknown as { config?: { attachmentFolderPath?: string } }).config;
+    const vaultConfig = (this.app.vault as unknown as { config?: { attachmentFolderPath?: string; attachmentSubfolder?: string } }).config;
     const attachmentFolderPath = vaultConfig?.attachmentFolderPath;
 
     if (!attachmentFolderPath || attachmentFolderPath.trim() === "") {
@@ -300,6 +300,21 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Return the configured folder path
     return attachmentFolderPath;
+  }
+
+  /**
+   * Gets the attachment subfolder name from Obsidian settings
+   * Used when attachmentFolderPath is "." (below the current folder)
+   * Returns "attachments" (lowercase) as default if not configured, matching Obsidian's default
+   */
+  getAttachmentSubfolderName(): string {
+    const vaultConfig = (this.app.vault as unknown as { config?: { attachmentSubfolder?: string } }).config;
+    const attachmentSubfolder = vaultConfig?.attachmentSubfolder;
+    
+    // Default to "attachments" (lowercase) if not configured, matching Obsidian's default behavior
+    return attachmentSubfolder && attachmentSubfolder.trim() !== "" 
+      ? attachmentSubfolder.trim() 
+      : "attachments";
   }
 
   fetchTranscript() {
@@ -562,19 +577,80 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     ) {
       const attachmentFolder = this.getAttachmentFolderPath();
       if (attachmentFolder) {
-        if (attachmentFolder === ".") {
-          // "below the current folder" - use current file's directory
-          if (!activeFile) {
-            throw new Error(
-              "Cannot use 'below the current folder' attachment setting: no active file",
-            );
+        // Handle explicit current folder (.) or relative paths (starting with ./)
+        // "Subfolder under current folder" usually results in "./Attachments"
+        if (attachmentFolder === "." || attachmentFolder.startsWith("./")) {
+          // "below the current folder" - use selected directory or current file's directory + subfolder
+          
+          // Determine the subfolder name
+          // If attachmentFolder is ".", we use the configured subfolder name (if any)
+          // If attachmentFolder starts with "./", we extract the subfolder from the path
+          let subfolderName = "";
+          
+          if (attachmentFolder === ".") {
+             // If ".", check if there's a separate attachmentSubfolder setting
+             // This covers "Same folder as current file" (if subfolder is empty/undefined)
+             // OR complex configurations
+             subfolderName = this.getAttachmentSubfolderName();
+             if (subfolderName === "attachments") {
+                 // If getAttachmentSubfolderName returned default "attachments" but config is just ".",
+                 // it means "Same folder as current file".
+                 // We should verify if "attachments" is actually configured or just a default fallback.
+                 // However, previously we assumed "." meant "use subfolder".
+                 // Let's assume "." implies same directory unless attachmentSubfolder is explicitly set.
+                 
+                 const vaultConfig = (this.app.vault as unknown as { config?: { attachmentSubfolder?: string } }).config;
+                 if (!vaultConfig?.attachmentSubfolder) {
+                     subfolderName = ""; // No subfolder, same directory
+                 }
+             }
+          } else {
+              // Extract subfolder from "./folderName"
+              subfolderName = attachmentFolder.substring(2);
           }
-          directory = activeFile.path.substring(
-            0,
-            activeFile.path.lastIndexOf("/"),
-          );
+
+          // If a directory was explicitly selected, use that as the base
+          if (selectedDirectory !== null) {
+            const baseDir = selectedDirectory;
+            if (subfolderName && subfolderName.trim() !== "") {
+                directory = baseDir === "" 
+                    ? subfolderName 
+                    : `${baseDir}/${subfolderName}`;
+            } else {
+                directory = baseDir;
+            }
+          } else {
+            // Fall back to current file's directory
+            if (!activeFile) {
+              throw new Error(
+                "Cannot use 'below the current folder' attachment setting: no active file and no directory specified",
+              );
+            }
+
+            // Verify activeFile has a valid path
+            if (!activeFile.path || activeFile.path.trim() === "") {
+              throw new Error(
+                "Active file has no path. Cannot determine attachment directory.",
+              );
+            }
+
+            // Get the directory of the current file
+            // Handle both files in root and files in subdirectories
+            const lastSlashIndex = activeFile.path.lastIndexOf("/");
+            const fileDir = lastSlashIndex >= 0
+              ? activeFile.path.substring(0, lastSlashIndex)
+              : ""; // File is in root
+
+            // Combine
+            if (subfolderName && subfolderName.trim() !== "") {
+                directory = fileDir === "" ? subfolderName : `${fileDir}/${subfolderName}`;
+            } else {
+                directory = fileDir;
+            }
+          }
+          
         } else {
-          // Use the configured attachment folder
+          // Use the configured attachment folder (absolute path)
           directory = attachmentFolder;
         }
       } else {
@@ -618,15 +694,67 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           await this.app.vault.createFolder(directory);
         } catch (error) {
           // If folder creation fails, try to fall back to active file's directory if available
+          // But preserve the attachment subfolder if we're using attachment folder
           if (activeFile) {
-            console.warn(
-              `Failed to create directory ${directory}, using active file's directory:`,
-              error,
-            );
-            directory = activeFile.path.substring(
-              0,
-              activeFile.path.lastIndexOf("/"),
-            );
+            const isUsingAttachmentFolder = fileFormat === "pdf" && 
+              this.settings.useAttachmentFolderForPdf && 
+              (this.getAttachmentFolderPath() === "." || this.getAttachmentFolderPath()?.startsWith("./"));
+            
+            if (isUsingAttachmentFolder) {
+              // Preserve the attachment subfolder structure
+              const lastSlashIndex = activeFile.path.lastIndexOf("/");
+              const fileDir = lastSlashIndex >= 0 
+                ? activeFile.path.substring(0, lastSlashIndex)
+                : ""; // File is in root
+              
+              // Recalculate subfolder name using same logic as above
+              let subfolderName = "";
+              const attachmentFolder = this.getAttachmentFolderPath();
+              
+              if (attachmentFolder === ".") {
+                  const vaultConfig = (this.app.vault as unknown as { config?: { attachmentSubfolder?: string } }).config;
+                  if (vaultConfig?.attachmentSubfolder) {
+                      subfolderName = vaultConfig.attachmentSubfolder.trim();
+                  }
+              } else if (attachmentFolder && attachmentFolder.startsWith("./")) {
+                  subfolderName = attachmentFolder.substring(2);
+              }
+
+              directory = fileDir === "" 
+                ? (subfolderName || "") 
+                : (subfolderName ? `${fileDir}/${subfolderName}` : fileDir);
+
+              // If directory became empty string (root), it technically exists, but let's be safe
+              if (directory === "") directory = "/"; 
+              
+              if (directory !== "/") {
+                  console.warn(
+                    `Failed to create directory, retrying with: ${directory}`,
+                    error,
+                  );
+                  // Try creating again with the recomputed path
+                  try {
+                    await this.app.vault.createFolder(directory);
+                  } catch (retryError) {
+                      // If it already exists, ignore
+                      const exists = this.app.vault.getAbstractFileByPath(directory);
+                      if (!exists) {
+                        throw new Error(
+                          `Failed to create directory ${directory}: ${retryError instanceof Error ? retryError.message : "Unknown error"}`,
+                        );
+                      }
+                  }
+              }
+            } else {
+              console.warn(
+                `Failed to create directory ${directory}, using active file's directory:`,
+                error,
+              );
+              directory = activeFile.path.substring(
+                0,
+                activeFile.path.lastIndexOf("/"),
+              );
+            }
           } else {
             // If no active file, throw the error since we can't fall back
             throw new Error(
