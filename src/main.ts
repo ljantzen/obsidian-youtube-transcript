@@ -242,6 +242,18 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
+    // Ensure nestPdfUnderCoverNote has a default value if missing (backward compatibility)
+    if (this.settings.nestPdfUnderCoverNote === undefined) {
+      this.settings.nestPdfUnderCoverNote = DEFAULT_SETTINGS.nestPdfUnderCoverNote;
+      await this.saveSettings();
+    }
+
+    // Ensure pdfAttachmentFolderName has a default value if missing (backward compatibility)
+    if (this.settings.pdfAttachmentFolderName === undefined) {
+      this.settings.pdfAttachmentFolderName = DEFAULT_SETTINGS.pdfAttachmentFolderName;
+      await this.saveSettings();
+    }
+
     // Ensure preferredLanguage has a default value if missing (backward compatibility)
     if (this.settings.preferredLanguage === undefined) {
       this.settings.preferredLanguage = DEFAULT_SETTINGS.preferredLanguage;
@@ -768,6 +780,52 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Determine file extension based on format
     const fileExtension = fileFormat === "pdf" ? "pdf" : "md";
 
+    // Check if we should nest PDF under cover note
+    if (
+      fileFormat === "pdf" &&
+      this.settings.createPdfCoverNote &&
+      this.settings.nestPdfUnderCoverNote
+    ) {
+      // Calculate cover note directory
+      // Use a temporary PDF path based on the original directory for fallback calculation
+      const tempPdfPath = directory
+        ? `${directory}/${baseSanitizedTitle}.${fileExtension}`
+        : `${baseSanitizedTitle}.${fileExtension}`;
+      const coverNoteDirectory = this.calculateCoverNoteDirectory(
+        tempPdfPath,
+        videoTitle,
+        channelName,
+      );
+      
+      // Calculate attachment folder name
+      const attachmentFolderName = this.calculatePdfAttachmentFolderName(
+        baseSanitizedTitle,
+        videoTitle,
+        channelName,
+      );
+      
+      // Update directory to nest PDF under cover note
+      if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
+        directory = `${coverNoteDirectory}/${attachmentFolderName}`;
+      } else {
+        directory = attachmentFolderName;
+      }
+      
+      // Ensure the nested directory exists
+      if (directory && directory.trim() !== "") {
+        const dirFile = this.app.vault.getAbstractFileByPath(directory);
+        if (!dirFile || !(dirFile instanceof TFolder)) {
+          try {
+            await this.app.vault.createFolder(directory);
+          } catch (error) {
+            console.warn(`Failed to create nested PDF directory: ${error}`);
+            // Fall back to original directory
+            // (directory will remain as calculated, but creation might fail)
+          }
+        }
+      }
+    }
+
     // Find an available path by checking if file exists (using getAbstractFileByPath which is synchronous)
     let newFilePath = directory
       ? `${directory}/${baseSanitizedTitle}.${fileExtension}`
@@ -912,15 +970,18 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
   }
 
-  async createPdfCoverNote(
+  /**
+   * Calculates the cover note directory based on settings and template variables
+   * @param pdfFilePath The path to the PDF file (used as fallback if location is empty)
+   * @param videoTitle The video title (for {VideoName} template variable)
+   * @param channelName The channel name (for {ChannelName} template variable, can be null)
+   * @returns The calculated cover note directory path
+   */
+  private calculateCoverNoteDirectory(
     pdfFilePath: string,
     videoTitle: string,
-    videoUrl: string,
-    summary: string | null,
     channelName: string | null,
-    tagWithChannelName: boolean,
-    videoDetails: VideoDetails | null,
-  ) {
+  ): string {
     // Process template variables in cover note location
     let coverNoteLocation = this.settings.pdfCoverNoteLocation || "";
     
@@ -939,15 +1000,72 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     coverNoteLocation = coverNoteLocation.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
 
     // Determine cover note directory
-    let coverNoteDirectory: string;
     if (coverNoteLocation && coverNoteLocation.trim() !== "") {
       // Use the specified cover note location
-      coverNoteDirectory = coverNoteLocation;
+      return coverNoteLocation;
     } else {
       // Use the same directory as the PDF file
       const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-      coverNoteDirectory = pdfDir || "";
+      return pdfDir || "";
     }
+  }
+
+  /**
+   * Calculates the attachment folder name for nesting PDFs under cover notes
+   * @param pdfFileNameWithoutExt The PDF filename without extension (used as fallback)
+   * @param videoTitle The video title (for {VideoName} template variable)
+   * @param channelName The channel name (for {ChannelName} template variable, can be null)
+   * @returns The calculated attachment folder name
+   */
+  private calculatePdfAttachmentFolderName(
+    pdfFileNameWithoutExt: string,
+    videoTitle: string,
+    channelName: string | null,
+  ): string {
+    let folderName = this.settings.pdfAttachmentFolderName || "";
+    
+    if (folderName.trim() === "") {
+      // If empty, use PDF filename without extension
+      return pdfFileNameWithoutExt;
+    }
+    
+    // Replace template variables
+    if (channelName) {
+      const sanitizedChannelName = sanitizeFilename(channelName);
+      folderName = folderName.replace(/{ChannelName}/g, sanitizedChannelName);
+    } else {
+      folderName = folderName.replace(/{ChannelName}/g, "");
+    }
+    
+    const sanitizedVideoName = sanitizeFilename(videoTitle);
+    folderName = folderName.replace(/{VideoName}/g, sanitizedVideoName);
+    
+    // Clean up any slashes (folder name should not contain path separators)
+    folderName = folderName.replace(/\/+/g, "").trim();
+    
+    // If still empty after processing, use PDF filename
+    if (folderName === "") {
+      return pdfFileNameWithoutExt;
+    }
+    
+    return folderName;
+  }
+
+  async createPdfCoverNote(
+    pdfFilePath: string,
+    videoTitle: string,
+    videoUrl: string,
+    summary: string | null,
+    channelName: string | null,
+    tagWithChannelName: boolean,
+    videoDetails: VideoDetails | null,
+  ) {
+    // Calculate cover note directory
+    let coverNoteDirectory = this.calculateCoverNoteDirectory(
+      pdfFilePath,
+      videoTitle,
+      channelName,
+    );
 
     // Ensure cover note directory exists
     if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {

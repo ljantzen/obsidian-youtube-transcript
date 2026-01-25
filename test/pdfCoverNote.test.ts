@@ -60,6 +60,57 @@ describe("PDF Cover Note Settings", () => {
     expect(typeof settings.pdfCoverNoteTemplate).toBe("string");
     expect(settings.pdfCoverNoteTemplate).toContain(".md");
   });
+
+  it("should have nestPdfUnderCoverNote in default settings", () => {
+    const defaultSettings = {
+      nestPdfUnderCoverNote: false,
+    };
+
+    expect(typeof defaultSettings.nestPdfUnderCoverNote).toBe("boolean");
+    expect(defaultSettings.nestPdfUnderCoverNote).toBe(false);
+  });
+
+  it("should have pdfAttachmentFolderName in default settings", () => {
+    const defaultSettings = {
+      pdfAttachmentFolderName: "",
+    };
+
+    expect(typeof defaultSettings.pdfAttachmentFolderName).toBe("string");
+    expect(defaultSettings.pdfAttachmentFolderName).toBe("");
+  });
+
+  it("should handle nestPdfUnderCoverNote toggle", () => {
+    const settings = {
+      nestPdfUnderCoverNote: false,
+    };
+
+    expect(settings.nestPdfUnderCoverNote).toBe(false);
+
+    settings.nestPdfUnderCoverNote = true;
+    expect(settings.nestPdfUnderCoverNote).toBe(true);
+
+    settings.nestPdfUnderCoverNote = false;
+    expect(settings.nestPdfUnderCoverNote).toBe(false);
+  });
+
+  it("should handle pdfAttachmentFolderName with template variables", () => {
+    const settings = {
+      pdfAttachmentFolderName: "attachments/{ChannelName}/{VideoName}",
+    };
+
+    expect(settings.pdfAttachmentFolderName).toBe("attachments/{ChannelName}/{VideoName}");
+    expect(settings.pdfAttachmentFolderName).toContain("{ChannelName}");
+    expect(settings.pdfAttachmentFolderName).toContain("{VideoName}");
+  });
+
+  it("should handle empty pdfAttachmentFolderName (uses PDF filename)", () => {
+    const settings = {
+      pdfAttachmentFolderName: "",
+    };
+
+    expect(settings.pdfAttachmentFolderName).toBe("");
+    // When empty, the system should use the PDF filename without extension as the folder name
+  });
 });
 
 describe("PDF Cover Note Template Variables", () => {

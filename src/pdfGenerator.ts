@@ -60,10 +60,8 @@ async function markdownToHtml(
  */
 async function htmlToPdf(html: string): Promise<ArrayBuffer> {
   // Try to use Electron's printToPDF API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let electron: any = null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     electron = (window as any).require?.("electron");
   } catch {
     // require not available
@@ -83,7 +81,6 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
   // Use BrowserWindow to create a hidden window for PDF generation
   // This is more reliable than manipulating the current document
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { BrowserWindow } = remote as any;
     
     if (!BrowserWindow) {

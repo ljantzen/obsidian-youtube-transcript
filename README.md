@@ -13,6 +13,7 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Multiple file formats** - Save transcripts as Markdown (.md) or PDF files
 - **PDF attachment folder integration** - Store PDFs in Obsidian's attachment folder setting (respects "below the current folder" option)
 - **PDF cover notes** - Automatically create markdown cover notes for PDF transcripts with customizable templates
+- **PDF nesting under cover notes** - Option to nest PDF files in subfolders underneath cover notes with configurable folder names
 - **Video metadata** - Automatically extract and include video metadata (upload date, view count, duration, etc.) in transcripts and cover notes
 - **Default directory** - Set a default directory for new files, enabling clipboard command without an open document
 - **Configurable timestamp frequency** - Control how often timestamps appear (every sentence or every N seconds)
@@ -100,6 +101,23 @@ When creating PDF transcripts, you can automatically generate markdown cover not
 3. Optionally specify a custom template file for cover notes
 4. When a PDF is created, a markdown cover note will be automatically generated and opened
 
+**Nesting PDFs Under Cover Notes:**
+
+You can organize PDFs by nesting them in subfolders underneath the cover note location:
+
+1. Enable "Nest PDF under cover note" in Settings → YouTube Transcript Settings → PDF
+2. Optionally configure the "PDF attachment folder name" (supports template variables: `{ChannelName}`, `{VideoName}`)
+3. If the folder name is left empty, the PDF filename (without extension) will be used as the folder name
+4. When enabled, PDFs will be created in: `{coverNoteLocation}/{attachmentFolderName}/{pdfFilename}.pdf`
+5. Cover notes will be created in: `{coverNoteLocation}/{pdfFilename}.md` and will link to the nested PDF
+
+**Example:**
+- Cover note location: `Notes/PDF Covers/{ChannelName}`
+- Attachment folder name: `attachments` (or leave empty to use video title)
+- Result:
+  - Cover note: `Notes/PDF Covers/My Channel/My Video.md`
+  - PDF: `Notes/PDF Covers/My Channel/attachments/My Video.pdf` (or `Notes/PDF Covers/My Channel/My Video/My Video.pdf` if folder name is empty)
+
 **Cover Note Template Variables:**
 - `{ChannelName}` - Sanitized channel name
 - `{VideoName}` - Sanitized video title
@@ -118,6 +136,7 @@ When creating PDF transcripts, you can automatically generate markdown cover not
 - `{VideoDetails.*}` - Access any videoDetails field using dot notation (e.g., `{VideoDetails.thumbnail.thumbnails[0].url}`)
 
 **Cover Note Location:**
+- Uses FolderSuggest for easy path selection
 - Supports template variables `{ChannelName}` and `{VideoName}` for dynamic folder organization
 - If empty, cover notes are created in the same directory as the PDF
 - Folders are automatically created if they don't exist
@@ -276,8 +295,10 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 ### PDF Settings
 - **Use attachment folder for PDFs**: When enabled, PDF files will be stored in the folder specified by Obsidian's "Attachment folder" setting (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option. Markdown files are not affected and use normal directory selection.
 - **Create PDF cover note**: When enabled, a markdown cover note will be automatically created for each PDF transcript
-- **PDF cover note location**: Directory path where cover notes should be created. Supports template variables `{ChannelName}` and `{VideoName}`. Leave empty to use the same location as the PDF file.
+- **PDF cover note location**: Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Uses the FolderSuggest and supports `{ChannelName}` and `{VideoName}` template variables
 - **PDF cover note template**: Path to a markdown template file for custom cover note formatting. Supports all template variables listed in the PDF Cover Notes section. Leave empty to use the default template.
+- **Nest PDF under cover note**: When enabled, PDF files will be placed in a subfolder underneath the cover note location. The folder name can be customized with the "PDF attachment folder name" setting
+- **PDF attachment folder name**: Name of the folder to nest PDFs under when "Nest PDF under cover note" is enabled. Leave empty to use the PDF filename (without extension) as the folder name. Supports template variables `{ChannelName}` and `{VideoName}`
 
 ### Content Options
 - **Preferred languages**: Comma-separated list of preferred transcript language codes in order of preference (e.g., "en,es,fr" for English, then Spanish, then French). Languages will be tried in order until one is available. Leave empty for auto-select (prefers English). You can override this in the modal when multiple languages are available.
@@ -373,6 +394,7 @@ Test coverage includes:
 - Clipboard command with default settings
 - Single line transcript formatting
 - PDF cover note functionality
+- PDF nesting under cover notes with configurable folder names
 - VideoDetails extraction and template variables
 - Frontmatter generation
 - Language selection and fallback logic

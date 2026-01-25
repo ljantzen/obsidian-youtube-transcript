@@ -242,7 +242,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     // PDF section
     new Setting(containerEl).setName("PDF").setHeading();
 
-    new Setting(containerEl)
+    const attachmentFolderSetting = new Setting(containerEl)
       .setName("Use attachment folder for PDFs")
       .setDesc(
         "When enabled, PDF files will be stored in the folder specified by Obsidian's 'Attachment folder' setting (Settings → Files & Links → Default location for new attachments). This respects the 'below the current folder' option. Markdown files are not affected.",
@@ -273,7 +273,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("PDF cover note location")
       .setDesc(
-        "Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Supports template variables: {ChannelName} and {VideoName}.",
+        "Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Uses the FolderSuggest and supports '{ChannelName}' and '{VideoName}' template variables",
       )
       .addText((text) => {
         text
@@ -285,6 +285,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             this.settings.pdfCoverNoteLocation = normalizedPath;
             await this.saveSettings();
           });
+        new FolderSuggest(this.app, text.inputEl);
       });
 
     new Setting(containerEl)
@@ -303,6 +304,44 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             await this.saveSettings();
           });
         new FileSuggest(this.app, text.inputEl);
+      });
+
+    const nestPdfSetting = new Setting(containerEl)
+      .setName("Nest PDF under cover note")
+      .setDesc(
+        "When enabled, PDF files will be placed in a subfolder underneath the cover note location. The folder name can be customized below.",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.nestPdfUnderCoverNote ?? false)
+          .onChange(async (value) => {
+            this.settings.nestPdfUnderCoverNote = value;
+            await this.saveSettings();
+            // Disable attachment folder setting when nesting is enabled
+            this.updateAttachmentFolderSettingState(attachmentFolderSetting, value);
+          });
+      });
+    
+    // Set initial state: disable attachment folder if nesting is enabled
+    if (this.settings.nestPdfUnderCoverNote) {
+      this.updateAttachmentFolderSettingState(attachmentFolderSetting, true);
+    }
+
+    new Setting(containerEl)
+      .setName("PDF attachment folder name")
+      .setDesc(
+        "Name of the folder to nest PDFs under when 'Nest PDF under cover note' is enabled. Leave empty to use the PDF filename (without extension) as the folder name. Supports template variables: {ChannelName} and {VideoName}.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("attachments or {VideoName}")
+          .setValue(this.settings.pdfAttachmentFolderName || "")
+          .onChange(async (value) => {
+            // Normalize: remove leading/trailing slashes, ensure forward slashes
+            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+            this.settings.pdfAttachmentFolderName = normalizedPath;
+            await this.saveSettings();
+          });
       });
 
     new Setting(containerEl).setName("Saved Directories").setHeading();
@@ -732,6 +771,45 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         },
         () => this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel,
       );
+    }
+  }
+
+  /**
+   * Updates the enabled/disabled state of the attachment folder setting
+   * based on whether nesting is enabled
+   */
+  private updateAttachmentFolderSettingState(
+    setting: Setting,
+    nestingEnabled: boolean,
+  ): void {
+    const toggle = setting.controlEl.querySelector(
+      "input[type='checkbox']",
+    ) as HTMLInputElement;
+    const descEl = setting.descEl;
+    
+    if (toggle) {
+      toggle.disabled = nestingEnabled;
+      if (nestingEnabled) {
+        // When nesting is enabled, also uncheck the attachment folder setting
+        // since it will be ignored anyway
+        toggle.checked = false;
+        this.settings.useAttachmentFolderForPdf = false;
+        this.saveSettings();
+        
+        // Update description to explain why it's disabled
+        if (descEl) {
+          descEl.setText(
+            "Disabled because 'Nest PDF under cover note' is enabled. Nesting takes precedence over the attachment folder setting.",
+          );
+        }
+      } else {
+        // Restore original description when nesting is disabled
+        if (descEl) {
+          descEl.setText(
+            "When enabled, PDF files will be stored in the folder specified by Obsidian's 'Attachment folder' setting (Settings → Files & Links → Default location for new attachments). This respects the 'below the current folder' option. Markdown files are not affected.",
+          );
+        }
+      }
     }
   }
 }

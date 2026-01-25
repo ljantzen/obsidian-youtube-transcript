@@ -36,6 +36,8 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   createPdfCoverNote: false, // Default to false - do not create cover note for PDFs by default
   pdfCoverNoteLocation: "", // Default to empty string - no specific location set
   pdfCoverNoteTemplate: "", // Default to empty string - use default template
+  nestPdfUnderCoverNote: false, // Default to false - do not nest PDFs under cover notes
+  pdfAttachmentFolderName: "", // Default to empty string - will use PDF filename without extension as folder name
   singleLineTranscript: false, // Default to false - use line breaks for readability
   preferredLanguage: "", // Default to empty string - auto-select (prefers English)
   forceLLMLanguage: false, // Default to false - LLM can output in any language

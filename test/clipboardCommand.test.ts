@@ -133,7 +133,6 @@ describe('Clipboard Command', () => {
       const settings = {
         llmProvider: 'openai' as 'openai' | 'gemini' | 'claude' | 'none',
       };
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const hasProviderKey = (_provider: string) => false;
       
       let llmProvider: 'openai' | 'gemini' | 'claude' | 'none' = 'none';
