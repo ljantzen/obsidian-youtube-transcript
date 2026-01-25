@@ -22,7 +22,7 @@
 		"@types/node": "^25.0.9",
 		"@typescript-eslint/eslint-plugin": "^8.53.0",
 		"@typescript-eslint/parser": "^8.52.0",
-		"@vitest/coverage-v8": "^0.34.6",
+		"@vitest/coverage-v8": "^4.0.18",
 		"builtin-modules": "3.3.0",
 		"esbuild": "^0.27.2",
 		"eslint": "^9.39.2",
