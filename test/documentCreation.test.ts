@@ -94,7 +94,7 @@ describe('createTranscriptFile', () => {
 		vi.clearAllMocks();
 		fileMap = new Set<string>();
 		// Mock getAvailablePath to handle duplicates by appending (1), (2), etc.
-		mockGetAvailablePath = vi.fn<[string, string], string>().mockImplementation((basePath: string) => {
+		mockGetAvailablePath = vi.fn<MockGetAvailablePath>().mockImplementation((basePath: string) => {
 			if (!fileMap.has(basePath)) {
 				return basePath;
 			}
@@ -109,14 +109,14 @@ describe('createTranscriptFile', () => {
 			}
 			return candidatePath;
 		});
-		mockCreate = vi.fn<[string, string], Promise<TFile>>().mockImplementation(async (path: string) => {
+		mockCreate = vi.fn<MockCreate>().mockImplementation(async (path: string) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
 			}
 			fileMap.add(path);
 			return createMockTFile(path);
 		});
-		mockCreateBinary = vi.fn<[string, ArrayBuffer], Promise<TFile>>().mockImplementation(async (path: string) => {
+		mockCreateBinary = vi.fn<MockCreateBinary>().mockImplementation(async (path: string) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
 			}
@@ -290,14 +290,14 @@ describe('createTranscriptFile', () => {
 	});
 
 	it('should handle error when create fails for non-existence reason', async () => {
-		const errorGetAvailablePath: MockGetAvailablePath = vi.fn<[string, string], string>().mockReturnValue('test/Test Video.md');
-		const errorCreate: MockCreate = vi.fn<[string, string], Promise<TFile>>().mockRejectedValue(new Error('Permission denied'));
+		const errorGetAvailablePath: MockGetAvailablePath = vi.fn<MockGetAvailablePath>().mockReturnValue('test/Test Video.md');
+		const errorCreate: MockCreate = vi.fn<MockCreate>().mockRejectedValue(new Error('Permission denied'));
 
 		const activeFile = createMockTFile('test/active.md');
 		const videoTitle = 'Test Video';
 		const transcript = 'Test transcript';
 
-		const errorCreateBinary: MockCreateBinary = vi.fn<[string, ArrayBuffer], Promise<TFile>>().mockRejectedValue(new Error('Permission denied'));
+		const errorCreateBinary: MockCreateBinary = vi.fn<MockCreateBinary>().mockRejectedValue(new Error('Permission denied'));
 
 		await expect(
 			simulateCreateTranscriptFile(
