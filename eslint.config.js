@@ -1,6 +1,5 @@
 // eslint.config.js
-import tsparser from "@typescript-eslint/parser";
-import tseslint from "@typescript-eslint/eslint-plugin";
+import tseslint from "typescript-eslint";
 
 export default [
   {
@@ -9,7 +8,7 @@ export default [
   {
     files: ["**/*.ts"],
     languageOptions: {
-      parser: tsparser,
+      parser: tseslint.parser,
       parserOptions: {
         project: "./tsconfig.json",
         ecmaVersion: 2018,
@@ -17,7 +16,7 @@ export default [
       },
     },
     plugins: {
-      "@typescript-eslint": tseslint,
+      "@typescript-eslint": tseslint.plugin,
     },
     rules: {
       // TypeScript ESLint recommended rules
