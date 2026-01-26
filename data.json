@@ -24,8 +24,10 @@
   "createPdfCoverNote": true,
   "pdfCoverNoteLocation": "",
   "pdfCoverNoteTemplate": "",
-  "singleLineTranscript": true,
+  "nestPdfUnderCoverNote": false, 
+  "pdfAttachmentFolderName": "",
+  "singleLineTranscript": false,
   "preferredLanguage": "en",
-  "autoFetch": false,
-  "apiKey": ""
+  "forceLLMLanguage": true,
+  "useDefaultDirectory": true
 }
