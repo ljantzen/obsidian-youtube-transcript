@@ -94,35 +94,35 @@ describe('createTranscriptFile', () => {
 		vi.clearAllMocks();
 		fileMap = new Set<string>();
 		// Mock getAvailablePath to handle duplicates by appending (1), (2), etc.
-		mockGetAvailablePath = vi.fn<MockGetAvailablePath>().mockImplementation((basePath: string) => {
+		mockGetAvailablePath = vi.fn().mockImplementation((basePath: string, extension: string) => {
 			if (!fileMap.has(basePath)) {
 				return basePath;
 			}
 			// If file exists, find next available path
 			const baseName = basePath.replace(/\.(md|pdf)$/, '');
-			const extension = basePath.match(/\.(md|pdf)$/)?.[1] || "md";
+			const ext = extension || basePath.match(/\.(md|pdf)$/)?.[1] || "md";
 			let counter = 1;
-			let candidatePath = `${baseName} (${counter}).${extension}`;
+			let candidatePath = `${baseName} (${counter}).${ext}`;
 			while (fileMap.has(candidatePath)) {
 				counter++;
-				candidatePath = `${baseName} (${counter}).${extension}`;
+				candidatePath = `${baseName} (${counter}).${ext}`;
 			}
 			return candidatePath;
-		});
-		mockCreate = vi.fn<MockCreate>().mockImplementation(async (path: string) => {
+		}) as MockGetAvailablePath;
+		mockCreate = vi.fn().mockImplementation(async (path: string, content: string) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
 			}
 			fileMap.add(path);
 			return createMockTFile(path);
-		});
-		mockCreateBinary = vi.fn<MockCreateBinary>().mockImplementation(async (path: string) => {
+		}) as MockCreate;
+		mockCreateBinary = vi.fn().mockImplementation(async (path: string, content: ArrayBuffer) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
 			}
 			fileMap.add(path);
 			return createMockTFile(path);
-		});
+		}) as MockCreateBinary;
 	});
 
 	it('should create a new file when no file exists', async () => {
@@ -290,14 +290,14 @@ describe('createTranscriptFile', () => {
 	});
 
 	it('should handle error when create fails for non-existence reason', async () => {
-		const errorGetAvailablePath: MockGetAvailablePath = vi.fn<MockGetAvailablePath>().mockReturnValue('test/Test Video.md');
-		const errorCreate: MockCreate = vi.fn<MockCreate>().mockRejectedValue(new Error('Permission denied'));
+		const errorGetAvailablePath: MockGetAvailablePath = vi.fn().mockReturnValue('test/Test Video.md') as MockGetAvailablePath;
+		const errorCreate: MockCreate = vi.fn().mockRejectedValue(new Error('Permission denied')) as MockCreate;
 
 		const activeFile = createMockTFile('test/active.md');
 		const videoTitle = 'Test Video';
 		const transcript = 'Test transcript';
 
-		const errorCreateBinary: MockCreateBinary = vi.fn<MockCreateBinary>().mockRejectedValue(new Error('Permission denied'));
+		const errorCreateBinary: MockCreateBinary = vi.fn().mockRejectedValue(new Error('Permission denied')) as MockCreateBinary;
 
 		await expect(
 			simulateCreateTranscriptFile(
