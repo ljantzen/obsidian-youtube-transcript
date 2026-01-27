@@ -61,13 +61,13 @@ describe("PDF Cover Note Settings", () => {
     expect(settings.pdfCoverNoteTemplate).toContain(".md");
   });
 
-  it("should have nestPdfUnderCoverNote in default settings", () => {
+  it("should have useAttachmentFolderForPdf in default settings", () => {
     const defaultSettings = {
-      nestPdfUnderCoverNote: false,
+      useAttachmentFolderForPdf: false,
     };
 
-    expect(typeof defaultSettings.nestPdfUnderCoverNote).toBe("boolean");
-    expect(defaultSettings.nestPdfUnderCoverNote).toBe(false);
+    expect(typeof defaultSettings.useAttachmentFolderForPdf).toBe("boolean");
+    expect(defaultSettings.useAttachmentFolderForPdf).toBe(false);
   });
 
   it("should have pdfAttachmentFolderName in default settings", () => {
@@ -79,18 +79,22 @@ describe("PDF Cover Note Settings", () => {
     expect(defaultSettings.pdfAttachmentFolderName).toBe("");
   });
 
-  it("should handle nestPdfUnderCoverNote toggle", () => {
+  it("should handle useAttachmentFolderForPdf toggle with cover notes", () => {
     const settings = {
-      nestPdfUnderCoverNote: false,
+      useAttachmentFolderForPdf: false,
+      createPdfCoverNote: true,
     };
 
-    expect(settings.nestPdfUnderCoverNote).toBe(false);
+    expect(settings.useAttachmentFolderForPdf).toBe(false);
 
-    settings.nestPdfUnderCoverNote = true;
-    expect(settings.nestPdfUnderCoverNote).toBe(true);
+    // When useAttachmentFolderForPdf is enabled and cover notes are enabled,
+    // PDFs should be nested under cover notes
+    settings.useAttachmentFolderForPdf = true;
+    expect(settings.useAttachmentFolderForPdf).toBe(true);
+    expect(settings.createPdfCoverNote).toBe(true);
 
-    settings.nestPdfUnderCoverNote = false;
-    expect(settings.nestPdfUnderCoverNote).toBe(false);
+    settings.useAttachmentFolderForPdf = false;
+    expect(settings.useAttachmentFolderForPdf).toBe(false);
   });
 
   it("should handle pdfAttachmentFolderName with template variables", () => {

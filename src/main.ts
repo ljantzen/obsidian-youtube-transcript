@@ -242,9 +242,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
-    // Ensure nestPdfUnderCoverNote has a default value if missing (backward compatibility)
-    if (this.settings.nestPdfUnderCoverNote === undefined) {
-      this.settings.nestPdfUnderCoverNote = DEFAULT_SETTINGS.nestPdfUnderCoverNote;
+    // Migrate nestPdfUnderCoverNote to useAttachmentFolderForPdf (backward compatibility)
+    if ((this.settings as any).nestPdfUnderCoverNote !== undefined) {
+      // If nestPdfUnderCoverNote was enabled, enable useAttachmentFolderForPdf to preserve behavior
+      if ((this.settings as any).nestPdfUnderCoverNote === true) {
+        this.settings.useAttachmentFolderForPdf = true;
+      }
+      // Remove the old setting
+      delete (this.settings as any).nestPdfUnderCoverNote;
       await this.saveSettings();
     }
 
@@ -493,10 +498,15 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         const activeFile = this.app.workspace.getActiveFile();
         // Only require active file if no directory is selected (need to use current file's directory)
         // Exception: For PDFs with attachment folder enabled, we can use the attachment folder even without an active file
+        // Note: If attachment folder is "." (below current folder), we can still use it if a default directory is set
         let canUseAttachmentFolder = false;
         if (fileFormat === "pdf" && this.settings.useAttachmentFolderForPdf) {
           const attachmentFolder = this.getAttachmentFolderPath();
-          canUseAttachmentFolder = attachmentFolder !== null && attachmentFolder !== ".";
+          // Can use attachment folder if:
+          // 1. It's set and not "." (absolute path) - can use without active file
+          // 2. It's "." but we have a selected directory - can use selected directory as base
+          canUseAttachmentFolder = attachmentFolder !== null && 
+            (attachmentFolder !== "." || selectedDirectory !== null);
         }
         if (!activeFile && !selectedDirectory && !canUseAttachmentFolder) {
           throw new Error(
@@ -780,11 +790,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Determine file extension based on format
     const fileExtension = fileFormat === "pdf" ? "pdf" : "md";
 
-    // Check if we should nest PDF under cover note
+    // Check if we should nest PDF under cover note (when useAttachmentFolderForPdf and cover notes are enabled)
     if (
       fileFormat === "pdf" &&
       this.settings.createPdfCoverNote &&
-      this.settings.nestPdfUnderCoverNote
+      this.settings.useAttachmentFolderForPdf
     ) {
       // Calculate cover note directory
       // Use a temporary PDF path based on the original directory for fallback calculation

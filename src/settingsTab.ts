@@ -1,8 +1,5 @@
 import { App, PluginSettingTab, Setting, Notice, Plugin } from "obsidian";
-import type {
-  YouTubeTranscriptPluginSettings,
-  LLMProvider,
-} from "./types";
+import type { YouTubeTranscriptPluginSettings, LLMProvider } from "./types";
 import {
   DEFAULT_SETTINGS,
   DEFAULT_PROMPT,
@@ -61,9 +58,9 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Files and folders").setHeading();
 
     new Setting(containerEl)
-      .setName("Create new file")
+      .setName("Create new markdown file")
       .setDesc(
-        "When enabled, the modal will default to creating a new file instead of inserting into the current file (can be overridden in the modal)",
+        "When enabled, the modal will default to creating a new markdown file instead of inserting into the current file (can be overridden in the modal). This setting is not relevant for PDF files, as they will always be created",
       )
       .addToggle((toggle) => {
         toggle
@@ -89,6 +86,134 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             await this.saveSettings();
           });
       });
+
+    new Setting(containerEl).setName("Directories").setHeading();
+
+    // Default directory selection (only show if there are saved directories)
+    const savedDirs = this.settings.savedDirectories || [];
+    if (savedDirs.length > 0) {
+      new Setting(containerEl)
+        .setName("Default directory")
+        .setDesc(
+          "Select which directory to use by default when storing transcript files. Leave as 'None' to use the current file's directory.",
+        )
+        .addDropdown((dropdown) => {
+          dropdown.addOption("", "None (use current file's directory)");
+          savedDirs.forEach((dir) => {
+            if (dir && dir.trim() !== "") {
+              dropdown.addOption(dir, dir);
+            }
+          });
+          dropdown
+            .setValue(this.settings.defaultDirectory || "")
+            .onChange(async (value) => {
+              this.settings.defaultDirectory = value === "" ? null : value;
+              await this.saveSettings();
+              // Refresh the display to update the default indicator
+              this.display();
+            });
+        });
+    }
+
+    new Setting(containerEl)
+      .setName("Manage directories")
+      .setDesc(
+        "Add directories to the list. These will appear in the modal dropdown when creating new transcript files.",
+      );
+
+    // Display current saved directories with remove buttons
+    const directoriesList = containerEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+
+    const renderDirectoriesList = () => {
+      directoriesList.empty();
+      const savedDirs = this.settings.savedDirectories || [];
+      const defaultDir = this.settings.defaultDirectory;
+      if (savedDirs.length === 0) {
+        directoriesList.createEl("p", {
+          text: "No directories saved. Add one below.",
+          attr: { style: "color: var(--text-muted); font-style: italic;" },
+        });
+      } else {
+        savedDirs.forEach((dir, index) => {
+          const dirItem = directoriesList.createDiv({
+            attr: {
+              style:
+                "display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.5em;",
+            },
+          });
+          dirItem.createEl("span", {
+            text: dir,
+            attr: { style: "flex: 1; font-family: monospace;" },
+          });
+          // Show default indicator
+          if (defaultDir === dir) {
+            dirItem.createEl("span", {
+              text: "(Default)",
+              attr: {
+                style:
+                  "color: var(--text-accent); font-size: 0.9em; font-weight: 500;",
+              },
+            });
+          }
+          const removeButton = dirItem.createEl("button", {
+            text: "Remove",
+            attr: { style: "font-size: 0.9em;" },
+          });
+          removeButton.onclick = async () => {
+            // If removing the default directory, clear the default
+            if (defaultDir === dir) {
+              this.settings.defaultDirectory = null;
+            }
+            this.settings.savedDirectories = savedDirs.filter(
+              (_, i) => i !== index,
+            );
+            await this.saveSettings();
+            // Refresh the entire display to update the default directory dropdown
+            this.display();
+          };
+        });
+      }
+    };
+
+    renderDirectoriesList();
+
+    // Add new directory input
+    const addDirectoryContainer = containerEl.createDiv({
+      attr: {
+        style:
+          "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
+      },
+    });
+    const addDirectoryInput = addDirectoryContainer.createEl("input", {
+      type: "text",
+      attr: {
+        placeholder: "Transcripts or Notes/YouTube",
+        style: "flex: 1;",
+      },
+    });
+    new FolderSuggest(this.app, addDirectoryInput);
+    const addButton = addDirectoryContainer.createEl("button", {
+      text: "Add",
+    });
+    addButton.onclick = async () => {
+      const newDir = addDirectoryInput.value.trim();
+      if (newDir && newDir !== "") {
+        // Normalize path: remove leading/trailing slashes, ensure forward slashes
+        const normalizedDir = newDir
+          .replace(/^\/+|\/+$/g, "")
+          .replace(/\\/g, "/");
+        const savedDirs = this.settings.savedDirectories || [];
+        if (!savedDirs.includes(normalizedDir)) {
+          this.settings.savedDirectories = [...savedDirs, normalizedDir];
+          await this.saveSettings();
+          addDirectoryInput.value = "";
+          // Refresh the entire display to update the default directory dropdown
+          this.display();
+        }
+      }
+    };
 
     // Transcript section
     new Setting(containerEl).setName("Transcript").setHeading();
@@ -196,9 +321,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         text.inputEl.type = "number";
         text
           .setPlaceholder("0")
-          .setValue(
-            this.settings.timestampFrequency?.toString() || "0",
-          )
+          .setValue(this.settings.timestampFrequency?.toString() || "0")
           .onChange(async (value) => {
             const frequency = parseInt(value, 10);
             if (!isNaN(frequency) && frequency >= 0) {
@@ -233,7 +356,10 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setValue(this.settings.localVideoDirectory || "")
           .onChange(async (value) => {
             // Normalize path: remove trailing slashes, ensure forward slashes
-            const normalizedPath = value.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+            const normalizedPath = value
+              .trim()
+              .replace(/\\/g, "/")
+              .replace(/\/+$/, "");
             this.settings.localVideoDirectory = normalizedPath;
             await this.saveSettings();
           });
@@ -245,7 +371,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     const attachmentFolderSetting = new Setting(containerEl)
       .setName("Use attachment folder for PDFs")
       .setDesc(
-        "When enabled, PDF files will be stored in the folder specified by Obsidian's 'Attachment folder' setting (Settings → Files & Links → Default location for new attachments). This respects the 'below the current folder' option. Markdown files are not affected.",
+        "When enabled, PDF files will be stored in the folder specified by Obsidian's 'Attachment folder' setting (Settings → Files & Links → Default location for new attachments). This respects the 'below the current folder' option. If PDF cover notes are enabled, PDFs will be nested in a subfolder under the cover note location. Markdown files are not affected.",
       )
       .addToggle((toggle) => {
         toggle
@@ -258,9 +384,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Create PDF cover note")
-      .setDesc(
-        "When enabled, a cover note will be created for PDF files",
-      )
+      .setDesc("When enabled, a cover note will be created for PDF files")
       .addToggle((toggle) => {
         toggle
           .setValue(this.settings.createPdfCoverNote ?? false)
@@ -281,7 +405,10 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setValue(this.settings.pdfCoverNoteLocation || "")
           .onChange(async (value) => {
             // Normalize path: remove leading/trailing slashes, ensure forward slashes
-            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+            const normalizedPath = value
+              .trim()
+              .replace(/^\/+|\/+$/g, "")
+              .replace(/\\/g, "/");
             this.settings.pdfCoverNoteLocation = normalizedPath;
             await this.saveSettings();
           });
@@ -299,38 +426,20 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setValue(this.settings.pdfCoverNoteTemplate || "")
           .onChange(async (value) => {
             // Normalize path: remove leading/trailing slashes, ensure forward slashes
-            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+            const normalizedPath = value
+              .trim()
+              .replace(/^\/+|\/+$/g, "")
+              .replace(/\\/g, "/");
             this.settings.pdfCoverNoteTemplate = normalizedPath;
             await this.saveSettings();
           });
         new FileSuggest(this.app, text.inputEl);
       });
 
-    const nestPdfSetting = new Setting(containerEl)
-      .setName("Nest PDF under cover note")
-      .setDesc(
-        "When enabled, PDF files will be placed in a subfolder underneath the cover note location. The folder name can be customized below.",
-      )
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.settings.nestPdfUnderCoverNote ?? false)
-          .onChange(async (value) => {
-            this.settings.nestPdfUnderCoverNote = value;
-            await this.saveSettings();
-            // Disable attachment folder setting when nesting is enabled
-            this.updateAttachmentFolderSettingState(attachmentFolderSetting, value);
-          });
-      });
-    
-    // Set initial state: disable attachment folder if nesting is enabled
-    if (this.settings.nestPdfUnderCoverNote) {
-      this.updateAttachmentFolderSettingState(attachmentFolderSetting, true);
-    }
-
     new Setting(containerEl)
       .setName("PDF attachment folder name")
       .setDesc(
-        "Name of the folder to nest PDFs under when 'Nest PDF under cover note' is enabled. Leave empty to use the PDF filename (without extension) as the folder name. Supports template variables: {ChannelName} and {VideoName}.",
+        "Name of the folder to nest PDFs under when 'Use attachment folder for PDFs' and 'Create PDF cover note' are both enabled. Leave empty to use the PDF filename (without extension) as the folder name. Supports template variables: {ChannelName} and {VideoName}.",
       )
       .addText((text) => {
         text
@@ -338,138 +447,14 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setValue(this.settings.pdfAttachmentFolderName || "")
           .onChange(async (value) => {
             // Normalize: remove leading/trailing slashes, ensure forward slashes
-            const normalizedPath = value.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+            const normalizedPath = value
+              .trim()
+              .replace(/^\/+|\/+$/g, "")
+              .replace(/\\/g, "/");
             this.settings.pdfAttachmentFolderName = normalizedPath;
             await this.saveSettings();
           });
       });
-
-    new Setting(containerEl).setName("Saved Directories").setHeading();
-
-    // Default directory selection (only show if there are saved directories)
-    const savedDirs = this.settings.savedDirectories || [];
-    if (savedDirs.length > 0) {
-      new Setting(containerEl)
-        .setName("Default directory")
-        .setDesc(
-          "Select which saved directory to use by default when creating new transcript files. Leave as 'None' to use the current file's directory.",
-        )
-        .addDropdown((dropdown) => {
-          dropdown.addOption("", "None (use current file's directory)");
-          savedDirs.forEach((dir) => {
-            if (dir && dir.trim() !== "") {
-              dropdown.addOption(dir, dir);
-            }
-          });
-          dropdown
-            .setValue(this.settings.defaultDirectory || "")
-            .onChange(async (value) => {
-              this.settings.defaultDirectory = value === "" ? null : value;
-              await this.saveSettings();
-              // Refresh the display to update the default indicator
-              this.display();
-            });
-        });
-    }
-
-    new Setting(containerEl)
-      .setName("Manage directories")
-      .setDesc(
-        "Add directories to the list. These will appear in the modal dropdown when creating new transcript files.",
-      );
-
-    // Display current saved directories with remove buttons
-    const directoriesList = containerEl.createDiv({
-      attr: { style: "margin-bottom: 1em;" },
-    });
-
-    const renderDirectoriesList = () => {
-      directoriesList.empty();
-      const savedDirs = this.settings.savedDirectories || [];
-      const defaultDir = this.settings.defaultDirectory;
-      if (savedDirs.length === 0) {
-        directoriesList.createEl("p", {
-          text: "No directories saved. Add one below.",
-          attr: { style: "color: var(--text-muted); font-style: italic;" },
-        });
-      } else {
-        savedDirs.forEach((dir, index) => {
-          const dirItem = directoriesList.createDiv({
-            attr: {
-              style:
-                "display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.5em;",
-            },
-          });
-          dirItem.createEl("span", {
-            text: dir,
-            attr: { style: "flex: 1; font-family: monospace;" },
-          });
-          // Show default indicator
-          if (defaultDir === dir) {
-            dirItem.createEl("span", {
-              text: "(Default)",
-              attr: {
-                style:
-                  "color: var(--text-accent); font-size: 0.9em; font-weight: 500;",
-              },
-            });
-          }
-          const removeButton = dirItem.createEl("button", {
-            text: "Remove",
-            attr: { style: "font-size: 0.9em;" },
-          });
-          removeButton.onclick = async () => {
-            // If removing the default directory, clear the default
-            if (defaultDir === dir) {
-              this.settings.defaultDirectory = null;
-            }
-            this.settings.savedDirectories = savedDirs.filter(
-              (_, i) => i !== index,
-            );
-            await this.saveSettings();
-            // Refresh the entire display to update the default directory dropdown
-            this.display();
-          };
-        });
-      }
-    };
-
-    renderDirectoriesList();
-
-    // Add new directory input
-    const addDirectoryContainer = containerEl.createDiv({
-      attr: {
-        style: "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
-      },
-    });
-    const addDirectoryInput = addDirectoryContainer.createEl("input", {
-      type: "text",
-      attr: {
-        placeholder: "Transcripts or Notes/YouTube",
-        style: "flex: 1;",
-      },
-    });
-    new FolderSuggest(this.app, addDirectoryInput);
-    const addButton = addDirectoryContainer.createEl("button", {
-      text: "Add",
-    });
-    addButton.onclick = async () => {
-      const newDir = addDirectoryInput.value.trim();
-      if (newDir && newDir !== "") {
-        // Normalize path: remove leading/trailing slashes, ensure forward slashes
-        const normalizedDir = newDir
-          .replace(/^\/+|\/+$/g, "")
-          .replace(/\\/g, "/");
-        const savedDirs = this.settings.savedDirectories || [];
-        if (!savedDirs.includes(normalizedDir)) {
-          this.settings.savedDirectories = [...savedDirs, normalizedDir];
-          await this.saveSettings();
-          addDirectoryInput.value = "";
-          // Refresh the entire display to update the default directory dropdown
-          this.display();
-        }
-      }
-    };
 
     // LLM section
     new Setting(containerEl).setName("LLM").setHeading();
@@ -645,7 +630,8 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         const models = await fetchOpenAIModels(this.settings.openaiKey);
         this.cachedOpenAIModels = models;
         // Validate selected model is available
-        const currentModel = this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
+        const currentModel =
+          this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
         const modelExists = models.some((m) => m.id === currentModel);
         if (!modelExists) {
           // Fallback to default if current model is not available
@@ -664,7 +650,8 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         const models = await fetchGeminiModels(this.settings.geminiKey);
         this.cachedGeminiModels = models;
         // Validate selected model is available
-        const currentModel = this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+        const currentModel =
+          this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
         const modelExists = models.some((m) => m.id === currentModel);
         if (!modelExists) {
           // Fallback to default if current model is not available
@@ -774,42 +761,4 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     }
   }
 
-  /**
-   * Updates the enabled/disabled state of the attachment folder setting
-   * based on whether nesting is enabled
-   */
-  private updateAttachmentFolderSettingState(
-    setting: Setting,
-    nestingEnabled: boolean,
-  ): void {
-    const toggle = setting.controlEl.querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
-    const descEl = setting.descEl;
-    
-    if (toggle) {
-      toggle.disabled = nestingEnabled;
-      if (nestingEnabled) {
-        // When nesting is enabled, also uncheck the attachment folder setting
-        // since it will be ignored anyway
-        toggle.checked = false;
-        this.settings.useAttachmentFolderForPdf = false;
-        this.saveSettings();
-        
-        // Update description to explain why it's disabled
-        if (descEl) {
-          descEl.setText(
-            "Disabled because 'Nest PDF under cover note' is enabled. Nesting takes precedence over the attachment folder setting.",
-          );
-        }
-      } else {
-        // Restore original description when nesting is disabled
-        if (descEl) {
-          descEl.setText(
-            "When enabled, PDF files will be stored in the folder specified by Obsidian's 'Attachment folder' setting (Settings → Files & Links → Default location for new attachments). This respects the 'below the current folder' option. Markdown files are not affected.",
-          );
-        }
-      }
-    }
-  }
 }
