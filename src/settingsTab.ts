@@ -58,20 +58,6 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Files and folders").setHeading();
 
     new Setting(containerEl)
-      .setName("Create new markdown file")
-      .setDesc(
-        "When enabled, the modal will default to creating a new markdown file instead of inserting into the current file (can be overridden in the modal). This setting is not relevant for PDF files, as they will always be created",
-      )
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.settings.createNewFile ?? false)
-          .onChange(async (value) => {
-            this.settings.createNewFile = value;
-            await this.saveSettings();
-          });
-      });
-
-    new Setting(containerEl)
       .setName("Default file format")
       .setDesc(
         "Default file format for new transcript files (can be overridden in the modal)",
@@ -87,7 +73,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(containerEl).setName("Directories").setHeading();
+    new Setting(containerEl).setName("Transcript directories").setHeading();
 
     // Default directory selection (only show if there are saved directories)
     const savedDirs = this.settings.savedDirectories || [];
@@ -95,7 +81,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       new Setting(containerEl)
         .setName("Default directory")
         .setDesc(
-          "Select which directory to use by default when storing transcript files. Leave as 'None' to use the current file's directory.",
+          "Select which saved directory to use by default when creating new transcript files. Leave as 'None' to use the current file's directory.",
         )
         .addDropdown((dropdown) => {
           dropdown.addOption("", "None (use current file's directory)");
@@ -182,8 +168,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     // Add new directory input
     const addDirectoryContainer = containerEl.createDiv({
       attr: {
-        style:
-          "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
+        style: "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
       },
     });
     const addDirectoryInput = addDirectoryContainer.createEl("input", {
@@ -217,6 +202,21 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
     // Transcript section
     new Setting(containerEl).setName("Transcript").setHeading();
+
+    new Setting(containerEl)
+      .setName("Create new markdown file")
+      .setDesc(
+        "When enabled, the modal will default to creating a new markdown file instead of inserting into the current file (can be overridden in the modal.  If PDF is selected as output format, this setting is ignored, as PDF files will always be created.)",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.createNewFile ?? false)
+          .onChange(async (value) => {
+            this.settings.createNewFile = value;
+            await this.saveSettings();
+          });
+      });
+
 
     new Setting(containerEl)
       .setName("Preferred languages")
