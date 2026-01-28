@@ -24,14 +24,14 @@ export async function getAvailableLanguages(
     headers: {
       "Content-Type": "application/json",
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       Accept: "application/json",
     },
     body: JSON.stringify({
       context: {
         client: {
           clientName: "WEB",
-          clientVersion: "2.20231219.00.00",
+          clientVersion: "2.20250128.00.00",
           hl: "en",
           gl: "US",
         },
@@ -78,7 +78,7 @@ export async function getYouTubeTranscript(
     url: watchPageUrl,
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       "Accept-Language": "en-US,en;q=0.9",
     },
   });
@@ -108,14 +108,14 @@ export async function getYouTubeTranscript(
     headers: {
       "Content-Type": "application/json",
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       Accept: "application/json",
     },
     body: JSON.stringify({
       context: {
         client: {
           clientName: "WEB",
-          clientVersion: "2.20231219.00.00",
+          clientVersion: "2.20250128.00.00",
           hl: "en",
           gl: "US",
         },
