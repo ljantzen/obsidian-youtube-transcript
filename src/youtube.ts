@@ -11,42 +11,83 @@ import type {
 } from "./types";
 import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
 
+// YouTube's public InnerTube API key - used by the Android client
+const INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
+const INNERTUBE_PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}`;
+
+// ANDROID client context - less restricted than WEB client for transcript access
+const INNERTUBE_ANDROID_CONTEXT = {
+  client: {
+    clientName: "ANDROID",
+    clientVersion: "19.09.37",
+    androidSdkVersion: 30,
+    hl: "en",
+    gl: "US",
+  },
+};
+
+/**
+ * Fetches player data from YouTube's InnerTube API using ANDROID client.
+ * The ANDROID client is less restricted than WEB client for caption access.
+ */
+async function fetchPlayerDataWithAndroidClient(
+  videoId: string,
+  lang?: string,
+  country?: string,
+): Promise<any> {
+  const context = {
+    ...INNERTUBE_ANDROID_CONTEXT,
+    client: {
+      ...INNERTUBE_ANDROID_CONTEXT.client,
+      hl: lang || "en",
+      gl: country || "US",
+    },
+  };
+
+  const response = await requestUrl({
+    url: INNERTUBE_PLAYER_URL,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
+    },
+    body: JSON.stringify({
+      context: context,
+      videoId: videoId,
+    }),
+  });
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`Failed to fetch video info: ${response.status}`);
+  }
+
+  const data = response.json;
+
+  // Check playability status
+  const playabilityStatus = data.playabilityStatus;
+  if (playabilityStatus) {
+    if (playabilityStatus.status === "ERROR") {
+      throw new Error(playabilityStatus.reason || "Video unavailable");
+    }
+    if (playabilityStatus.status === "LOGIN_REQUIRED") {
+      throw new Error("This video requires login to view");
+    }
+    if (playabilityStatus.status === "UNPLAYABLE") {
+      throw new Error(playabilityStatus.reason || "Video is unplayable");
+    }
+  }
+
+  return data;
+}
+
 /**
  * Gets available caption languages for a YouTube video
  */
 export async function getAvailableLanguages(
   videoId: string,
-  apiKey: string,
+  _apiKey: string,  // kept for backwards compatibility, not used
 ): Promise<CaptionTrack[]> {
-  const innertubeResponse = await requestUrl({
-    url: `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`,
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      context: {
-        client: {
-          clientName: "WEB",
-          clientVersion: "2.20250128.00.00",
-          hl: "en",
-          gl: "US",
-        },
-      },
-      videoId: videoId,
-    }),
-  });
-
-  if (innertubeResponse.status < 200 || innertubeResponse.status >= 300) {
-    throw new Error(
-      `Failed to fetch video info: ${innertubeResponse.status}`,
-    );
-  }
-
-  const videoData = innertubeResponse.json;
+  const videoData = await fetchPlayerDataWithAndroidClient(videoId);
   const captionTracks =
     videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
 
@@ -60,7 +101,7 @@ export async function getYouTubeTranscript(
   app: App,
   url: string,
   generateSummary: boolean,
-  llmProvider: LLMProvider,
+  llmProvider: LLMProvider | null,
   settings: YouTubeTranscriptPluginSettings,
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
@@ -71,205 +112,29 @@ export async function getYouTubeTranscript(
     throw new Error("Invalid YouTube URL or video ID");
   }
 
-  // Step 1: Fetch the YouTube watch page HTML
-  if (statusCallback) statusCallback("Fetching video page...");
   const watchPageUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const watchPageResponse = await requestUrl({
-    url: watchPageUrl,
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      "Accept-Language": "en-US,en;q=0.9",
-    },
-  });
 
-  if (watchPageResponse.status < 200 || watchPageResponse.status >= 300) {
-    throw new Error(
-      `Failed to fetch video page: ${watchPageResponse.status}`,
-    );
-  }
-
-  const pageHtml = watchPageResponse.text;
-
-  // Step 2: Try to extract captions directly from the page HTML first (fallback method)
-  // YouTube embeds player response data in the page which includes caption tracks
-  let captionTracksFromPage: CaptionTrack[] | null = null;
+  // Use ANDROID client to fetch video data - more reliable for caption access
+  if (statusCallback) statusCallback("Fetching video information...");
+  
+  let videoData: any;
   try {
-    // Look for ytInitialPlayerResponse which contains caption data
-    // Try multiple patterns as YouTube may use different formats
-    const patterns = [
-      /var ytInitialPlayerResponse\s*=\s*({.+?});/s,
-      /window\["ytInitialPlayerResponse"\]\s*=\s*({.+?});/s,
-      /window\.ytInitialPlayerResponse\s*=\s*({.+?});/s,
-      /"ytInitialPlayerResponse"\s*:\s*({.+?})(?:,"|})/s,
-    ];
-    
-    for (const pattern of patterns) {
-      const playerResponseMatch = pageHtml.match(pattern);
-      if (playerResponseMatch && playerResponseMatch[1]) {
-        try {
-          // Try to find the end of the JSON object more accurately
-          let jsonStr = playerResponseMatch[1];
-          // If the match didn't capture the full object, try to find it
-          if (!jsonStr.trim().startsWith('{')) {
-            const startIdx = pageHtml.indexOf('ytInitialPlayerResponse');
-            if (startIdx !== -1) {
-              // Find the opening brace
-              const braceStart = pageHtml.indexOf('{', startIdx);
-              if (braceStart !== -1) {
-                // Try to find the matching closing brace
-                let braceCount = 0;
-                let braceEnd = braceStart;
-                for (let i = braceStart; i < pageHtml.length && i < braceStart + 500000; i++) {
-                  if (pageHtml[i] === '{') braceCount++;
-                  if (pageHtml[i] === '}') {
-                    braceCount--;
-                    if (braceCount === 0) {
-                      braceEnd = i + 1;
-                      break;
-                    }
-                  }
-                }
-                if (braceEnd > braceStart) {
-                  jsonStr = pageHtml.substring(braceStart, braceEnd);
-                }
-              }
-            }
-          }
-          
-          const playerResponse = JSON.parse(jsonStr);
-          const pageCaptionTracks =
-            playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-          if (pageCaptionTracks && pageCaptionTracks.length > 0) {
-            console.log("Found captions in page HTML:", pageCaptionTracks.length, "tracks");
-            captionTracksFromPage = pageCaptionTracks.map((track: any) => {
-              console.log("  Page caption track:", {
-                languageCode: track.languageCode,
-                baseUrl: track.baseUrl?.substring(0, 100) + (track.baseUrl?.length > 100 ? "..." : ""),
-                baseUrlLength: track.baseUrl?.length,
-                kind: track.kind,
-                name: track.name,
-              });
-              return {
-                languageCode: track.languageCode,
-                baseUrl: track.baseUrl,
-              };
-            });
-            break; // Found captions, stop trying other patterns
-          }
-        } catch (parseError) {
-          // JSON parse failed, try next pattern
-          console.debug("Failed to parse player response with pattern:", parseError);
-          continue;
-        }
-      }
-    }
+    videoData = await fetchPlayerDataWithAndroidClient(videoId);
   } catch (error) {
-    // Continue with API method if page extraction fails
-    console.debug("Failed to extract captions from page HTML:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Failed to fetch video data: ${errorMessage}`);
   }
 
-  // Step 3: Extract the InnerTube API key from the HTML
-  const apiKeyMatch = pageHtml.match(
-    /"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"/,
-  );
-  let apiKey: string | null = null;
-  if (apiKeyMatch && apiKeyMatch[1]) {
-    apiKey = apiKeyMatch[1];
-  } else {
-    // If we have captions from the page, use those instead
-    if (captionTracksFromPage && captionTracksFromPage.length > 0) {
-      // We'll use captionTracksFromPage later, apiKey can be null
-    } else {
-      throw new Error("Could not extract InnerTube API key from YouTube page");
-    }
-  }
+  // Extract video metadata
+  const videoTitle = videoData?.videoDetails?.title || "YouTube Transcript";
+  const channelName = videoData?.videoDetails?.author || null;
+  const videoDetails: VideoDetails | null = videoData?.videoDetails
+    ? (videoData.videoDetails as VideoDetails)
+    : null;
 
-  // Step 4: Use the InnerTube API with the extracted key (if we don't have captions from page)
-  let videoData: any = null;
-  let videoTitle = "YouTube Transcript";
-  let channelName: string | null = null;
-  let videoDetails: VideoDetails | null = null;
-  let captionTracks: CaptionTrack[] | null = null;
-
-  if ((!captionTracksFromPage || captionTracksFromPage.length === 0) && apiKey) {
-    if (statusCallback) statusCallback("Fetching video information...");
-    const innertubeResponse = await requestUrl({
-      url: `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        context: {
-          client: {
-            clientName: "WEB",
-            clientVersion: "2.20250128.00.00",
-            hl: "en",
-            gl: "US",
-          },
-        },
-        videoId: videoId,
-      }),
-    });
-
-    if (innertubeResponse.status < 200 || innertubeResponse.status >= 300) {
-      // If API fails but we have captions from page, use those
-      if (captionTracksFromPage && captionTracksFromPage.length > 0) {
-        // Extract video info from page HTML as fallback
-        const titleMatch = pageHtml.match(/<meta\s+property="og:title"\s+content="([^"]+)"/);
-        if (titleMatch) {
-          videoTitle = decodeHtmlEntities(titleMatch[1]);
-        }
-        const channelMatch = pageHtml.match(/<meta\s+property="og:video:channel_name"\s+content="([^"]+)"/);
-        if (channelMatch) {
-          channelName = decodeHtmlEntities(channelMatch[1]);
-        }
-        captionTracks = captionTracksFromPage;
-      } else {
-        throw new Error(
-          `Failed to fetch video info: ${innertubeResponse.status} ${innertubeResponse.text?.substring(0, 200) || "Unknown error"}`,
-        );
-      }
-    } else {
-      videoData = innertubeResponse.json;
-
-      // Extract video title
-      videoTitle = videoData?.videoDetails?.title || "YouTube Transcript";
-
-      // Extract channel name
-      channelName = videoData?.videoDetails?.author || null;
-
-      // Extract all videoDetails
-      videoDetails = videoData?.videoDetails
-        ? (videoData.videoDetails as VideoDetails)
-        : null;
-
-      // Extract caption tracks
-      captionTracks =
-        videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      
-      // If API didn't return captions but we have them from page, use page captions
-      if ((!captionTracks || captionTracks.length === 0) && captionTracksFromPage && captionTracksFromPage.length > 0) {
-        captionTracks = captionTracksFromPage;
-      }
-    }
-  } else if (captionTracksFromPage && captionTracksFromPage.length > 0) {
-    // Use captions extracted from page HTML (API key not found or not called)
-    captionTracks = captionTracksFromPage;
-    // Try to extract video info from page HTML
-    const titleMatch = pageHtml.match(/<meta\s+property="og:title"\s+content="([^"]+)"/);
-    if (titleMatch) {
-      videoTitle = decodeHtmlEntities(titleMatch[1]);
-    }
-    const channelMatch = pageHtml.match(/<meta\s+property="og:video:channel_name"\s+content="([^"]+)"/);
-    if (channelMatch) {
-      channelName = decodeHtmlEntities(channelMatch[1]);
-    }
-  }
+  // Extract caption tracks
+  const captionTracks: CaptionTrack[] =
+    videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
 
   if (!captionTracks || captionTracks.length === 0) {
     // Log detailed information for debugging
@@ -286,8 +151,6 @@ export async function getYouTubeTranscript(
       audioTracksLength: captionsRenderer?.audioTracks?.length || 0,
       hasTranslationLanguages: !!(captionsRenderer?.translationLanguages),
       translationLanguagesLength: captionsRenderer?.translationLanguages?.length || 0,
-      foundCaptionsInPage: !!captionTracksFromPage,
-      captionTracksFromPageLength: captionTracksFromPage?.length || 0,
     });
     throw new Error("No captions available for this video");
   }
@@ -531,7 +394,7 @@ async function parseTranscript(
   app: App,
   transcriptXml: string,
   generateSummary: boolean,
-  llmProvider: LLMProvider,
+  llmProvider: LLMProvider | null,
   settings: YouTubeTranscriptPluginSettings,
   videoUrl: string,
   videoId: string,
@@ -731,10 +594,9 @@ async function parseTranscript(
     }
   }
 
-  // Process through LLM if provider is configured
-  const providerToUse = llmProvider || settings.llmProvider;
-  if (providerToUse && providerToUse !== "none") {
-    const hasKey = hasProviderKey(providerToUse, settings);
+  // Process through LLM if provider is specified (not null)
+  if (llmProvider) {
+    const hasKey = hasProviderKey(llmProvider, settings);
     if (hasKey) {
       // If timestamps are included but we don't want them in LLM output, remove them
       let transcriptForLLM = rawTranscript;
@@ -752,7 +614,7 @@ async function parseTranscript(
         app,
         transcriptForLLM,
         generateSummary,
-        providerToUse,
+        llmProvider,
         settings,
         statusCallback,
         RetryModal,
@@ -764,7 +626,7 @@ async function parseTranscript(
 
   // If summary was requested but no LLM provider/key, return raw transcript
   if (generateSummary) {
-    const providerName = getProviderName(providerToUse || "none");
+    const providerName = llmProvider ? getProviderName(llmProvider) : "LLM";
     console.warn(
       `Summary generation requested but ${providerName} API key is not configured`,
     );
@@ -786,8 +648,8 @@ async function processWithLLM(
   RetryModal?: RetryModalConstructor,
   transcriptLanguageCode?: string,
 ): Promise<LLMResponse> {
-  if (!provider || provider === "none" || !hasProviderKey(provider, settings)) {
-    const providerName = getProviderName(provider || "none");
+  if (!hasProviderKey(provider, settings)) {
+    const providerName = getProviderName(provider);
     console.debug(
       `processWithLLM: No ${providerName} key, returning transcript without summary`,
     );
