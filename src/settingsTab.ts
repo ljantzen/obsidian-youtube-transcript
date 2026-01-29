@@ -460,54 +460,66 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("LLM").setHeading();
 
     new Setting(containerEl)
-      .setName("LLM provider")
-      .setDesc("Select which LLM provider to use for transcript processing")
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption("none", "None (raw transcript)")
-          .addOption("openai", "OpenAI")
-          .addOption("gemini", "Google Gemini")
-          .addOption("claude", "Anthropic Claude")
-          .setValue(this.settings.llmProvider || "none")
-          .onChange(async (value: LLMProvider) => {
-            this.settings.llmProvider = value;
+      .setName("Use LLM processing")
+      .setDesc("When enabled, transcripts will be processed by the selected LLM provider to clean up and format the content")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.settings.useLLMProcessing ?? false)
+          .onChange(async (value) => {
+            this.settings.useLLMProcessing = value;
             await this.saveSettings();
-            // Refresh the settings display to show/hide relevant API key fields
+            // Refresh the settings display to show/hide LLM-related fields
             this.display();
-          });
-      });
+          })
+      );
 
-    // Show OpenAI API key field if OpenAI is selected or if it's the current provider
-    if (
-      this.settings.llmProvider === "openai" ||
-      this.settings.llmProvider === "none"
-    ) {
+    // Only show LLM provider settings if LLM processing is enabled
+    if (this.settings.useLLMProcessing) {
       new Setting(containerEl)
-        .setName("OpenAI API key")
-        .setDesc(
-          "Your OpenAI API key for processing transcripts (get one at https://platform.openai.com/api-keys)",
-        )
-        .addText((text) => {
-          text.inputEl.type = "password";
-          text
-            .setPlaceholder("sk-...")
-            .setValue(this.settings.openaiKey)
-            .onChange(async (value) => {
-              this.settings.openaiKey = value;
+        .setName("LLM provider")
+        .setDesc("Select which LLM provider to use for transcript processing")
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption("openai", "OpenAI")
+            .addOption("gemini", "Google Gemini")
+            .addOption("claude", "Anthropic Claude")
+            .setValue(this.settings.llmProvider || "openai")
+            .onChange(async (value: LLMProvider) => {
+              this.settings.llmProvider = value;
               await this.saveSettings();
+              // Refresh the settings display to show/hide relevant API key fields
+              this.display();
             });
         });
 
-      this.createOpenAIModelSetting(containerEl);
-    }
+      // Show OpenAI API key field if OpenAI is selected
+      if (this.settings.llmProvider === "openai") {
+        new Setting(containerEl)
+          .setName("OpenAI API key")
+          .setDesc(
+            "Your OpenAI API key for processing transcripts (get one at https://platform.openai.com/api-keys)",
+          )
+          .addText((text) => {
+            text.inputEl.type = "password";
+            text
+              .setPlaceholder("sk-...")
+              .setValue(this.settings.openaiKey)
+              .onChange(async (value) => {
+                this.settings.openaiKey = value;
+                await this.saveSettings();
+              });
+          });
 
-    // Show Gemini API key field if Gemini is selected
-    if (this.settings.llmProvider === "gemini") {
-      new Setting(containerEl)
-        .setName("Gemini API key")
-        .setDesc(
-          "Your Google Gemini API key for processing transcripts (get one at https://aistudio.google.com/app/apikey)",
-        )
+        this.createOpenAIModelSetting(containerEl);
+      }
+
+      // Show Gemini API key field if Gemini is selected
+      if (this.settings.llmProvider === "gemini") {
+        new Setting(containerEl)
+          .setName("Gemini API key")
+          .setDesc(
+            "Your Google Gemini API key for processing transcripts (get one at https://aistudio.google.com/app/apikey)",
+          )
         .addText((text) => {
           text.inputEl.type = "password";
           text
@@ -522,101 +534,102 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       this.createGeminiModelSetting(containerEl);
     }
 
-    // Show Claude API key field if Claude is selected
-    if (this.settings.llmProvider === "claude") {
-      new Setting(containerEl)
-        .setName("Claude API key")
-        .setDesc(
-          "Your Anthropic Claude API key for processing transcripts (get one at https://console.anthropic.com/)",
-        )
-        .addText((text) => {
-          text.inputEl.type = "password";
-          text
-            .setPlaceholder("sk-ant-...")
-            .setValue(this.settings.claudeKey)
-            .onChange(async (value) => {
-              this.settings.claudeKey = value;
-              await this.saveSettings();
-            });
-        });
+      // Show Claude API key field if Claude is selected
+      if (this.settings.llmProvider === "claude") {
+        new Setting(containerEl)
+          .setName("Claude API key")
+          .setDesc(
+            "Your Anthropic Claude API key for processing transcripts (get one at https://console.anthropic.com/)",
+          )
+          .addText((text) => {
+            text.inputEl.type = "password";
+            text
+              .setPlaceholder("sk-ant-...")
+              .setValue(this.settings.claudeKey)
+              .onChange(async (value) => {
+                this.settings.claudeKey = value;
+                await this.saveSettings();
+              });
+          });
+
+        new Setting(containerEl)
+          .setName("Claude model")
+          .setDesc(
+            "Enter the Claude model ID to use for transcript processing. Examples: claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001, or simplified versions like claude-opus-4, claude-sonnet-4, claude-haiku-4-5. Only Claude version 4 models are supported.",
+          )
+          .addText((text) => {
+            text
+              .setPlaceholder("claude-sonnet-4-20250514")
+              .setValue(this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel)
+              .onChange(async (value) => {
+                const trimmedValue = value.trim();
+                if (trimmedValue === "") {
+                  // Allow empty to use default
+                  this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
+                  await this.saveSettings();
+                } else if (validateClaudeModelName(trimmedValue)) {
+                  this.settings.claudeModel = trimmedValue;
+                  await this.saveSettings();
+                } else {
+                  new Notice(
+                    `Invalid Claude model name: "${trimmedValue}". Must be a Claude version 4 model (e.g., claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001).`,
+                  );
+                }
+              });
+          });
+      }
+
+      const promptSetting = new Setting(containerEl)
+        .setName("Processing prompt")
+        .setDesc("The prompt sent to the LLM for processing the transcript");
+
+      const textarea = promptSetting.controlEl.createEl("textarea", {
+        attr: {
+          placeholder: DEFAULT_PROMPT,
+          rows: "10",
+        },
+      });
+      textarea.setCssProps({ width: "100%" });
+      textarea.value = this.settings.prompt;
+      textarea.addEventListener("input", (e) => {
+        const target = e.target as HTMLTextAreaElement;
+        this.settings.prompt = target.value;
+        void this.saveSettings();
+      });
 
       new Setting(containerEl)
-        .setName("Claude model")
+        .setName("LLM timeout")
         .setDesc(
-          "Enter the Claude model ID to use for transcript processing. Examples: claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001, or simplified versions like claude-opus-4, claude-sonnet-4, claude-haiku-4-5. Only Claude version 4 models are supported.",
+          "Timeout for LLM API requests in minutes (default: 1 minute / 60 seconds)",
         )
         .addText((text) => {
+          text.inputEl.type = "number";
           text
-            .setPlaceholder("claude-sonnet-4-20250514")
-            .setValue(this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel)
+            .setPlaceholder("5")
+            .setValue(this.settings.openaiTimeout.toString())
             .onChange(async (value) => {
-              const trimmedValue = value.trim();
-              if (trimmedValue === "") {
-                // Allow empty to use default
-                this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
+              const timeout = parseInt(value, 10);
+              if (!isNaN(timeout) && timeout > 0) {
+                this.settings.openaiTimeout = timeout;
                 await this.saveSettings();
-              } else if (validateClaudeModelName(trimmedValue)) {
-                this.settings.claudeModel = trimmedValue;
-                await this.saveSettings();
-              } else {
-                new Notice(
-                  `Invalid Claude model name: "${trimmedValue}". Must be a Claude version 4 model (e.g., claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001).`,
-                );
               }
             });
         });
-    }
 
-    const promptSetting = new Setting(containerEl)
-      .setName("Processing prompt")
-      .setDesc("The prompt sent to the LLM for processing the transcript");
-
-    const textarea = promptSetting.controlEl.createEl("textarea", {
-      attr: {
-        placeholder: DEFAULT_PROMPT,
-        rows: "10",
-      },
-    });
-    textarea.setCssProps({ width: "100%" });
-    textarea.value = this.settings.prompt;
-    textarea.addEventListener("input", (e) => {
-      const target = e.target as HTMLTextAreaElement;
-      this.settings.prompt = target.value;
-      void this.saveSettings();
-    });
-
-    new Setting(containerEl)
-      .setName("LLM timeout")
-      .setDesc(
-        "Timeout for LLM API requests in minutes (default: 1 minute / 60 seconds)",
-      )
-      .addText((text) => {
-        text.inputEl.type = "number";
-        text
-          .setPlaceholder("5")
-          .setValue(this.settings.openaiTimeout.toString())
-          .onChange(async (value) => {
-            const timeout = parseInt(value, 10);
-            if (!isNaN(timeout) && timeout > 0) {
-              this.settings.openaiTimeout = timeout;
+      new Setting(containerEl)
+        .setName("Force LLM output language")
+        .setDesc(
+          "When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures the processed transcript matches the original language.",
+        )
+        .addToggle((toggle) => {
+          toggle
+            .setValue(this.settings.forceLLMLanguage ?? false)
+            .onChange(async (value) => {
+              this.settings.forceLLMLanguage = value;
               await this.saveSettings();
-            }
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Force LLM output language")
-      .setDesc(
-        "When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures the processed transcript matches the original language.",
-      )
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.settings.forceLLMLanguage ?? false)
-          .onChange(async (value) => {
-            this.settings.forceLLMLanguage = value;
-            await this.saveSettings();
-          });
-      });
+            });
+        });
+    } // End of if (this.settings.useLLMProcessing)
   }
 
   /**

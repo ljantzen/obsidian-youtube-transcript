@@ -86,6 +86,7 @@ export class YouTubeUrlModal extends Modal {
     createNewFile: boolean,
     includeVideoUrl: boolean,
     generateSummary: boolean,
+    useLLM: boolean,
     llmProvider: LLMProvider,
     selectedDirectory: string | null,
     tagWithChannelName: boolean,
@@ -104,6 +105,7 @@ export class YouTubeUrlModal extends Modal {
       createNewFile: boolean,
       includeVideoUrl: boolean,
       generateSummary: boolean,
+      useLLM: boolean,
       llmProvider: LLMProvider,
       selectedDirectory: string | null,
       tagWithChannelName: boolean,
@@ -438,6 +440,14 @@ export class YouTubeUrlModal extends Modal {
     createNewFileCheckbox.addEventListener("change", updateCreateNewFileVisibility);
     updateCreateNewFileVisibility();
 
+    // When PDF is selected, automatically check createNewFile (PDFs always need a new file)
+    fileFormatDropdown.addEventListener("change", () => {
+      if (fileFormatDropdown.value === "pdf" && !createNewFileCheckbox.checked) {
+        createNewFileCheckbox.checked = true;
+        updateCreateNewFileVisibility();
+      }
+    });
+
     // Add checkbox for including video URL
     const includeUrlContainer = contentEl.createDiv({
       attr: { style: "margin-bottom: 1em;" },
@@ -530,9 +540,6 @@ export class YouTubeUrlModal extends Modal {
         },
       }) as HTMLSelectElement;
 
-      // Always include "None" option
-      providerDropdown.add(new Option("None (raw transcript)", "none"));
-
       // Only add providers that have configured API keys
       if (this.callbacks.hasProviderKey("openai")) {
         providerDropdown.add(new Option("OpenAI", "openai"));
@@ -544,15 +551,15 @@ export class YouTubeUrlModal extends Modal {
         providerDropdown.add(new Option("Anthropic Claude", "claude"));
       }
 
-      // Set default value, fallback to "none" if current provider doesn't have a key
-      const currentProvider = this.settings.llmProvider || "none";
-      const hasCurrentProviderKey =
-        currentProvider === "none" ||
-        this.callbacks.hasProviderKey(currentProvider);
-      providerDropdown.value = hasCurrentProviderKey ? currentProvider : "none";
+      // Set default value to the current provider if it has a key, otherwise first available
+      const currentProvider = this.settings.llmProvider || "openai";
+      const hasCurrentProviderKey = this.callbacks.hasProviderKey(currentProvider);
+      if (hasCurrentProviderKey) {
+        providerDropdown.value = currentProvider;
+      }
 
-      // Default LLM checkbox to checked if a provider is selected and has a key
-      if (hasCurrentProviderKey && currentProvider !== "none") {
+      // Default LLM checkbox to checked based on useLLMProcessing setting
+      if (this.settings.useLLMProcessing && hasAnyProviderKey) {
         useLLMCheckbox.checked = true;
       }
 
@@ -616,7 +623,10 @@ export class YouTubeUrlModal extends Modal {
         if (!url) {
           return;
         }
-        const createNewFile = createNewFileCheckbox.checked;
+        // Get file format first to determine if createNewFile should be forced
+        const fileFormat = fileFormatDropdown.value as "markdown" | "pdf";
+        // PDF format always requires creating a new file
+        const createNewFile = fileFormat === "pdf" ? true : createNewFileCheckbox.checked;
         const includeVideoUrl = includeUrlCheckbox.checked;
         const generateSummary = hasAnyProviderKey && generateSummaryCheckbox
           ? generateSummaryCheckbox.checked
@@ -624,20 +634,16 @@ export class YouTubeUrlModal extends Modal {
         const useLLM = hasAnyProviderKey && useLLMCheckbox
           ? useLLMCheckbox.checked
           : false;
-        // If LLM processing is disabled or no providers configured, use "none"
-        const llmProvider = hasAnyProviderKey && useLLM && providerDropdown
+        // Get selected provider (default to settings if not available)
+        const llmProvider = providerDropdown
           ? (providerDropdown.value as LLMProvider)
-          : "none";
+          : this.settings.llmProvider;
         const tagWithChannelName = tagChannelCheckbox.checked;
         // Get selected directory from dropdown
         // Empty string = current directory, non-empty = specific directory
         const selectedDirectory = createNewFile
           ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
           : null;
-        // Get file format
-        const fileFormat = createNewFile
-          ? (fileFormatDropdown.value as "markdown" | "pdf")
-          : "markdown";
         // Get selected language (empty string = auto-select)
         const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
         const result = this.onSubmit(
@@ -645,6 +651,7 @@ export class YouTubeUrlModal extends Modal {
           createNewFile,
           includeVideoUrl,
           generateSummary,
+          useLLM,
           llmProvider,
           selectedDirectory,
           tagWithChannelName,
@@ -670,7 +677,10 @@ export class YouTubeUrlModal extends Modal {
       if (e.key === "Enter") {
         const url = input.value.trim();
         if (url) {
-          const createNewFile = createNewFileCheckbox.checked;
+          // Get file format first to determine if createNewFile should be forced
+          const fileFormat = fileFormatDropdown.value as "markdown" | "pdf";
+          // PDF format always requires creating a new file
+          const createNewFile = fileFormat === "pdf" ? true : createNewFileCheckbox.checked;
           const includeVideoUrl = includeUrlCheckbox.checked;
           const generateSummary = hasAnyProviderKey && generateSummaryCheckbox
             ? generateSummaryCheckbox.checked
@@ -678,20 +688,16 @@ export class YouTubeUrlModal extends Modal {
           const useLLM = hasAnyProviderKey && useLLMCheckbox
             ? useLLMCheckbox.checked
             : false;
-          // If LLM processing is disabled or no providers configured, use "none"
-          const llmProvider = hasAnyProviderKey && useLLM && providerDropdown
+          // Get selected provider (default to settings if not available)
+          const llmProvider = providerDropdown
             ? (providerDropdown.value as LLMProvider)
-            : "none";
+            : this.settings.llmProvider;
           const tagWithChannelName = tagChannelCheckbox.checked;
           // Get selected directory from dropdown
           // Empty string = current directory, non-empty = specific directory
           const selectedDirectory = createNewFile
             ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
             : null;
-          // Get file format
-          const fileFormat = createNewFile
-            ? (fileFormatDropdown.value as "markdown" | "pdf")
-            : "markdown";
           // Get selected language (empty string = auto-select)
           const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
           const result = this.onSubmit(
@@ -699,6 +705,7 @@ export class YouTubeUrlModal extends Modal {
             createNewFile,
             includeVideoUrl,
             generateSummary,
+            useLLM,
             llmProvider,
             selectedDirectory,
             tagWithChannelName,

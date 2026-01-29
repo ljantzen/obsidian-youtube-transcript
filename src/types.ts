@@ -1,6 +1,7 @@
-export type LLMProvider = "openai" | "gemini" | "claude" | "none";
+export type LLMProvider = "openai" | "gemini" | "claude";
 
 export interface YouTubeTranscriptPluginSettings {
+  useLLMProcessing: boolean; // Whether to use LLM processing for transcripts
   llmProvider: LLMProvider;
   openaiKey: string;
   openaiModel: string;

@@ -12,7 +12,8 @@ export const DEFAULT_PROMPT = `Please process the following YouTube video transc
 Return only the cleaned transcript without any additional commentary or explanation.`;
 
 export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
-  llmProvider: "none",
+  useLLMProcessing: false, // Default to false - use raw transcript by default
+  llmProvider: "openai",
   openaiKey: "",
   openaiModel: "gpt-4o-mini",
   geminiKey: "",

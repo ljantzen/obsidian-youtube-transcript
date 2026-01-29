@@ -66,10 +66,22 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const loadedData = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
 
-    // Backward compatibility: if llmProvider is not set, infer from existing keys
+    // Backward compatibility: migrate from old "none" provider to useLLMProcessing toggle
+    if (this.settings.useLLMProcessing === undefined) {
+      // Check if old data had "none" as provider or no provider set
+      const oldProvider = loadedData?.llmProvider;
+      if (oldProvider === "none" || oldProvider === undefined) {
+        this.settings.useLLMProcessing = false;
+      } else {
+        // Had a real provider, so enable LLM processing
+        this.settings.useLLMProcessing = true;
+      }
+    }
+
+    // Backward compatibility: if llmProvider is not set or was "none", infer from existing keys
     if (
       this.settings.llmProvider === undefined ||
-      this.settings.llmProvider === "none"
+      (loadedData?.llmProvider as string) === "none"
     ) {
       if (this.settings.openaiKey && this.settings.openaiKey.trim() !== "") {
         this.settings.llmProvider = "openai";
@@ -84,7 +96,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       ) {
         this.settings.llmProvider = "claude";
       } else {
-        this.settings.llmProvider = "none";
+        this.settings.llmProvider = "openai"; // Default to openai
       }
       await this.saveSettings();
     }
@@ -346,6 +358,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         createNewFile: boolean,
         includeVideoUrl: boolean,
         generateSummary: boolean,
+        useLLM: boolean,
         llmProvider: LLMProvider,
         selectedDirectory: string | null,
         tagWithChannelName: boolean,
@@ -357,6 +370,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           createNewFile,
           includeVideoUrl,
           generateSummary,
+          useLLM,
           llmProvider,
           selectedDirectory,
           tagWithChannelName,
@@ -398,13 +412,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         createNewFile = true;
       }
 
-      // Determine LLM provider - use configured provider if available, otherwise "none"
-      let llmProvider: LLMProvider = "none";
-      if (this.settings.llmProvider && this.settings.llmProvider !== "none") {
-        if (this.hasProviderKey(this.settings.llmProvider)) {
-          llmProvider = this.settings.llmProvider;
-        }
-      }
+      // Determine if LLM processing should be used
+      const useLLM = this.settings.useLLMProcessing && this.hasProviderKey(this.settings.llmProvider);
+      const llmProvider = this.settings.llmProvider;
 
       // Determine selected directory - use default directory if set, otherwise null
       const selectedDirectory = this.settings.defaultDirectory || null;
@@ -420,6 +430,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         createNewFile,
         includeVideoUrl,
         generateSummary,
+        useLLM,
         llmProvider,
         selectedDirectory,
         tagWithChannelName,
@@ -446,6 +457,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     createNewFile: boolean,
     includeVideoUrl: boolean,
     generateSummary: boolean,
+    useLLM: boolean,
     llmProvider: LLMProvider,
     selectedDirectory: string | null,
     tagWithChannelName: boolean,
@@ -465,11 +477,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             ? this.settings.preferredLanguage 
             : null);
 
+      // Only use LLM if explicitly enabled and provider has a key
+      const effectiveLLMProvider = useLLM && this.hasProviderKey(llmProvider) ? llmProvider : null;
+
       const result = await getYouTubeTranscript(
         this.app,
         url,
         generateSummary,
-        llmProvider,
+        effectiveLLMProvider,
         this.settings,
         (status: string | null) => {
           if (status === null) {
