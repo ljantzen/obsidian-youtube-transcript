@@ -217,6 +217,21 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName("Default note name")
+      .setDesc(
+        "Template for note file names. Supports {VideoName} and {ChannelName} variables.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("{VideoName}")
+          .setValue(this.settings.defaultNoteName || "{VideoName}")
+          .onChange(async (value) => {
+            this.settings.defaultNoteName = value || "{VideoName}";
+            await this.saveSettings();
+          });
+      });
+
 
     new Setting(containerEl)
       .setName("Preferred languages")
@@ -393,6 +408,23 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             await this.saveSettings();
           });
       });
+
+
+    new Setting(containerEl)
+      .setName("Default cover note name")
+      .setDesc(
+        "Template for cover note file names (when PDF cover notes are enabled). Supports {VideoName}, {ChannelName}, and {PdfDirectory} variables.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("{VideoName}")
+          .setValue(this.settings.defaultCoverNoteName || "{VideoName}")
+          .onChange(async (value) => {
+            this.settings.defaultCoverNoteName = value || "{VideoName}";
+            await this.saveSettings();
+          });
+      });
+
 
     new Setting(containerEl)
       .setName("PDF cover note location")

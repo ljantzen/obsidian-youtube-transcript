@@ -41,6 +41,8 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   singleLineTranscript: false, // Default to false - use line breaks for readability
   preferredLanguage: "", // Default to empty string - auto-select (prefers English)
   forceLLMLanguage: false, // Default to false - LLM can output in any language
+  defaultNoteName: "{VideoName}", // Default to video title
+  defaultCoverNoteName: "{VideoName}", // Default to video title
 };
 
 /**

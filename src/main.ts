@@ -602,7 +602,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     fileFormat: "markdown" | "pdf",
     videoDetails: VideoDetails | null,
   ) {
-    const baseSanitizedTitle = sanitizeFilename(videoTitle);
+    // Apply note name template
+    const noteNameTemplate = this.settings.defaultNoteName || "{VideoName}";
+    let noteName = noteNameTemplate
+      .replace(/{VideoName}/g, videoTitle)
+      .replace(/{ChannelName}/g, channelName || "");
+    // Clean up any empty segments from missing channel name
+    noteName = noteName.replace(/\s+/g, " ").trim();
+    const baseSanitizedTitle = sanitizeFilename(noteName || videoTitle);
 
     // Determine which directory to use
     let directory: string;
@@ -1196,8 +1203,21 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       );
     }
 
-    // Create cover note file
-    const coverNoteFileName = `${pdfFileNameWithoutExt}.md`;
+    // Create cover note file - apply cover note name template
+    // Extract PDF directory name (just the folder name, not full path)
+    const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
+    const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
+    
+    const coverNoteTemplate = this.settings.defaultCoverNoteName || "{VideoName}";
+    let coverNoteName = coverNoteTemplate
+      .replace(/{VideoName}/g, videoTitle)
+      .replace(/{ChannelName}/g, channelName || "")
+      .replace(/{PdfDirectory}/g, pdfDirectory);
+    // Clean up any empty segments from missing channel name
+    coverNoteName = coverNoteName.replace(/\s+/g, " ").trim();
+    const sanitizedCoverNoteName = sanitizeFilename(coverNoteName || videoTitle);
+    
+    const coverNoteFileName = `${sanitizedCoverNoteName}.md`;
     const coverNotePath = coverNoteDirectory
       ? `${coverNoteDirectory}/${coverNoteFileName}`
       : coverNoteFileName;
@@ -1207,8 +1227,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     let coverNoteCounter = 1;
     while (this.app.vault.getAbstractFileByPath(finalCoverNotePath)) {
       const baseName = coverNoteDirectory
-        ? `${coverNoteDirectory}/${pdfFileNameWithoutExt}`
-        : pdfFileNameWithoutExt;
+        ? `${coverNoteDirectory}/${sanitizedCoverNoteName}`
+        : sanitizedCoverNoteName;
       finalCoverNotePath = `${baseName} (${coverNoteCounter}).md`;
       coverNoteCounter++;
     }
