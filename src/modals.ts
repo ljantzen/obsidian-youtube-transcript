@@ -1,4 +1,4 @@
-import { App, Modal, TextComponent } from "obsidian";
+import { App, Modal, TextComponent, MarkdownView } from "obsidian";
 import type { LLMProvider, YouTubeTranscriptPluginSettings, CaptionTrack } from "./types";
 import { extractVideoId } from "./utils";
 import { getAvailableLanguages } from "./youtube";
@@ -315,21 +315,36 @@ export class YouTubeUrlModal extends Modal {
       }, 500); // Wait 500ms after user stops typing
     });
 
-    // Check clipboard for YouTube URL and prefill if found
+    // Check for YouTube URL: first from editor selection, then from clipboard
     // This happens after language dropdown is set up so fetchLanguages can be called
     let prefilledUrl = false;
-    try {
-      const clipboardText = await navigator.clipboard.readText();
-      if (clipboardText && extractVideoId(clipboardText.trim())) {
-        input.value = clipboardText.trim();
-        // Select the text so user can easily replace it if needed
+    
+    // Try to get URL from editor selection first (useful on mobile)
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView?.editor) {
+      const selectedText = activeView.editor.getSelection();
+      if (selectedText && extractVideoId(selectedText.trim())) {
+        input.value = selectedText.trim();
         input.select();
         prefilledUrl = true;
       }
-    } catch (error) {
-      // Clipboard access may fail due to permissions or other reasons
-      // Silently ignore and continue without prefilling
-      console.debug("Could not read clipboard:", error);
+    }
+    
+    // If no selection, try clipboard
+    if (!prefilledUrl) {
+      try {
+        const clipboardText = await navigator.clipboard.readText();
+        if (clipboardText && extractVideoId(clipboardText.trim())) {
+          input.value = clipboardText.trim();
+          // Select the text so user can easily replace it if needed
+          input.select();
+          prefilledUrl = true;
+        }
+      } catch (error) {
+        // Clipboard access may fail due to permissions or other reasons
+        // Silently ignore and continue without prefilling
+        console.debug("Could not read clipboard:", error);
+      }
     }
 
     // Fetch languages if URL was prefilled from clipboard

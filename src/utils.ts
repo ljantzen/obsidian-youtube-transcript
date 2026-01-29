@@ -1,6 +1,7 @@
 export function extractVideoId(url: string): string | null {
   const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    // Standard, mobile, and music YouTube domains
+    /(?:(?:www\.|m\.|mobile\.|music\.)?youtube\.com\/watch\?v=|youtu\.be\/|(?:www\.|m\.|mobile\.|music\.)?youtube\.com\/embed\/)([^&\n?#]+)/,
     /^([a-zA-Z0-9_-]{11})$/, // Direct video ID
   ];
 

@@ -1,26 +1,7 @@
 import { describe, it, expect } from 'vitest';
-
-// We need to extract the extractVideoId function for testing
-// Since it's a private method, we'll test it through a test helper
-// or make it accessible for testing
+import { extractVideoId } from '../src/utils';
 
 describe('extractVideoId', () => {
-	// Test helper function that matches the implementation
-	const extractVideoId = (url: string): string | null => {
-		const patterns = [
-			/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-			/^([a-zA-Z0-9_-]{11})$/ // Direct video ID
-		];
-
-		for (const pattern of patterns) {
-			const match = url.match(pattern);
-			if (match) {
-				return match[1];
-			}
-		}
-		return null;
-	};
-
 	it('should extract video ID from full YouTube URL', () => {
 		const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 		const result = extractVideoId(url);
@@ -67,5 +48,30 @@ describe('extractVideoId', () => {
 		const url = 'https://vimeo.com/123456789';
 		const result = extractVideoId(url);
 		expect(result).toBeNull();
+	});
+
+	// Mobile YouTube URL tests
+	it('should extract video ID from mobile YouTube URL (m.youtube.com)', () => {
+		const url = 'https://m.youtube.com/watch?v=dQw4w9WgXcQ';
+		const result = extractVideoId(url);
+		expect(result).toBe('dQw4w9WgXcQ');
+	});
+
+	it('should extract video ID from mobile YouTube URL (mobile.youtube.com)', () => {
+		const url = 'https://mobile.youtube.com/watch?v=dQw4w9WgXcQ';
+		const result = extractVideoId(url);
+		expect(result).toBe('dQw4w9WgXcQ');
+	});
+
+	it('should extract video ID from YouTube Music URL', () => {
+		const url = 'https://music.youtube.com/watch?v=dQw4w9WgXcQ';
+		const result = extractVideoId(url);
+		expect(result).toBe('dQw4w9WgXcQ');
+	});
+
+	it('should extract video ID from mobile embed URL', () => {
+		const url = 'https://m.youtube.com/embed/dQw4w9WgXcQ';
+		const result = extractVideoId(url);
+		expect(result).toBe('dQw4w9WgXcQ');
 	});
 });
