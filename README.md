@@ -289,6 +289,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 
 ### File Creation Settings
 - **Create new file**: Default behavior for the "Create new file" checkbox in the modal (default: disabled - inserts into current file)
+- **Default note name**: Template for note file names. Supports `{VideoName}` and `{ChannelName}` variables. Default: `{VideoName}`
 - **Default directory**: Select one of your saved directories as the default (only shown when you have saved directories). When set, new files will be created in this directory by default, and you can use the clipboard command even when no document is open
 - **Saved directories**: List of frequently used directories for quick selection in the modal. Add directories here, then optionally select one as the default
 - **File format**: Default file format for new transcript files (Markdown or PDF)
@@ -296,6 +297,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 ### PDF Settings
 - **Use attachment folder for PDFs**: When enabled, PDF files will be stored in the folder specified by Obsidian's "Attachment folder" setting (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option. If "Create PDF cover note" is also enabled, PDFs will be automatically nested in subfolders underneath the cover note location. Markdown files are not affected and use normal directory selection.
 - **Create PDF cover note**: When enabled, a markdown cover note will be automatically created for each PDF transcript
+- **Default cover note name**: Template for cover note file names. Supports `{VideoName}`, `{ChannelName}`, and `{PdfDirectory}` variables. Default: `{VideoName}`
 - **PDF cover note location**: Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Uses the FolderSuggest and supports `{ChannelName}` and `{VideoName}` template variables
 - **PDF cover note template**: Path to a markdown template file for custom cover note formatting. Supports all template variables listed in the PDF Cover Notes section. Leave empty to use the default template.
 - **PDF attachment folder name**: Name of the folder to nest PDFs under when both "Use attachment folder for PDFs" and "Create PDF cover note" are enabled. Leave empty to use the PDF filename (without extension) as the folder name. Supports template variables `{ChannelName}` and `{VideoName}`
