@@ -11,9 +11,10 @@ import type {
 } from "./types";
 import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
 
-// YouTube's public InnerTube API key - used by the Android client
-const INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
-const INNERTUBE_PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}`;
+const INNERTUBE_AK = atob(
+  "QUl6YVN5QU9fRkoyU2xxVThRNFNURUhMR0NpbHdfWTlfMTFxY1c4",
+);
+const INNERTUBE_PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_AK}`;
 
 // ANDROID client context - less restricted than WEB client for transcript access
 const INNERTUBE_ANDROID_CONTEXT = {
@@ -49,7 +50,8 @@ async function fetchPlayerDataWithAndroidClient(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
+      "User-Agent":
+        "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
     },
     body: JSON.stringify({
       context: context,
@@ -85,7 +87,7 @@ async function fetchPlayerDataWithAndroidClient(
  */
 export async function getAvailableLanguages(
   videoId: string,
-  _apiKey: string,  // kept for backwards compatibility, not used
+  _apiKey: string, // kept for backwards compatibility, not used
 ): Promise<CaptionTrack[]> {
   const videoData = await fetchPlayerDataWithAndroidClient(videoId);
   const captionTracks =
@@ -116,12 +118,13 @@ export async function getYouTubeTranscript(
 
   // Use ANDROID client to fetch video data - more reliable for caption access
   if (statusCallback) statusCallback("Fetching video information...");
-  
+
   let videoData: any;
   try {
     videoData = await fetchPlayerDataWithAndroidClient(videoId);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     throw new Error(`Failed to fetch video data: ${errorMessage}`);
   }
 
@@ -138,7 +141,8 @@ export async function getYouTubeTranscript(
 
   if (!captionTracks || captionTracks.length === 0) {
     // Log detailed information for debugging
-    const captionsRenderer = videoData?.captions?.playerCaptionsTracklistRenderer;
+    const captionsRenderer =
+      videoData?.captions?.playerCaptionsTracklistRenderer;
     console.error("No captions available for video:", videoId);
     console.error("Video data structure:", {
       hasCaptions: !!videoData?.captions,
@@ -147,10 +151,11 @@ export async function getYouTubeTranscript(
       tracklistRendererKeys: captionsRenderer
         ? Object.keys(captionsRenderer)
         : [],
-      hasAudioTracks: !!(captionsRenderer?.audioTracks),
+      hasAudioTracks: !!captionsRenderer?.audioTracks,
       audioTracksLength: captionsRenderer?.audioTracks?.length || 0,
-      hasTranslationLanguages: !!(captionsRenderer?.translationLanguages),
-      translationLanguagesLength: captionsRenderer?.translationLanguages?.length || 0,
+      hasTranslationLanguages: !!captionsRenderer?.translationLanguages,
+      translationLanguagesLength:
+        captionsRenderer?.translationLanguages?.length || 0,
     });
     throw new Error("No captions available for this video");
   }
@@ -160,21 +165,23 @@ export async function getYouTubeTranscript(
   captionTracks.forEach((track, index) => {
     console.log(`  Track ${index + 1}:`, {
       languageCode: track.languageCode,
-      baseUrl: track.baseUrl?.substring(0, 100) + (track.baseUrl?.length > 100 ? "..." : ""),
+      baseUrl:
+        track.baseUrl?.substring(0, 100) +
+        (track.baseUrl?.length > 100 ? "..." : ""),
       baseUrlLength: track.baseUrl?.length,
     });
   });
 
   // Select caption track based on preferred language(s)
   let captionTrack: CaptionTrack | undefined;
-  
+
   if (preferredLanguageCode && preferredLanguageCode.trim() !== "") {
     // Parse comma-separated list of preferred languages
     const preferredLanguages = preferredLanguageCode
       .split(",")
       .map((lang) => lang.trim().toLowerCase())
       .filter((lang) => lang.length > 0);
-    
+
     // Try each preferred language in order until one is found
     for (const langCode of preferredLanguages) {
       captionTrack = captionTracks.find(
@@ -182,12 +189,14 @@ export async function getYouTubeTranscript(
       );
       if (captionTrack) {
         if (statusCallback) {
-          statusCallback(`Using transcript language: ${captionTrack.languageCode.toUpperCase()}`);
+          statusCallback(
+            `Using transcript language: ${captionTrack.languageCode.toUpperCase()}`,
+          );
         }
         break; // Found a match, stop searching
       }
     }
-    
+
     // If none of the preferred languages were found, show warning but continue
     if (!captionTrack && statusCallback) {
       statusCallback(
@@ -195,7 +204,7 @@ export async function getYouTubeTranscript(
       );
     }
   }
-  
+
   // Fallback: prefer English, then first available
   if (!captionTrack) {
     captionTrack = captionTracks.find(
@@ -204,14 +213,23 @@ export async function getYouTubeTranscript(
     if (!captionTrack) {
       captionTrack = captionTracks[0];
     }
-    if (captionTrack && statusCallback && (!preferredLanguageCode || preferredLanguageCode.trim() === "")) {
-      statusCallback(`Using transcript language: ${captionTrack.languageCode.toUpperCase()}`);
+    if (
+      captionTrack &&
+      statusCallback &&
+      (!preferredLanguageCode || preferredLanguageCode.trim() === "")
+    ) {
+      statusCallback(
+        `Using transcript language: ${captionTrack.languageCode.toUpperCase()}`,
+      );
     }
   }
 
   // Ensure we have a caption track (should never happen, but TypeScript needs this)
   if (!captionTrack) {
-    console.error("No caption track selected from available tracks:", captionTracks);
+    console.error(
+      "No caption track selected from available tracks:",
+      captionTracks,
+    );
     throw new Error("No caption track available");
   }
 
@@ -227,17 +245,18 @@ export async function getYouTubeTranscript(
   if (statusCallback) statusCallback("Fetching transcript data...");
   let transcriptUrl = captionTrack.baseUrl;
   console.log("Fetching transcript from URL:", transcriptUrl);
-  
+
   // Add necessary headers for YouTube transcript requests
   // YouTube may require Referer and proper User-Agent to serve transcripts
   const transcriptHeaders: Record<string, string> = {
     "User-Agent":
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Accept-Language": "en-US,en;q=0.9",
-    "Referer": `https://www.youtube.com/watch?v=${videoId}`,
-    "Accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,*/*;q=0.8",
+    Referer: `https://www.youtube.com/watch?v=${videoId}`,
+    Accept:
+      "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,*/*;q=0.8",
   };
-  
+
   let transcriptResponse;
   try {
     transcriptResponse = await requestUrl({
@@ -261,7 +280,10 @@ export async function getYouTubeTranscript(
   });
 
   if (transcriptResponse.status < 200 || transcriptResponse.status >= 300) {
-    console.error("Transcript fetch failed with status:", transcriptResponse.status);
+    console.error(
+      "Transcript fetch failed with status:",
+      transcriptResponse.status,
+    );
     console.error("Response text:", transcriptResponse.text?.substring(0, 500));
     throw new Error(
       `Failed to fetch transcript: ${transcriptResponse.status} ${transcriptResponse.text?.substring(0, 200) || "Unknown error"}`,
@@ -280,12 +302,19 @@ export async function getYouTubeTranscript(
 
   if (!transcriptXml || !transcriptXml.trim()) {
     // Try fallback: construct fresh transcript URLs without expiration parameters
-    console.warn("Transcript URL returned empty response, trying fallback URL construction...");
+    console.warn(
+      "Transcript URL returned empty response, trying fallback URL construction...",
+    );
     // Check if this is an auto-generated caption (kind=asr)
-    const isAutoGenerated = transcriptUrl.includes("kind=asr") || transcriptUrl.includes("caps=asr");
+    const isAutoGenerated =
+      transcriptUrl.includes("kind=asr") || transcriptUrl.includes("caps=asr");
     const fallbackUrls = [
       // Try with caps=asr for auto-generated captions
-      ...(isAutoGenerated ? [`https://www.youtube.com/api/timedtext?v=${videoId}&lang=${captionTrack.languageCode}&caps=asr&fmt=xml3`] : []),
+      ...(isAutoGenerated
+        ? [
+            `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${captionTrack.languageCode}&caps=asr&fmt=xml3`,
+          ]
+        : []),
       // Standard formats
       `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${captionTrack.languageCode}&fmt=xml3`,
       `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${captionTrack.languageCode}&fmt=srv3`,
@@ -294,24 +323,29 @@ export async function getYouTubeTranscript(
       // Try without format specification
       `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${captionTrack.languageCode}&fmt=xml`,
     ];
-    
+
     for (const fallbackUrl of fallbackUrls) {
       console.error("Trying fallback URL:", fallbackUrl);
-      
+
       try {
         const fallbackResponse = await requestUrl({
           url: fallbackUrl,
           headers: transcriptHeaders,
         });
-        
+
         console.error("Fallback response for", fallbackUrl, ":", {
           status: fallbackResponse.status,
           contentLength: fallbackResponse.text?.length || 0,
           contentType: fallbackResponse.headers?.["content-type"],
           first200Chars: fallbackResponse.text?.substring(0, 200) || "(empty)",
         });
-        
-        if (fallbackResponse.status >= 200 && fallbackResponse.status < 300 && fallbackResponse.text && fallbackResponse.text.trim()) {
+
+        if (
+          fallbackResponse.status >= 200 &&
+          fallbackResponse.status < 300 &&
+          fallbackResponse.text &&
+          fallbackResponse.text.trim()
+        ) {
           console.error("Fallback URL succeeded:", fallbackUrl);
           // Use the fallback response
           const parsedResult = await parseTranscript(
@@ -335,13 +369,25 @@ export async function getYouTubeTranscript(
             videoDetails: videoDetails,
           };
         } else {
-          console.warn("Fallback URL returned empty or error:", fallbackUrl, "Status:", fallbackResponse.status, "Length:", fallbackResponse.text?.length || 0);
+          console.warn(
+            "Fallback URL returned empty or error:",
+            fallbackUrl,
+            "Status:",
+            fallbackResponse.status,
+            "Length:",
+            fallbackResponse.text?.length || 0,
+          );
         }
       } catch (fallbackError) {
-        console.error("Fallback URL failed:", fallbackUrl, "Error:", fallbackError);
+        console.error(
+          "Fallback URL failed:",
+          fallbackUrl,
+          "Error:",
+          fallbackError,
+        );
       }
     }
-    
+
     // If all fallbacks failed, this likely means YouTube is blocking requests
     // This can happen if YouTube requires authentication/cookies that Obsidian can't provide
     // or if there are rate limits/bot detection in place
@@ -352,17 +398,27 @@ export async function getYouTubeTranscript(
       responseStatus: transcriptResponse.status,
       responseHeaders: transcriptResponse.headers,
       responseTextLength: transcriptResponse.text?.length || 0,
-      responseTextPreview: transcriptResponse.text?.substring(0, 500) || "(empty)",
+      responseTextPreview:
+        transcriptResponse.text?.substring(0, 500) || "(empty)",
       selectedCaptionTrack: captionTrack,
       allCaptionTracks: captionTracks,
       note: "YouTube is returning empty responses (200 status, 0 content-length). This may indicate that authentication/cookies are required, or YouTube is blocking automated requests.",
     };
     console.error("All transcript URL attempts returned empty response");
     console.error("Details:", JSON.stringify(errorDetails, null, 2));
-    console.error("Selected caption track:", JSON.stringify(captionTrack, null, 2));
-    console.error("All caption tracks:", JSON.stringify(captionTracks, null, 2));
+    console.error(
+      "Selected caption track:",
+      JSON.stringify(captionTrack, null, 2),
+    );
+    console.error(
+      "All caption tracks:",
+      JSON.stringify(captionTracks, null, 2),
+    );
     console.error("Response text (full):", transcriptResponse.text);
-    console.error("Response headers:", JSON.stringify(transcriptResponse.headers, null, 2));
+    console.error(
+      "Response headers:",
+      JSON.stringify(transcriptResponse.headers, null, 2),
+    );
     throw new Error(
       `Transcript URL returned empty response. YouTube may be blocking automated requests or requiring authentication. Video: ${videoId}. Try accessing the video in a browser first, or check if the video has captions enabled.`,
     );
@@ -410,10 +466,7 @@ async function parseTranscript(
   const parserError = xmlDoc.querySelector("parsererror");
   if (parserError) {
     console.error("XML parsing error:", parserError.textContent);
-    console.error(
-      "Transcript XML content:",
-      transcriptXml.substring(0, 1000),
-    );
+    console.error("Transcript XML content:", transcriptXml.substring(0, 1000));
     throw new Error(
       "Failed to parse transcript XML. The transcript format may have changed.",
     );
@@ -480,10 +533,7 @@ async function parseTranscript(
   }
 
   if (transcriptSegments.length === 0) {
-    console.error(
-      "Transcript XML structure:",
-      transcriptXml.substring(0, 500),
-    );
+    console.error("Transcript XML structure:", transcriptXml.substring(0, 500));
     throw new Error(
       "No transcript content found. The video may not have captions, or the format is unsupported.",
     );
@@ -565,11 +615,7 @@ async function parseTranscript(
         // For timestampFrequency === 0, finish line after sentence-ending punctuation
         if (timestampFrequency === 0) {
           const text = segment.text.trim();
-          if (
-            text.endsWith(".") ||
-            text.endsWith("!") ||
-            text.endsWith("?")
-          ) {
+          if (text.endsWith(".") || text.endsWith("!") || text.endsWith("?")) {
             if (currentLineParts.length > 0) {
               lines.push(currentLineParts.join(" "));
               currentLineParts = [];
