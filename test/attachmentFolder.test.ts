@@ -69,28 +69,28 @@ describe('Attachment Folder for PDFs', () => {
     ): string => {
       const attachmentSubfolder = vaultConfig?.attachmentSubfolder;
       
-      // Default to "Attachments" if not configured
+      // Default to "attachments" if not configured (matches Obsidian's default)
       return attachmentSubfolder && attachmentSubfolder.trim() !== "" 
         ? attachmentSubfolder.trim() 
-        : "Attachments";
+        : "attachments";
     };
 
-    it('should return "Attachments" as default when not configured', () => {
+    it('should return "attachments" as default when not configured', () => {
       const vaultConfig = undefined;
       const result = getAttachmentSubfolderName(vaultConfig);
-      expect(result).toBe('Attachments');
+      expect(result).toBe('attachments');
     });
 
-    it('should return "Attachments" when attachmentSubfolder is empty string', () => {
+    it('should return "attachments" when attachmentSubfolder is empty string', () => {
       const vaultConfig = { attachmentSubfolder: '' };
       const result = getAttachmentSubfolderName(vaultConfig);
-      expect(result).toBe('Attachments');
+      expect(result).toBe('attachments');
     });
 
-    it('should return "Attachments" when attachmentSubfolder is whitespace only', () => {
+    it('should return "attachments" when attachmentSubfolder is whitespace only', () => {
       const vaultConfig = { attachmentSubfolder: '   ' };
       const result = getAttachmentSubfolderName(vaultConfig);
-      expect(result).toBe('Attachments');
+      expect(result).toBe('attachments');
     });
 
     it('should return configured subfolder name', () => {
@@ -122,7 +122,7 @@ describe('Attachment Folder for PDFs', () => {
       attachmentFolder: string | null,
       selectedDirectory: string | null,
       activeFileDir: string | null,
-      attachmentSubfolder: string = 'Attachments'
+      attachmentSubfolder: string = 'attachments'
     ): string => {
       if (fileFormat === 'pdf' && useAttachmentFolderForPdf && attachmentFolder) {
         if (attachmentFolder === '.' || attachmentFolder.startsWith('./')) {
@@ -187,7 +187,7 @@ describe('Attachment Folder for PDFs', () => {
         'Transcripts',
         'Notes'
       );
-      expect(result).toBe('Notes/Attachments');
+      expect(result).toBe('Notes/attachments');
     });
 
     it('should handle attachment folder starting with "./"', () => {
@@ -212,7 +212,7 @@ describe('Attachment Folder for PDFs', () => {
         'Transcripts',
         '' // Empty string means file is in root
       );
-      expect(result).toBe('Attachments');
+      expect(result).toBe('attachments');
     });
 
     it('should use custom subfolder name when configured', () => {
@@ -247,7 +247,7 @@ describe('Attachment Folder for PDFs', () => {
         'Transcripts',
         'Notes/Projects/2024'
       );
-      expect(result).toBe('Notes/Projects/2024/Attachments');
+      expect(result).toBe('Notes/Projects/2024/attachments');
     });
 
     it('should correctly extract directory from file path', () => {

@@ -824,16 +824,28 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.createPdfCoverNote &&
       this.settings.useAttachmentFolderForPdf
     ) {
-      // Calculate cover note directory
-      // Use a temporary PDF path based on the original directory for fallback calculation
-      const tempPdfPath = directory
-        ? `${directory}/${baseSanitizedTitle}.${fileExtension}`
-        : `${baseSanitizedTitle}.${fileExtension}`;
-      const coverNoteDirectory = this.calculateCoverNoteDirectory(
-        tempPdfPath,
-        videoTitle,
-        channelName,
-      );
+      // Determine cover note directory:
+      // - If pdfCoverNoteLocation is set, use it (with template variable replacement)
+      // - Otherwise, use the original directory (before nesting)
+      let coverNoteDirectory = this.settings.pdfCoverNoteLocation || "";
+      
+      // Replace template variables in cover note location
+      if (coverNoteDirectory) {
+        if (channelName) {
+          const sanitizedChannelName = sanitizeFilename(channelName);
+          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, sanitizedChannelName);
+        } else {
+          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, "");
+        }
+        const sanitizedVideoName = sanitizeFilename(videoTitle);
+        coverNoteDirectory = coverNoteDirectory.replace(/{VideoName}/g, sanitizedVideoName);
+        coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+      }
+      
+      // If no cover note location specified, use the original directory
+      if (!coverNoteDirectory || coverNoteDirectory.trim() === "") {
+        coverNoteDirectory = directory || "";
+      }
       
       // Calculate attachment folder name
       const attachmentFolderName = this.calculatePdfAttachmentFolderName(

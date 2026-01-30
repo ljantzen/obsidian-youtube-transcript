@@ -401,8 +401,17 @@ export class YouTubeUrlModal extends Modal {
       },
     });
 
-    // Add "Current directory" option
-    directoryDropdown.add(new Option("Current directory", ""));
+    // Add "Current directory" option only if a file is open
+    const hasActiveFile = !!this.app.workspace.getActiveFile();
+    if (hasActiveFile) {
+      directoryDropdown.add(new Option("Current directory", ""));
+    }
+
+    // Add "Default directory" option if configured
+    const defaultDir = this.settings.defaultDirectory;
+    if (defaultDir && defaultDir.trim() !== "") {
+      directoryDropdown.add(new Option(`Default directory (${defaultDir})`, "__default__"));
+    }
 
     // Add saved directories
     const savedDirs = this.settings.savedDirectories || [];
@@ -412,12 +421,12 @@ export class YouTubeUrlModal extends Modal {
       }
     });
 
-    // Set default directory if configured
-    if (this.settings.defaultDirectory) {
-      // Check if the default directory is in the saved directories
-      if (savedDirs.includes(this.settings.defaultDirectory)) {
-        directoryDropdown.value = this.settings.defaultDirectory;
-      }
+    // Set default directory if configured, otherwise use first available option
+    if (defaultDir && defaultDir.trim() !== "") {
+      directoryDropdown.value = "__default__";
+    } else if (!hasActiveFile && directoryDropdown.options.length > 0) {
+      // No active file and no default - select first available option
+      directoryDropdown.value = directoryDropdown.options[0].value;
     }
 
     // Add file format selector (only show when creating new file)
@@ -655,10 +664,18 @@ export class YouTubeUrlModal extends Modal {
           : this.settings.llmProvider;
         const tagWithChannelName = tagChannelCheckbox.checked;
         // Get selected directory from dropdown
-        // Empty string = current directory, non-empty = specific directory
-        const selectedDirectory = createNewFile
-          ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
-          : null;
+        // Empty string = current directory, __default__ = default directory, other = specific directory
+        let selectedDirectory: string | null = null;
+        if (createNewFile) {
+          const dirValue = directoryDropdown.value;
+          if (dirValue === "") {
+            selectedDirectory = null;
+          } else if (dirValue === "__default__") {
+            selectedDirectory = this.settings.defaultDirectory || null;
+          } else {
+            selectedDirectory = dirValue;
+          }
+        }
         // Get selected language (empty string = auto-select)
         const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
         const result = this.onSubmit(
@@ -709,10 +726,18 @@ export class YouTubeUrlModal extends Modal {
             : this.settings.llmProvider;
           const tagWithChannelName = tagChannelCheckbox.checked;
           // Get selected directory from dropdown
-          // Empty string = current directory, non-empty = specific directory
-          const selectedDirectory = createNewFile
-            ? (directoryDropdown.value === "" ? null : directoryDropdown.value)
-            : null;
+          // Empty string = current directory, __default__ = default directory, other = specific directory
+          let selectedDirectory: string | null = null;
+          if (createNewFile) {
+            const dirValue = directoryDropdown.value;
+            if (dirValue === "") {
+              selectedDirectory = null;
+            } else if (dirValue === "__default__") {
+              selectedDirectory = this.settings.defaultDirectory || null;
+            } else {
+              selectedDirectory = dirValue;
+            }
+          }
           // Get selected language (empty string = auto-select)
           const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
           const result = this.onSubmit(
