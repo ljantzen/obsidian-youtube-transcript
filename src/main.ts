@@ -1042,9 +1042,20 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Use the specified cover note location
       return coverNoteLocation;
     } else {
-      // Use the same directory as the PDF file
+      // When cover note location is empty, use the PDF's directory
+      // Special case: if PDF nesting is enabled (useAttachmentFolderForPdf + createPdfCoverNote),
+      // the PDF is in a nested subfolder, so we need the parent directory for the cover note
       const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-      return pdfDir || "";
+      
+      if (this.settings.useAttachmentFolderForPdf && this.settings.createPdfCoverNote) {
+        // PDF is nested - use parent directory for cover note
+        // e.g., PDF at "Attachments/VideoTitle/video.pdf" -> cover note dir is "Attachments"
+        const parentDir = pdfDir.substring(0, pdfDir.lastIndexOf("/"));
+        return parentDir || ""; // Return empty string if PDF is in root (no parent)
+      } else {
+        // PDF is not nested - use PDF's directory directly
+        return pdfDir || "";
+      }
     }
   }
 
@@ -1105,7 +1116,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       channelName,
     );
 
-    // Ensure cover note directory exists
+    // Ensure cover note directory exists (only if not root directory)
     if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
       const dirFile = this.app.vault.getAbstractFileByPath(coverNoteDirectory);
       if (!dirFile || !(dirFile instanceof TFolder)) {
