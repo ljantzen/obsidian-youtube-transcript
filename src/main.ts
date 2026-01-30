@@ -170,8 +170,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Ensure timestamp settings have default values if missing (backward compatibility)
+    // Normalise to boolean so "Include timestamps" is reliably honoured (e.g. if saved as string)
     if (this.settings.includeTimestamps === undefined) {
       this.settings.includeTimestamps = DEFAULT_SETTINGS.includeTimestamps;
+      await this.saveSettings();
+    } else if (typeof this.settings.includeTimestamps !== "boolean") {
+      this.settings.includeTimestamps =
+        this.settings.includeTimestamps === true ||
+        String(this.settings.includeTimestamps).toLowerCase() === "true";
       await this.saveSettings();
     }
     if (this.settings.timestampFrequency === undefined) {

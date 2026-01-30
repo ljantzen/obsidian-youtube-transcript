@@ -502,8 +502,11 @@ async function parseTranscript(
     }
 
     if (text && text.trim()) {
-      // Extract start time from the element's start attribute
-      const startAttr = element.getAttribute("start");
+      // Extract start time: try "start" (YouTube timedtext), then "t", then "begin" (TTML)
+      const startAttr =
+        element.getAttribute("start") ??
+        element.getAttribute("t") ??
+        element.getAttribute("begin");
       const startTime = startAttr ? parseFloat(startAttr) : -1;
       transcriptSegments.push({
         text: text.trim(),
@@ -522,7 +525,10 @@ async function parseTranscript(
         text = decodeHtmlEntities(text);
       }
       if (text && text.trim() && node.children.length === 0) {
-        const startAttr = node.getAttribute("start");
+        const startAttr =
+          node.getAttribute("start") ??
+          node.getAttribute("t") ??
+          node.getAttribute("begin");
         const startTime = startAttr ? parseFloat(startAttr) : -1;
         transcriptSegments.push({
           text: text.trim(),
@@ -539,32 +545,75 @@ async function parseTranscript(
     );
   }
 
-  // Build transcript with timestamps if enabled
+  // Normalize time unit: YouTube timedtext can return seconds, milliseconds, or hundredths of seconds.
+  // If consecutive gaps are huge when interpreted as seconds (e.g. 2400 "seconds" = 40 min between
+  // sentences), the values are likely in ms or centiseconds. Convert to seconds.
+  if (transcriptSegments.length >= 2) {
+    const gaps: number[] = [];
+    for (let i = 1; i < transcriptSegments.length; i++) {
+      const a = transcriptSegments[i - 1].startTime;
+      const b = transcriptSegments[i].startTime;
+      if (a >= 0 && b >= 0) gaps.push(b - a);
+    }
+    if (gaps.length > 0) {
+      const sorted = [...gaps].sort((x, y) => x - y);
+      const medianGap = sorted[Math.floor(sorted.length / 2)]!;
+      // Sentence-to-sentence gaps are typically 1–60 seconds. If median gap > 5 min, unit is likely wrong.
+      if (medianGap > 300) {
+        const gapsAsMs = gaps.map((g) => g / 1000);
+        const medianGapMs =
+          gapsAsMs.sort((x, y) => x - y)[Math.floor(gapsAsMs.length / 2)] ?? 0;
+        if (medianGapMs >= 0.1 && medianGapMs <= 60) {
+          // Assume milliseconds: convert to seconds
+          for (const seg of transcriptSegments) {
+            if (seg.startTime >= 0) seg.startTime /= 1000;
+          }
+        } else {
+          const gapsAsHundredths = gaps.map((g) => g / 100);
+          const medianGap100 =
+            gapsAsHundredths.sort((x, y) => x - y)[
+              Math.floor(gapsAsHundredths.length / 2)
+            ] ?? 0;
+          if (medianGap100 >= 0.5 && medianGap100 <= 120) {
+            // Assume hundredths of seconds: convert to seconds
+            for (const seg of transcriptSegments) {
+              if (seg.startTime >= 0) seg.startTime /= 100;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Build transcript with timestamps if enabled (strict boolean so setting is honoured)
+  const includeTimestamps = settings.includeTimestamps === true;
   let rawTranscript: string;
   if (settings.singleLineTranscript) {
     // Single line mode: join everything with spaces
-    if (settings.includeTimestamps) {
+    if (includeTimestamps) {
       const parts: string[] = [];
       let lastTimestampTime = -1;
       const timestampFrequency = settings.timestampFrequency || 0;
 
       for (let i = 0; i < transcriptSegments.length; i++) {
         const segment = transcriptSegments[i];
+        // Use 0 when segment has no start time so "Include timestamps" is still honoured
+        const effectiveStartTime =
+          segment.startTime >= 0 ? segment.startTime : 0;
         const shouldAddTimestamp =
-          segment.startTime >= 0 &&
-          (timestampFrequency === 0 || // Every sentence
-            lastTimestampTime < 0 || // First timestamp
-            segment.startTime - lastTimestampTime >= timestampFrequency); // Frequency interval
+          timestampFrequency === 0 || // Every sentence
+          lastTimestampTime < 0 || // First timestamp
+          effectiveStartTime - lastTimestampTime >= timestampFrequency; // Frequency interval
 
         if (shouldAddTimestamp) {
           const timestamp = formatTimestamp(
-            segment.startTime,
+            effectiveStartTime,
             videoUrl,
             videoId,
             settings.localVideoDirectory,
           );
           parts.push(timestamp, segment.text);
-          lastTimestampTime = segment.startTime;
+          lastTimestampTime = effectiveStartTime;
         } else {
           parts.push(segment.text);
         }
@@ -578,7 +627,7 @@ async function parseTranscript(
     }
   } else {
     // Multi-line mode (original behavior)
-    if (settings.includeTimestamps) {
+    if (includeTimestamps) {
       const lines: string[] = [];
       let currentLineParts: string[] = [];
       let lastTimestampTime = -1;
@@ -586,11 +635,13 @@ async function parseTranscript(
 
       for (let i = 0; i < transcriptSegments.length; i++) {
         const segment = transcriptSegments[i];
+        // Use 0 when segment has no start time so "Include timestamps" is still honoured
+        const effectiveStartTime =
+          segment.startTime >= 0 ? segment.startTime : 0;
         const shouldAddTimestamp =
-          segment.startTime >= 0 &&
-          (timestampFrequency === 0 || // Every sentence
-            lastTimestampTime < 0 || // First timestamp
-            segment.startTime - lastTimestampTime >= timestampFrequency); // Frequency interval
+          timestampFrequency === 0 || // Every sentence
+          lastTimestampTime < 0 || // First timestamp
+          effectiveStartTime - lastTimestampTime >= timestampFrequency; // Frequency interval
 
         if (shouldAddTimestamp) {
           // If there's accumulated text, finish the current line first
@@ -600,13 +651,13 @@ async function parseTranscript(
           }
           // Start a new line with timestamp at the beginning, followed by the text
           const timestamp = formatTimestamp(
-            segment.startTime,
+            effectiveStartTime,
             videoUrl,
             videoId,
             settings.localVideoDirectory,
           );
           currentLineParts.push(timestamp, segment.text);
-          lastTimestampTime = segment.startTime;
+          lastTimestampTime = effectiveStartTime;
         } else {
           // Just add text to current line (continuing from previous segments)
           currentLineParts.push(segment.text);
@@ -646,7 +697,7 @@ async function parseTranscript(
     if (hasKey) {
       // If timestamps are included but we don't want them in LLM output, remove them
       let transcriptForLLM = rawTranscript;
-      if (settings.includeTimestamps && !settings.includeTimestampsInLLM) {
+      if (includeTimestamps && !settings.includeTimestampsInLLM) {
         // Remove timestamp links: [MM:SS](url) or [H:MM:SS](url)
         transcriptForLLM = transcriptForLLM.replace(
           /\[(\d{1,2}:\d{2}(?::\d{2})?)\]\([^)]+\)\s*/g,
