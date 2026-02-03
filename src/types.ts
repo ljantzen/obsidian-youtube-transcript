@@ -33,7 +33,6 @@ export interface YouTubeTranscriptPluginSettings {
   defaultDirectory: string | null; // Default directory from savedDirectories to use when creating new files (null = use current file's directory)
   fileFormat: "markdown" | "pdf"; // File format for saved transcripts
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
-  useAttachmentFolderForPdf: boolean; // When enabled, PDFs will be stored in Obsidian's attachment folder setting. If cover notes are enabled, PDFs will be nested in a subfolder under the cover note location.
   createPdfCoverNote: boolean; // When enabled, a cover note will be created for PDF files
   pdfCoverNoteLocation: string; // Location/path for PDF cover notes
   pdfCoverNoteTemplate: string; // Path to template file for PDF cover notes (empty = use default template)

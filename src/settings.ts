@@ -34,7 +34,6 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   defaultDirectory: null, // null = use current file's directory, or set to one of the savedDirectories paths
   fileFormat: "markdown", // Default to markdown for backward compatibility
   createNewFile: false, // Default to false - insert into current file by default
-  useAttachmentFolderForPdf: false, // Default to false - use selected directory instead of attachment folder. When enabled with cover notes, PDFs will be nested under cover notes.
   createPdfCoverNote: false, // Default to false - do not create cover note for PDFs by default
   pdfCoverNoteLocation: "", // Default to empty string - no specific location set
   pdfCoverNoteTemplate: "", // Default to empty string - use default template

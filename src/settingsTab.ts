@@ -383,20 +383,6 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     // PDF section
     new Setting(containerEl).setName("PDF").setHeading();
 
-    const attachmentFolderSetting = new Setting(containerEl)
-      .setName("Use attachment folder for PDFs")
-      .setDesc(
-        "When enabled, PDF files will be stored in the folder specified by Obsidian's 'Attachment folder' setting (Settings → Files & Links → Default location for new attachments). This respects the 'below the current folder' option. If PDF cover notes are enabled, PDFs will be nested in a subfolder under the cover note location. Markdown files are not affected.",
-      )
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.settings.useAttachmentFolderForPdf ?? false)
-          .onChange(async (value) => {
-            this.settings.useAttachmentFolderForPdf = value;
-            await this.saveSettings();
-          });
-      });
-
     new Setting(containerEl)
       .setName("Create PDF cover note")
       .setDesc("When enabled, a cover note will be created for PDF files")

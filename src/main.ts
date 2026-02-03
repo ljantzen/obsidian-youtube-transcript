@@ -230,12 +230,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
-    // Ensure useAttachmentFolderForPdf has a default value if missing (backward compatibility)
-    if (this.settings.useAttachmentFolderForPdf === undefined) {
-      this.settings.useAttachmentFolderForPdf = DEFAULT_SETTINGS.useAttachmentFolderForPdf;
-      await this.saveSettings();
-    }
-
     // Ensure singleLineTranscript has a default value if missing (backward compatibility)
     if (this.settings.singleLineTranscript === undefined) {
       this.settings.singleLineTranscript = DEFAULT_SETTINGS.singleLineTranscript;
@@ -260,14 +254,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
-    // Migrate nestPdfUnderCoverNote to useAttachmentFolderForPdf (backward compatibility)
+    // Remove obsolete nestPdfUnderCoverNote and useAttachmentFolderForPdf settings (backward compatibility)
     if ((this.settings as any).nestPdfUnderCoverNote !== undefined) {
-      // If nestPdfUnderCoverNote was enabled, enable useAttachmentFolderForPdf to preserve behavior
-      if ((this.settings as any).nestPdfUnderCoverNote === true) {
-        this.settings.useAttachmentFolderForPdf = true;
-      }
-      // Remove the old setting
       delete (this.settings as any).nestPdfUnderCoverNote;
+      await this.saveSettings();
+    }
+    if ((this.settings as any).useAttachmentFolderForPdf !== undefined) {
+      delete (this.settings as any).useAttachmentFolderForPdf;
       await this.saveSettings();
     }
 
@@ -311,45 +304,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       default:
         return false;
     }
-  }
-
-  /**
-   * Gets the attachment folder path from Obsidian settings
-   * Returns null if not set or if attachment folder is disabled
-   * Handles "below the current folder" case (returns "." which means relative to current file)
-   */
-  getAttachmentFolderPath(): string | null {
-    // Access Obsidian's attachment folder setting through the vault config
-    // Note: attachmentFolderPath is not in the public Vault type but exists at runtime
-    const vaultConfig = (this.app.vault as unknown as { config?: { attachmentFolderPath?: string; attachmentSubfolder?: string } }).config;
-    const attachmentFolderPath = vaultConfig?.attachmentFolderPath;
-
-    if (!attachmentFolderPath || attachmentFolderPath.trim() === "") {
-      return null;
-    }
-
-    // "." means "below the current folder" - return it as-is, caller will handle it
-    if (attachmentFolderPath === ".") {
-      return ".";
-    }
-
-    // Return the configured folder path
-    return attachmentFolderPath;
-  }
-
-  /**
-   * Gets the attachment subfolder name from Obsidian settings
-   * Used when attachmentFolderPath is "." (below the current folder)
-   * Returns "attachments" (lowercase) as default if not configured, matching Obsidian's default
-   */
-  getAttachmentSubfolderName(): string {
-    const vaultConfig = (this.app.vault as unknown as { config?: { attachmentSubfolder?: string } }).config;
-    const attachmentSubfolder = vaultConfig?.attachmentSubfolder;
-    
-    // Default to "attachments" (lowercase) if not configured, matching Obsidian's default behavior
-    return attachmentSubfolder && attachmentSubfolder.trim() !== "" 
-      ? attachmentSubfolder.trim() 
-      : "attachments";
   }
 
   fetchTranscript() {
@@ -518,18 +472,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       if (createNewFile) {
         const activeFile = this.app.workspace.getActiveFile();
         // Only require active file if no directory is selected (need to use current file's directory)
-        // Exception: For PDFs with attachment folder enabled, we can use the attachment folder even without an active file
-        // Note: If attachment folder is "." (below current folder), we can still use it if a default directory is set
-        let canUseAttachmentFolder = false;
-        if (fileFormat === "pdf" && this.settings.useAttachmentFolderForPdf) {
-          const attachmentFolder = this.getAttachmentFolderPath();
-          // Can use attachment folder if:
-          // 1. It's set and not "." (absolute path) - can use without active file
-          // 2. It's "." but we have a selected directory - can use selected directory as base
-          canUseAttachmentFolder = attachmentFolder !== null && 
-            (attachmentFolder !== "." || selectedDirectory !== null);
-        }
-        if (!activeFile && !selectedDirectory && !canUseAttachmentFolder) {
+        if (!activeFile && !selectedDirectory) {
           throw new Error(
             "Please open a file first to determine the directory, or set a default directory in settings",
           );
@@ -619,126 +562,31 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Determine which directory to use
     let directory: string;
-    
-    // For PDFs, check if we should use the attachment folder
-    if (
-      fileFormat === "pdf" &&
-      this.settings.useAttachmentFolderForPdf
-    ) {
-      const attachmentFolder = this.getAttachmentFolderPath();
-      if (attachmentFolder) {
-        // Handle explicit current folder (.) or relative paths (starting with ./)
-        // "Subfolder under current folder" usually results in "./Attachments"
-        if (attachmentFolder === "." || attachmentFolder.startsWith("./")) {
-          // "below the current folder" - use selected directory or current file's directory + subfolder
-          
-          // Determine the subfolder name
-          // If attachmentFolder is ".", we use the configured subfolder name (if any)
-          // If attachmentFolder starts with "./", we extract the subfolder from the path
-          let subfolderName = "";
-          
-          if (attachmentFolder === ".") {
-             // If ".", check if there's a separate attachmentSubfolder setting
-             // This covers "Same folder as current file" (if subfolder is empty/undefined)
-             // OR complex configurations
-             subfolderName = this.getAttachmentSubfolderName();
-             if (subfolderName === "attachments") {
-                 // If getAttachmentSubfolderName returned default "attachments" but config is just ".",
-                 // it means "Same folder as current file".
-                 // We should verify if "attachments" is actually configured or just a default fallback.
-                 // However, previously we assumed "." meant "use subfolder".
-                 // Let's assume "." implies same directory unless attachmentSubfolder is explicitly set.
-                 
-                 const vaultConfig = (this.app.vault as unknown as { config?: { attachmentSubfolder?: string } }).config;
-                 if (!vaultConfig?.attachmentSubfolder) {
-                     subfolderName = ""; // No subfolder, same directory
-                 }
-             }
-          } else {
-              // Extract subfolder from "./folderName"
-              subfolderName = attachmentFolder.substring(2);
-          }
-
-          // If attachment folder is "." or starts with "./", it means "relative to current file"
-          // so we should NOT use selectedDirectory - only activeFile directory
-          // Exception: if no active file, use vault root + subfolder
-          
-          if (activeFile) {
-            // Use current file's directory (ignore selectedDirectory when attachment folder is ".")
-            // Verify activeFile has a valid path
-            if (!activeFile.path || activeFile.path.trim() === "") {
-              throw new Error(
-                "Active file has no path. Cannot determine attachment directory.",
-              );
-            }
-
-            // Get the directory of the current file
-            // Handle both files in root and files in subdirectories
-            const lastSlashIndex = activeFile.path.lastIndexOf("/");
-            const fileDir = lastSlashIndex >= 0
-              ? activeFile.path.substring(0, lastSlashIndex)
-              : ""; // File is in root
-
-            // Combine
-            if (subfolderName && subfolderName.trim() !== "") {
-                directory = fileDir === "" ? subfolderName : `${fileDir}/${subfolderName}`;
-            } else {
-                directory = fileDir;
-            }
-          } else {
-            // No active file - use vault root + subfolder (per PDF-HANDLING.md lines 61-63, 168)
-            directory = subfolderName || "";
-          }
-          
-        } else {
-          // Use the configured attachment folder (absolute path)
-          directory = attachmentFolder;
-        }
-      } else {
-        // Attachment folder not set, fall back to normal directory selection
-        if (selectedDirectory === null) {
-          if (!activeFile) {
-            throw new Error(
-              "Cannot determine directory: no active file and no directory specified",
-            );
-          }
-          directory = activeFile.path.substring(
-            0,
-            activeFile.path.lastIndexOf("/"),
-          );
-        } else {
-          directory = selectedDirectory;
-        }
-      }
+    if (selectedDirectory !== null) {
+      directory = selectedDirectory;
+    } else if (activeFile) {
+      const lastSlashIndex = activeFile.path.lastIndexOf("/");
+      directory = lastSlashIndex >= 0
+        ? activeFile.path.substring(0, lastSlashIndex)
+        : ""; // File is in root
     } else {
-      // Normal directory selection for markdown files or when attachment folder is disabled
-      if (selectedDirectory === null) {
-        // Use current file's directory (activeFile must exist in this case)
-        if (!activeFile) {
-          throw new Error(
-            "Cannot determine directory: no active file and no directory specified",
-          );
-        }
-        directory = activeFile.path.substring(0, activeFile.path.lastIndexOf("/"));
-      } else {
-        // Use the selected directory
-        directory = selectedDirectory;
-      }
+      throw new Error(
+        "Cannot determine directory: no active file and no directory specified"
+      );
     }
 
     // Determine file extension based on format
     const fileExtension = fileFormat === "pdf" ? "pdf" : "md";
 
-    // Check if we should nest PDF under cover note (when useAttachmentFolderForPdf and cover notes are enabled)
+    // Check if we should nest PDF under cover note (when cover notes are enabled)
     if (
       fileFormat === "pdf" &&
-      this.settings.createPdfCoverNote &&
-      this.settings.useAttachmentFolderForPdf
+      this.settings.createPdfCoverNote
     ) {
       // Determine cover note directory:
-      // - If pdfCoverNoteLocation is set, nest it under the attachment folder directory
-      // - Otherwise, use the original directory (before nesting)
-      const baseDirectory = directory || ""; // The attachment folder or selected directory
+      // - If pdfCoverNoteLocation is set, use it
+      // - Otherwise, use the selected/current directory
+      const baseDirectory = directory || ""; // The selected directory or current file directory
       let coverNoteDirectory = this.settings.pdfCoverNoteLocation || "";
       
       // Replace template variables in cover note location
@@ -752,11 +600,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         const sanitizedVideoName = sanitizeFilename(videoTitle);
         coverNoteDirectory = coverNoteDirectory.replace(/{VideoName}/g, sanitizedVideoName);
         coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-        
-        // Nest pdfCoverNoteLocation under the base directory (attachment folder)
-        if (baseDirectory) {
-          coverNoteDirectory = `${baseDirectory}/${coverNoteDirectory}`;
-        }
       } else {
         // If no cover note location specified, use the base directory
         coverNoteDirectory = baseDirectory;
@@ -786,70 +629,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         try {
           await this.app.vault.createFolder(directory);
         } catch (error) {
-          // If folder creation fails, try to fall back to active file's directory if available
-          // But preserve the attachment subfolder if we're using attachment folder
-          if (activeFile) {
-            const isUsingAttachmentFolder = fileFormat === "pdf" && 
-              this.settings.useAttachmentFolderForPdf && 
-              (this.getAttachmentFolderPath() === "." || this.getAttachmentFolderPath()?.startsWith("./"));
-            
-            if (isUsingAttachmentFolder) {
-              // Preserve the attachment subfolder structure
-              const lastSlashIndex = activeFile.path.lastIndexOf("/");
-              const fileDir = lastSlashIndex >= 0 
-                ? activeFile.path.substring(0, lastSlashIndex)
-                : ""; // File is in root
-              
-              // Recalculate subfolder name using same logic as above
-              let subfolderName = "";
-              const attachmentFolder = this.getAttachmentFolderPath();
-              
-              if (attachmentFolder === ".") {
-                  const vaultConfig = (this.app.vault as unknown as { config?: { attachmentSubfolder?: string } }).config;
-                  if (vaultConfig?.attachmentSubfolder) {
-                      subfolderName = vaultConfig.attachmentSubfolder.trim();
-                  }
-              } else if (attachmentFolder && attachmentFolder.startsWith("./")) {
-                  subfolderName = attachmentFolder.substring(2);
-              }
-
-              directory = fileDir === "" 
-                ? (subfolderName || "") 
-                : (subfolderName ? `${fileDir}/${subfolderName}` : fileDir);
-
-              // If directory became empty string (root), it technically exists, but let's be safe
-              if (directory === "") directory = "/"; 
-              
-              if (directory !== "/") {
-                  console.warn(
-                    `Failed to create directory, retrying with: ${directory}`,
-                    error,
-                  );
-                  // Try creating again with the recomputed path
-                  try {
-                    await this.app.vault.createFolder(directory);
-                  } catch (retryError) {
-                      // If it already exists, ignore
-                      const exists = this.app.vault.getAbstractFileByPath(directory);
-                      if (!exists) {
-                        throw new Error(
-                          `Failed to create directory ${directory}: ${retryError instanceof Error ? retryError.message : "Unknown error"}`,
-                        );
-                      }
-                  }
-              }
-            } else {
-              console.warn(
-                `Failed to create directory ${directory}, using active file's directory:`,
-                error,
-              );
-              directory = activeFile.path.substring(
-                0,
-                activeFile.path.lastIndexOf("/"),
-              );
-            }
-          } else {
-            // If no active file, throw the error since we can't fall back
+          // Check if the folder already exists - if so, ignore the error
+          const exists = this.app.vault.getAbstractFileByPath(directory);
+          if (!exists || !(exists instanceof TFolder)) {
             throw new Error(
               `Failed to create directory ${directory}: ${error instanceof Error ? error.message : "Unknown error"}`,
             );
@@ -1037,11 +819,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       return coverNoteLocation;
     } else {
       // When cover note location is empty, use the PDF's directory
-      // Special case: if PDF nesting is enabled (useAttachmentFolderForPdf + createPdfCoverNote),
+      // If PDF nesting is enabled (createPdfCoverNote with pdfAttachmentFolderName),
       // the PDF is in a nested subfolder, so we need the parent directory for the cover note
       const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
       
-      if (this.settings.useAttachmentFolderForPdf && this.settings.createPdfCoverNote) {
+      if (this.settings.createPdfCoverNote && this.settings.pdfAttachmentFolderName) {
         // PDF is nested - use parent directory for cover note
         // e.g., PDF at "Attachments/VideoTitle/video.pdf" -> cover note dir is "Attachments"
         const parentDir = pdfDir.substring(0, pdfDir.lastIndexOf("/"));
