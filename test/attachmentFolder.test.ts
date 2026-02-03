@@ -126,7 +126,8 @@ describe('Attachment Folder for PDFs', () => {
     ): string => {
       if (fileFormat === 'pdf' && useAttachmentFolderForPdf && attachmentFolder) {
         if (attachmentFolder === '.' || attachmentFolder.startsWith('./')) {
-          // "below the current folder" - use current file's directory + subfolder
+          // "below the current folder" - always use current file's directory, NOT selectedDirectory
+          // Exception: if no active file, use vault root + subfolder
           
           let subfolderName = "";
           if (attachmentFolder === ".") {
@@ -137,20 +138,18 @@ describe('Attachment Folder for PDFs', () => {
               subfolderName = attachmentFolder.substring(2);
           }
 
-          // activeFileDir can be null (no file) or "" (file in root) - only null is invalid
-          if (activeFileDir === null) {
-            throw new Error(
-              "Cannot use 'below the current folder' attachment setting: no active file"
-            );
-          }
-          
-          // Use activeFileDir as base
-          const baseDir = activeFileDir;
-          
-          if (subfolderName && subfolderName.trim() !== "") {
-              return baseDir === "" ? subfolderName : `${baseDir}/${subfolderName}`;
+          if (activeFileDir !== null) {
+            // Use activeFileDir as base (ignore selectedDirectory)
+            const baseDir = activeFileDir;
+            
+            if (subfolderName && subfolderName.trim() !== "") {
+                return baseDir === "" ? subfolderName : `${baseDir}/${subfolderName}`;
+            } else {
+                return baseDir;
+            }
           } else {
-              return baseDir;
+            // No active file - use vault root + subfolder (per PDF-HANDLING.md)
+            return subfolderName || "";
           }
         }
         return attachmentFolder;
@@ -285,10 +284,18 @@ describe('Attachment Folder for PDFs', () => {
       expect(finalDir).toBe('Notes/Subfolder/attachments');
     });
 
-    it('should throw error when attachment folder is "." but no active file', () => {
-      expect(() => {
-        selectDirectoryForPdf('pdf', true, '.', null, null);
-      }).toThrow("Cannot use 'below the current folder' attachment setting: no active file");
+    it('should use vault root + subfolder when attachment folder is "." but no active file', () => {
+      // Per PDF-HANDLING.md line 168: when no file is open and attachment folder is ".",
+      // use vault root + subfolder name
+      const result = selectDirectoryForPdf('pdf', true, '.', null, null);
+      expect(result).toBe('attachments'); // Default subfolder at vault root
+    });
+
+    it('should use vault root + custom subfolder when no active file', () => {
+      // Per PDF-HANDLING.md line 168: when no file is open and attachment folder is ".",
+      // use vault root + configured subfolder name
+      const result = selectDirectoryForPdf('pdf', true, '.', null, null, 'Attachments');
+      expect(result).toBe('Attachments'); // Custom subfolder at vault root
     });
 
     it('should fall back to selected directory when attachment folder not set', () => {

@@ -659,24 +659,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               subfolderName = attachmentFolder.substring(2);
           }
 
-          // If a directory was explicitly selected, use that as the base
-          if (selectedDirectory !== null) {
-            const baseDir = selectedDirectory;
-            if (subfolderName && subfolderName.trim() !== "") {
-                directory = baseDir === "" 
-                    ? subfolderName 
-                    : `${baseDir}/${subfolderName}`;
-            } else {
-                directory = baseDir;
-            }
-          } else {
-            // Fall back to current file's directory
-            if (!activeFile) {
-              throw new Error(
-                "Cannot use 'below the current folder' attachment setting: no active file and no directory specified",
-              );
-            }
-
+          // If attachment folder is "." or starts with "./", it means "relative to current file"
+          // so we should NOT use selectedDirectory - only activeFile directory
+          // Exception: if no active file, use vault root + subfolder
+          
+          if (activeFile) {
+            // Use current file's directory (ignore selectedDirectory when attachment folder is ".")
             // Verify activeFile has a valid path
             if (!activeFile.path || activeFile.path.trim() === "") {
               throw new Error(
@@ -697,6 +685,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             } else {
                 directory = fileDir;
             }
+          } else {
+            // No active file - use vault root + subfolder (per PDF-HANDLING.md lines 61-63, 168)
+            directory = subfolderName || "";
           }
           
         } else {
