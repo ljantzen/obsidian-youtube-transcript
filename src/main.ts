@@ -726,7 +726,59 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
+    // Determine file extension based on format
+    const fileExtension = fileFormat === "pdf" ? "pdf" : "md";
+
+    // Check if we should nest PDF under cover note (when useAttachmentFolderForPdf and cover notes are enabled)
+    if (
+      fileFormat === "pdf" &&
+      this.settings.createPdfCoverNote &&
+      this.settings.useAttachmentFolderForPdf
+    ) {
+      // Determine cover note directory:
+      // - If pdfCoverNoteLocation is set, nest it under the attachment folder directory
+      // - Otherwise, use the original directory (before nesting)
+      const baseDirectory = directory || ""; // The attachment folder or selected directory
+      let coverNoteDirectory = this.settings.pdfCoverNoteLocation || "";
+      
+      // Replace template variables in cover note location
+      if (coverNoteDirectory) {
+        if (channelName) {
+          const sanitizedChannelName = sanitizeFilename(channelName);
+          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, sanitizedChannelName);
+        } else {
+          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, "");
+        }
+        const sanitizedVideoName = sanitizeFilename(videoTitle);
+        coverNoteDirectory = coverNoteDirectory.replace(/{VideoName}/g, sanitizedVideoName);
+        coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+        
+        // Nest pdfCoverNoteLocation under the base directory (attachment folder)
+        if (baseDirectory) {
+          coverNoteDirectory = `${baseDirectory}/${coverNoteDirectory}`;
+        }
+      } else {
+        // If no cover note location specified, use the base directory
+        coverNoteDirectory = baseDirectory;
+      }
+      
+      // Calculate attachment folder name
+      const attachmentFolderName = this.calculatePdfAttachmentFolderName(
+        baseSanitizedTitle,
+        videoTitle,
+        channelName,
+      );
+      
+      // Update directory to nest PDF under cover note
+      if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
+        directory = `${coverNoteDirectory}/${attachmentFolderName}`;
+      } else {
+        directory = attachmentFolderName;
+      }
+    }
+
     // Ensure directory exists (create if it doesn't)
+    // This is done AFTER determining the final directory (including nesting logic)
     if (directory && directory.trim() !== "") {
       const dirFile = this.app.vault.getAbstractFileByPath(directory);
       if (!dirFile || !(dirFile instanceof TFolder)) {
@@ -801,67 +853,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             throw new Error(
               `Failed to create directory ${directory}: ${error instanceof Error ? error.message : "Unknown error"}`,
             );
-          }
-        }
-      }
-    }
-
-    // Determine file extension based on format
-    const fileExtension = fileFormat === "pdf" ? "pdf" : "md";
-
-    // Check if we should nest PDF under cover note (when useAttachmentFolderForPdf and cover notes are enabled)
-    if (
-      fileFormat === "pdf" &&
-      this.settings.createPdfCoverNote &&
-      this.settings.useAttachmentFolderForPdf
-    ) {
-      // Determine cover note directory:
-      // - If pdfCoverNoteLocation is set, use it (with template variable replacement)
-      // - Otherwise, use the original directory (before nesting)
-      let coverNoteDirectory = this.settings.pdfCoverNoteLocation || "";
-      
-      // Replace template variables in cover note location
-      if (coverNoteDirectory) {
-        if (channelName) {
-          const sanitizedChannelName = sanitizeFilename(channelName);
-          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, sanitizedChannelName);
-        } else {
-          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, "");
-        }
-        const sanitizedVideoName = sanitizeFilename(videoTitle);
-        coverNoteDirectory = coverNoteDirectory.replace(/{VideoName}/g, sanitizedVideoName);
-        coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-      }
-      
-      // If no cover note location specified, use the original directory
-      if (!coverNoteDirectory || coverNoteDirectory.trim() === "") {
-        coverNoteDirectory = directory || "";
-      }
-      
-      // Calculate attachment folder name
-      const attachmentFolderName = this.calculatePdfAttachmentFolderName(
-        baseSanitizedTitle,
-        videoTitle,
-        channelName,
-      );
-      
-      // Update directory to nest PDF under cover note
-      if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
-        directory = `${coverNoteDirectory}/${attachmentFolderName}`;
-      } else {
-        directory = attachmentFolderName;
-      }
-      
-      // Ensure the nested directory exists
-      if (directory && directory.trim() !== "") {
-        const dirFile = this.app.vault.getAbstractFileByPath(directory);
-        if (!dirFile || !(dirFile instanceof TFolder)) {
-          try {
-            await this.app.vault.createFolder(directory);
-          } catch (error) {
-            console.warn(`Failed to create nested PDF directory: ${error}`);
-            // Fall back to original directory
-            // (directory will remain as calculated, but creation might fail)
           }
         }
       }

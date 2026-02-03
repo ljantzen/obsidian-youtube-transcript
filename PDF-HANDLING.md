@@ -76,11 +76,57 @@ If empty, the PDF filename (without extension) is used as the folder name. If sp
 
 PDF documents cannot easily contain metadata, so we added the possibility of automatically creating a cover note. This is a markdown document containing metadata retrieved from youtube, in addition to a link to the generated PDF transcript document. A templating mechanism is used when generating the cover note. The setting `pdfCoverNoteLocation` specifies a directory where PDF cover notes will be stored. 
 
-When both `useAttachmentFolderForPdf` and `createPdfCoverNote` are enabled, PDFs are nested in subfolders. The `pdfAttachmentFolderName` setting controls the subfolder name. The structure will be:
-- Cover note: `{pdfCoverNoteLocation}/{pdfFilename}.md`
-- PDF: `{pdfCoverNoteLocation}/{attachmentFolderName}/{pdfFilename}.pdf`
+When both `useAttachmentFolderForPdf` and `createPdfCoverNote` are enabled, PDFs are nested in subfolders. The `pdfAttachmentFolderName` setting controls the subfolder name. 
 
-If `pdfCoverNoteLocation` is left empty, the cover note will be placed in the same directory as the attachment folder (or vault root if no attachment folder is configured), with the same filename as the PDF but with extension '.md'. 
+### Default Cover Note Location (when `pdfCoverNoteLocation` is empty)
+
+**Important:** By default, cover notes are placed at the **parent level** (outside the PDF subfolder), not inside it. This design makes cover notes easier to find and link to, while keeping PDFs organized in subfolders.
+
+**Structure when `pdfCoverNoteLocation=""` (empty):**
+- Cover note: `{baseDirectory}/{coverNoteFilename}.md` (at parent level)
+- PDF: `{baseDirectory}/{pdfAttachmentFolderName}/{pdfFilename}.pdf` (nested inside subfolder)
+
+**Example with attachment folder "Media" and `pdfAttachmentFolderName="{ChannelName}-PDF"`:**
+- Cover note: `Media/My Video.md` (at parent level)
+- PDF: `Media/Acme-PDF/My Video.pdf` (nested in channel subfolder)
+
+### Custom Cover Note Location
+
+If you want the cover note **inside** the PDF subfolder (alongside the PDF), set `pdfCoverNoteLocation` explicitly:
+
+**Example:** To place both cover note and PDF in `Media/Acme-PDF/`:
+```json
+"pdfCoverNoteLocation": "Media/{ChannelName}-PDF"
+```
+
+This produces:
+- Cover note: `Media/Acme-PDF/My Video.md`
+- PDF: `Media/Acme-PDF/My Video.pdf`
+
+**General structure when `pdfCoverNoteLocation` is specified:**
+
+**Important:** When `useAttachmentFolderForPdf=true`, the `pdfCoverNoteLocation` is **nested under** the attachment folder, not an absolute path.
+
+- Cover note: `{attachmentFolder}/{pdfCoverNoteLocation}/{coverNoteFilename}.md`
+- PDF: `{attachmentFolder}/{pdfCoverNoteLocation}/{pdfAttachmentFolderName}/{pdfFilename}.pdf`
+
+**Example:** With attachment folder "A/B/C/XYZ" and `pdfCoverNoteLocation="Covers"`:
+- Cover note: `A/B/C/XYZ/Covers/My Video.md`
+- PDF: `A/B/C/XYZ/Covers/Acme-PDF/My Video.pdf` (assuming `pdfAttachmentFolderName="{ChannelName}-PDF"`)
+
+**To place both cover note and PDF in the same folder:**
+Set `pdfCoverNoteLocation="{ChannelName}-PDF"` and `pdfAttachmentFolderName=""`:
+- Cover note: `A/B/C/XYZ/Acme-PDF/My Video.md`
+- PDF: `A/B/C/XYZ/Acme-PDF/My Video.pdf`
+
+**Alternative:** To disable PDF subfolder nesting entirely:
+```json
+"pdfAttachmentFolderName": ""
+```
+
+This produces (with empty `pdfCoverNoteLocation`):
+- Cover note: `A/B/C/XYZ/My Video.md`
+- PDF: `A/B/C/XYZ/My Video/My Video.pdf` (uses PDF filename as folder name) 
 
 ## Cover note naming
 
@@ -124,6 +170,67 @@ When no template is specified, the default cover note includes:
 4. The summary (if LLM summarization is enabled)
 
 
+## Common Configuration Examples
+
+### Example 1: Cover note and PDF in separate locations (default behavior)
+
+**Settings:**
+```json
+{
+  "useAttachmentFolderForPdf": true,
+  "createPdfCoverNote": true,
+  "pdfCoverNoteLocation": "",
+  "pdfAttachmentFolderName": "{ChannelName}-PDF"
+}
+```
+
+**Obsidian attachment setting:** `A/B/C/XYZ` (absolute path)
+
+**Result:**
+- Cover note: `A/B/C/XYZ/My Video.md` (at parent level)
+- PDF: `A/B/C/XYZ/Acme-PDF/My Video.pdf` (nested in channel subfolder)
+
+### Example 2: Cover note and PDF in the same folder
+
+**Settings:**
+```json
+{
+  "useAttachmentFolderForPdf": true,
+  "createPdfCoverNote": true,
+  "pdfCoverNoteLocation": "{ChannelName}-PDF",
+  "pdfAttachmentFolderName": ""
+}
+```
+
+**Obsidian attachment setting:** `A/B/C/XYZ` (absolute path)
+
+**Result:**
+- Cover note: `A/B/C/XYZ/Acme-PDF/My Video.md`
+- PDF: `A/B/C/XYZ/Acme-PDF/My Video.pdf`
+
+Note: `pdfCoverNoteLocation` is nested under the attachment folder. Setting `pdfAttachmentFolderName=""` disables the extra subfolder nesting for the PDF.
+
+### Example 3: Cover notes in dedicated subfolder, PDFs nested by channel
+
+**Settings:**
+```json
+{
+  "useAttachmentFolderForPdf": true,
+  "createPdfCoverNote": true,
+  "pdfCoverNoteLocation": "Covers",
+  "pdfAttachmentFolderName": "{ChannelName}"
+}
+```
+
+**Obsidian attachment setting:** `Media`
+
+**Result:**
+- Cover note: `Media/Covers/My Video.md`
+- PDF: `Media/Covers/Acme/My Video.pdf`
+
+Note: The `pdfCoverNoteLocation="Covers"` is nested under the attachment folder `Media`, creating `Media/Covers/`.
+
+
 ## Pdf filename and location matrix 
 
 The following table specifies all config variable permutations and desired pdf and cover note locations. Example context: video title "My Video", channel "Acme", active file `Notes/MyNote.md` (current directory `Notes`), selected directory in modal when used is `Transcripts`. Vault root is represented as empty path.
@@ -158,7 +265,22 @@ The following table specifies all config variable permutations and desired pdf a
 
 ### With cover note + attachment folder (PDF nested under cover note)
 
-When both `useAttachmentFolderForPdf` and `createPdfCoverNote` are true, the PDF is stored in a subfolder under the cover note directory. Cover note: `{coverNoteDirectory}/{filename}.md`. PDF: `{coverNoteDirectory}/{pdfAttachmentFolderName}/{filename}.pdf`. If `pdfAttachmentFolderName` is empty, the PDF filename (without extension) is used as the subfolder name.
+When both `useAttachmentFolderForPdf` and `createPdfCoverNote` are true, the PDF is stored in a subfolder under the cover note directory. 
+
+**Important:** When `pdfCoverNoteLocation=""` (empty), the cover note is placed at the **parent level**, NOT inside the PDF subfolder. See examples below.
+
+**Structure:**
+- Cover note: `{coverNoteDirectory}/{filename}.md` (at parent level when pdfCoverNoteLocation is empty)
+- PDF: `{coverNoteDirectory}/{pdfAttachmentFolderName}/{filename}.pdf` (nested in subfolder)
+
+**If `pdfAttachmentFolderName` is empty,** the PDF filename (without extension) is used as the subfolder name.
+
+**To place the cover note INSIDE the PDF subfolder,** set `pdfCoverNoteLocation` to include the `pdfAttachmentFolderName` template variable. Example:
+```json
+"pdfCoverNoteLocation": "Media/{ChannelName}-PDF",
+"pdfAttachmentFolderName": "{ChannelName}-PDF"
+```
+This would place both the cover note and PDF in `Media/Acme-PDF/` (assuming channel name is "Acme").
 
 | useAttachmentFolderForPdf | Default location for new attachments                | Open file | createPdfCoverNote | pdfCoverNoteLocation | pdfAttachmentFolderName | Calculated PDF location                     | Calculated cover note location   |
 |---------------------------|-----------------------------------------------------|-----------|--------------------|----------------------|--------------------------|--------------------------------------------|----------------------------------|
