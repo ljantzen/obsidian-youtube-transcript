@@ -14,6 +14,7 @@ Return only the cleaned transcript without any additional commentary or explanat
 export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   useLLMProcessing: false, // Default to false - use raw transcript by default
   llmProvider: "openai",
+  customProviders: [], // Empty array - users can add custom providers in settings
   openaiKey: "",
   openaiModel: "gpt-4o-mini",
   geminiKey: "",

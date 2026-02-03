@@ -6,7 +6,7 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 
 - **Fetch transcripts from YouTube videos** - Automatically extract captions from any YouTube video
 - **Clickable timestamps** - Timestamps are included as clickable links that jump to the exact moment in the video
-- **Multiple LLM providers** - Optional processing with OpenAI, Google Gemini, or Anthropic Claude to clean up transcripts
+- **Multiple LLM providers** - Optional processing with OpenAI, Google Gemini, Anthropic Claude, or custom providers (e.g., OpenRouter, Ollama, local models) to clean up transcripts
 - **Summary generation** - Automatically generate concise summaries of video content
 - **Channel name tagging** - Automatically tag notes with the YouTube channel name
 - **Insert or create new files** - Insert transcripts into current note or create a new file based on video title
@@ -165,11 +165,19 @@ Timestamps are included by default and appear as clickable links. In multi-line 
 
 ### LLM Processing (Optional)
 
-The plugin supports three LLM providers for cleaning and processing transcripts:
+The plugin supports multiple LLM providers for cleaning and processing transcripts:
 
+**Built-in Providers:**
 1. **OpenAI** - GPT-4o Mini, GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo, and more
 2. **Google Gemini** - Gemini 3 Pro, Gemini 3 Flash, Gemini 2.0 Flash, and more
 3. **Anthropic Claude** - Claude Sonnet 4, Claude Opus 4, Claude Haiku 4
+
+**Custom Providers:**
+You can add your own custom LLM providers that use OpenAI-compatible API format:
+- **OpenRouter** - Access to 100+ models through a single API
+- **Ollama** - Run local models on your machine
+- **LM Studio** - Local model inference server
+- **Any OpenAI-compatible API** - Many services follow the OpenAI API format
 
 **Setup:**
 1. Go to Settings → YouTube Transcript Settings
@@ -189,6 +197,57 @@ The plugin supports three LLM providers for cleaning and processing transcripts:
 
 **Default Processing:**
 The default prompt removes self-promotion, calls to action, and promotional content while maintaining the original meaning and improving grammar and sentence structure.
+
+### Custom LLM Providers
+
+You can configure custom LLM providers that use OpenAI-compatible API format:
+
+**Adding a Custom Provider:**
+1. Go to Settings → YouTube Transcript Settings → Custom LLM Providers
+2. Click "Add custom provider"
+3. Fill in the configuration:
+   - **Provider name**: A friendly name (e.g., "OpenRouter", "Local Ollama")
+   - **API endpoint**: Full URL to the chat completions endpoint
+   - **API key**: Your authentication token
+   - **Model**: The model identifier to use
+   - **Timeout**: Request timeout in minutes (default: 1)
+   - **Custom headers** (optional): Additional HTTP headers (e.g., for OpenRouter)
+
+**Example Configurations:**
+
+**OpenRouter** (access 100+ models):
+- Name: `OpenRouter`
+- Endpoint: `https://openrouter.ai/api/v1/chat/completions`
+- API Key: Your OpenRouter API key (from openrouter.ai)
+- Model: `openai/gpt-4o-mini` (or any model from their catalog)
+- Custom headers:
+  - `HTTP-Referer`: Your site URL (optional, for ranking)
+  - `X-Title`: Your app name (optional, for ranking)
+
+**Ollama** (local models):
+- Name: `Ollama`
+- Endpoint: `http://localhost:11434/v1/chat/completions`
+- API Key: `ollama` (any value works for local Ollama)
+- Model: `llama3` (or any installed model)
+- Timeout: 5 (local models may need more time)
+
+**LM Studio** (local models):
+- Name: `LM Studio`
+- Endpoint: `http://localhost:1234/v1/chat/completions`
+- API Key: `lm-studio` (any value works)
+- Model: The model loaded in LM Studio
+- Timeout: 5
+
+**Using Custom Providers:**
+1. After adding a custom provider, it will appear in the "LLM provider" dropdown
+2. Select it like any built-in provider
+3. Enable "Use LLM processing" to use it for transcripts
+4. All retry logic and error handling works the same as built-in providers
+
+**Requirements:**
+- Custom providers must use OpenAI-compatible API format
+- The API should accept requests with `model`, `messages`, and `temperature` fields
+- The response should follow OpenAI's format with `choices[0].message.content`
 
 ### Summary Generation
 
@@ -280,9 +339,10 @@ When fetching a transcript, you can configure:
 All settings are available in **Settings → YouTube Transcript Settings**:
 
 ### LLM Provider Settings
-- **LLM provider**: Select provider (None, OpenAI, Gemini, or Claude)
+- **LLM provider**: Select provider (OpenAI, Gemini, Claude, or any custom provider you've configured)
+- **Custom LLM Providers**: Add and manage custom providers (OpenRouter, Ollama, etc.)
 - **API keys**: Enter your API keys for the selected provider
-- **Model selection**: Choose from available models (automatically fetched)
+- **Model selection**: Choose from available models (automatically fetched for built-in providers)
 - **Processing prompt**: Customize how transcripts are processed
 - **LLM timeout**: Set timeout for API requests (default: 1 minute)
 - **Force LLM output language**: When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures processed transcripts maintain the original language and prevents unwanted translations. The language is automatically detected from the transcript you're processing.
@@ -421,6 +481,7 @@ npm run lint:fix
 - **External requests**: The plugin makes requests to:
   - YouTube (to fetch video information and transcripts)
   - OpenAI/Gemini/Claude APIs (only if you provide API keys, for optional transcript processing)
+  - Custom provider endpoints (only if you configure custom providers)
 
 ## Troubleshooting
 
@@ -434,6 +495,8 @@ npm run lint:fix
 - Verify your API key is correct in Settings
 - Check that you have credits available in your provider account
 - Verify the selected model is available
+- **For custom providers**: Test the endpoint URL in a browser or with curl to verify it's accessible
+- **For local models**: Ensure the local server (Ollama, LM Studio) is running
 - Review the console (F12) for error messages
 - Check the timeout setting if requests are timing out
 

@@ -98,6 +98,7 @@ export async function getAvailableLanguages(
 import { processWithOpenAI } from "./llm/openai";
 import { processWithGemini } from "./llm/gemini";
 import { processWithClaude } from "./llm/claude";
+import { processWithCustomProvider } from "./llm/custom";
 
 export async function getYouTubeTranscript(
   app: App,
@@ -788,9 +789,26 @@ async function processWithLLM(
         RetryModal,
         transcriptLanguageCode,
       );
-    default:
+    default: {
+      // Check if it's a custom provider
+      const customProvider = settings.customProviders?.find(
+        (p) => p.id === provider,
+      );
+      if (customProvider) {
+        return await processWithCustomProvider(
+          app,
+          transcript,
+          generateSummary,
+          settings,
+          customProvider,
+          statusCallback,
+          RetryModal,
+          transcriptLanguageCode,
+        );
+      }
       new Notice(`Unsupported LLM provider: ${String(provider)}`, 10000);
       return { transcript, summary: null };
+    }
   }
 }
 
@@ -805,8 +823,17 @@ function hasProviderKey(
       return !!(settings.geminiKey && settings.geminiKey.trim() !== "");
     case "claude":
       return !!(settings.claudeKey && settings.claudeKey.trim() !== "");
-    default:
-      return false;
+    default: {
+      // Check if it's a custom provider
+      const customProvider = settings.customProviders?.find(
+        (p) => p.id === provider,
+      );
+      return !!(
+        customProvider &&
+        customProvider.apiKey &&
+        customProvider.apiKey.trim() !== ""
+      );
+    }
   }
 }
 

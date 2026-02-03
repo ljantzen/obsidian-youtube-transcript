@@ -1,8 +1,19 @@
-export type LLMProvider = "openai" | "gemini" | "claude";
+export type LLMProvider = "openai" | "gemini" | "claude" | string;
+
+export interface CustomLLMProvider {
+  id: string;
+  name: string;
+  endpoint: string;
+  apiKey: string;
+  model: string;
+  timeout: number; // Timeout in minutes
+  customHeaders?: Record<string, string>; // Optional custom headers (e.g., HTTP-Referer, X-Title for OpenRouter)
+}
 
 export interface YouTubeTranscriptPluginSettings {
   useLLMProcessing: boolean; // Whether to use LLM processing for transcripts
   llmProvider: LLMProvider;
+  customProviders: CustomLLMProvider[]; // Array of custom LLM providers
   openaiKey: string;
   openaiModel: string;
   geminiKey: string;

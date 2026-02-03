@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting, Notice, Plugin } from "obsidian";
-import type { YouTubeTranscriptPluginSettings, LLMProvider } from "./types";
+import type { YouTubeTranscriptPluginSettings, LLMProvider, CustomLLMProvider } from "./types";
 import {
   DEFAULT_SETTINGS,
   DEFAULT_PROMPT,
@@ -514,7 +514,17 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           dropdown
             .addOption("openai", "OpenAI")
             .addOption("gemini", "Google Gemini")
-            .addOption("claude", "Anthropic Claude")
+            .addOption("claude", "Anthropic Claude");
+
+          // Add custom providers to the dropdown
+          const customProviders = this.settings.customProviders || [];
+          if (customProviders.length > 0) {
+            customProviders.forEach((provider) => {
+              dropdown.addOption(provider.id, `${provider.name} (Custom)`);
+            });
+          }
+
+          dropdown
             .setValue(this.settings.llmProvider || "openai")
             .onChange(async (value: LLMProvider) => {
               this.settings.llmProvider = value;
@@ -523,6 +533,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
               this.display();
             });
         });
+
 
       // Show OpenAI API key field if OpenAI is selected
       if (this.settings.llmProvider === "openai") {
@@ -661,6 +672,26 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
               await this.saveSettings();
             });
         });
+      
+      // Custom Providers Section
+      new Setting(containerEl)
+        .setName("Custom LLM Providers")
+        .setDesc(
+          "Add custom LLM providers (e.g., OpenRouter, Ollama, local models). These providers must use OpenAI-compatible API format.",
+        )
+        .setHeading();
+
+      this.renderCustomProvidersList(containerEl);
+
+      // Add Custom Provider Button
+      new Setting(containerEl).addButton((button) => {
+        button
+          .setButtonText("Add custom provider")
+          .setCta()
+          .onClick(() => {
+            this.showAddCustomProviderModal(containerEl);
+          });
+      });
     } // End of if (this.settings.useLLMProcessing)
   }
 
@@ -806,4 +837,348 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     }
   }
 
+  private renderCustomProvidersList(containerEl: HTMLElement): void {
+    const customProviders = this.settings.customProviders || [];
+    const providersList = containerEl.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+
+    if (customProviders.length === 0) {
+      providersList.createEl("p", {
+        text: "No custom providers configured. Add one below.",
+        attr: { style: "color: var(--text-muted); font-style: italic;" },
+      });
+    } else {
+      customProviders.forEach((provider) => {
+        const providerItem = providersList.createDiv({
+          attr: {
+            style:
+              "display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.5em; padding: 0.5em; background: var(--background-secondary); border-radius: 4px;",
+          },
+        });
+
+        const infoDiv = providerItem.createDiv({ attr: { style: "flex: 1;" } });
+        infoDiv.createEl("strong", {
+          text: provider.name,
+          attr: { style: "display: block;" },
+        });
+        infoDiv.createEl("span", {
+          text: provider.endpoint,
+          attr: {
+            style:
+              "font-family: monospace; font-size: 0.9em; color: var(--text-muted);",
+          },
+        });
+
+        const editButton = providerItem.createEl("button", {
+          text: "Edit",
+          attr: { style: "font-size: 0.9em;" },
+        });
+        editButton.onclick = () => {
+          this.showEditCustomProviderModal(containerEl, provider);
+        };
+
+        const removeButton = providerItem.createEl("button", {
+          text: "Remove",
+          attr: { style: "font-size: 0.9em;" },
+        });
+        removeButton.onclick = async () => {
+          this.settings.customProviders = this.settings.customProviders.filter(
+            (p) => p.id !== provider.id,
+          );
+          // If this was the selected provider, switch to OpenAI
+          if (this.settings.llmProvider === provider.id) {
+            this.settings.llmProvider = "openai";
+          }
+          await this.saveSettings();
+          this.display();
+        };
+      });
+    }
+  }
+
+  private showAddCustomProviderModal(containerEl: HTMLElement): void {
+    const modal = new CustomProviderModal(
+      this.app,
+      null,
+      async (provider) => {
+        // Generate unique ID
+        const existingIds = this.settings.customProviders.map((p) => p.id);
+        let id = 1;
+        while (existingIds.includes(`custom-${id}`)) {
+          id++;
+        }
+        provider.id = `custom-${id}`;
+
+        this.settings.customProviders.push(provider);
+        await this.saveSettings();
+        this.display();
+      },
+    );
+    modal.open();
+  }
+
+  private showEditCustomProviderModal(
+    containerEl: HTMLElement,
+    provider: CustomLLMProvider,
+  ): void {
+    const modal = new CustomProviderModal(
+      this.app,
+      provider,
+      async (updatedProvider) => {
+        const index = this.settings.customProviders.findIndex(
+          (p) => p.id === provider.id,
+        );
+        if (index !== -1) {
+          this.settings.customProviders[index] = {
+            ...updatedProvider,
+            id: provider.id, // Keep the same ID
+          };
+          await this.saveSettings();
+          this.display();
+        }
+      },
+    );
+    modal.open();
+  }
+
+}
+
+import { Modal } from "obsidian";
+
+class CustomProviderModal extends Modal {
+  provider: CustomLLMProvider | null;
+  onSubmit: (provider: CustomLLMProvider) => void;
+  formData: Partial<CustomLLMProvider>;
+
+  constructor(
+    app: App,
+    provider: CustomLLMProvider | null,
+    onSubmit: (provider: CustomLLMProvider) => void,
+  ) {
+    super(app);
+    this.provider = provider;
+    this.onSubmit = onSubmit;
+    this.formData = provider
+      ? { ...provider }
+      : {
+          name: "",
+          endpoint: "",
+          apiKey: "",
+          model: "",
+          timeout: 1,
+          customHeaders: {},
+        };
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+
+    contentEl.createEl("h2", {
+      text: this.provider ? "Edit Custom Provider" : "Add Custom Provider",
+    });
+
+    contentEl.createEl("p", {
+      text: "Configure a custom LLM provider (must use OpenAI-compatible API format)",
+      attr: { style: "color: var(--text-muted); margin-bottom: 1em;" },
+    });
+
+    // Provider Name
+    new Setting(contentEl)
+      .setName("Provider name")
+      .setDesc("A friendly name for this provider (e.g., 'OpenRouter', 'Ollama')")
+      .addText((text) => {
+        text
+          .setPlaceholder("OpenRouter")
+          .setValue(this.formData.name || "")
+          .onChange((value) => {
+            this.formData.name = value;
+          });
+        text.inputEl.focus();
+      });
+
+    // API Endpoint
+    new Setting(contentEl)
+      .setName("API endpoint")
+      .setDesc(
+        "Full URL to the API endpoint (e.g., https://openrouter.ai/api/v1/chat/completions)",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("https://openrouter.ai/api/v1/chat/completions")
+          .setValue(this.formData.endpoint || "")
+          .onChange((value) => {
+            this.formData.endpoint = value;
+          });
+        text.inputEl.style.width = "100%";
+      });
+
+    // API Key
+    new Setting(contentEl)
+      .setName("API key")
+      .setDesc("Your API key for this provider")
+      .addText((text) => {
+        text.inputEl.type = "password";
+        text
+          .setPlaceholder("sk-...")
+          .setValue(this.formData.apiKey || "")
+          .onChange((value) => {
+            this.formData.apiKey = value;
+          });
+        text.inputEl.style.width = "100%";
+      });
+
+    // Model
+    new Setting(contentEl)
+      .setName("Model")
+      .setDesc("The model ID to use (e.g., 'openai/gpt-4o-mini')")
+      .addText((text) => {
+        text
+          .setPlaceholder("openai/gpt-4o-mini")
+          .setValue(this.formData.model || "")
+          .onChange((value) => {
+            this.formData.model = value;
+          });
+        text.inputEl.style.width = "100%";
+      });
+
+    // Timeout
+    new Setting(contentEl)
+      .setName("Timeout")
+      .setDesc("Request timeout in minutes (default: 1)")
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text
+          .setPlaceholder("1")
+          .setValue(String(this.formData.timeout || 1))
+          .onChange((value) => {
+            const timeout = parseInt(value, 10);
+            if (!isNaN(timeout) && timeout > 0) {
+              this.formData.timeout = timeout;
+            }
+          });
+      });
+
+    // Custom Headers (Advanced)
+    const headersContainer = contentEl.createDiv({
+      attr: { style: "margin-top: 1em;" },
+    });
+
+    new Setting(headersContainer)
+      .setName("Custom headers (optional)")
+      .setDesc(
+        "Add custom HTTP headers (e.g., HTTP-Referer, X-Title for OpenRouter)",
+      );
+
+    const headersList = headersContainer.createDiv({
+      attr: { style: "margin-bottom: 1em;" },
+    });
+
+    const renderHeaders = () => {
+      headersList.empty();
+      const headers = this.formData.customHeaders || {};
+      Object.entries(headers).forEach(([key, value]) => {
+        const headerItem = headersList.createDiv({
+          attr: {
+            style:
+              "display: flex; gap: 0.5em; margin-bottom: 0.5em; align-items: center;",
+          },
+        });
+
+        const keyInput = headerItem.createEl("input", {
+          type: "text",
+          placeholder: "Header name",
+          value: key,
+          attr: { style: "flex: 1;" },
+        });
+
+        const valueInput = headerItem.createEl("input", {
+          type: "text",
+          placeholder: "Header value",
+          value: value,
+          attr: { style: "flex: 1;" },
+        });
+
+        const removeBtn = headerItem.createEl("button", { text: "Remove" });
+        removeBtn.onclick = () => {
+          delete this.formData.customHeaders![key];
+          renderHeaders();
+        };
+
+        keyInput.addEventListener("change", () => {
+          const newHeaders = { ...this.formData.customHeaders };
+          delete newHeaders[key];
+          newHeaders[keyInput.value] = valueInput.value;
+          this.formData.customHeaders = newHeaders;
+          renderHeaders();
+        });
+
+        valueInput.addEventListener("change", () => {
+          this.formData.customHeaders![key] = valueInput.value;
+        });
+      });
+    };
+
+    renderHeaders();
+
+    const addHeaderBtn = headersList.createEl("button", {
+      text: "Add header",
+      attr: { style: "margin-top: 0.5em;" },
+    });
+    addHeaderBtn.onclick = () => {
+      if (!this.formData.customHeaders) {
+        this.formData.customHeaders = {};
+      }
+      this.formData.customHeaders[""] = "";
+      renderHeaders();
+    };
+
+    // Buttons
+    const buttonContainer = contentEl.createDiv({
+      attr: {
+        style:
+          "display: flex; gap: 0.5em; justify-content: flex-end; margin-top: 1.5em;",
+      },
+    });
+
+    const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
+    cancelButton.onclick = () => {
+      this.close();
+    };
+
+    const saveButton = buttonContainer.createEl("button", {
+      text: "Save",
+      cls: "mod-cta",
+    });
+    saveButton.onclick = () => {
+      if (
+        !this.formData.name ||
+        !this.formData.endpoint ||
+        !this.formData.apiKey ||
+        !this.formData.model
+      ) {
+        new Notice(
+          "Please fill in all required fields (name, endpoint, API key, model)",
+        );
+        return;
+      }
+
+      // Validate URL format
+      try {
+        new URL(this.formData.endpoint);
+      } catch {
+        new Notice("Invalid API endpoint URL");
+        return;
+      }
+
+      this.onSubmit(this.formData as CustomLLMProvider);
+      this.close();
+    };
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
 }
