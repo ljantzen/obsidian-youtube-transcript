@@ -1,6 +1,6 @@
 # PDF Handling in obsidian-ytt
 
-This document specifies how the obsidian-ytt plugin handles PDF file creation, directory selection, and cover note generation.
+This document specifies how the obsidian-youtube-transcript plugin handles PDF file creation, directory selection, and cover note generation.
 
 ## Overview
 
