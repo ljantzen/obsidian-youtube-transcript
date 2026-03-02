@@ -10,7 +10,8 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Summary generation** - Automatically generate concise summaries of video content
 - **Channel name tagging** - Automatically tag notes with the YouTube channel name
 - **Insert or create new files** - Insert transcripts into current note or create a new file based on video title
-- **Multiple file formats** - Save transcripts as Markdown (.md) or PDF files
+- **Multiple file formats** - Save transcripts as Markdown (.md), PDF, or SRT subtitle files
+- **Prevent duplicate notes** - Optionally check whether a transcript for the same video already exists before fetching
 - **PDF attachment folder integration** - Store PDFs in Obsidian's attachment folder setting (respects "below the current folder" option). When cover notes are enabled, PDFs are automatically nested in subfolders underneath cover notes
 - **PDF cover notes** - Automatically create markdown cover notes for PDF transcripts with customizable templates
 - **Video metadata** - Automatically extract and include video metadata (upload date, view count, duration, etc.) in transcripts and cover notes
@@ -85,9 +86,10 @@ The plugin includes a command that automatically fetches transcripts from your c
   - The same directory as the current file (if no default directory is set and no directory is selected)
 - **With a default directory set**: You can create new files even when no document is open (useful for the clipboard command)
 - The filename will be based on the video title (sanitized for filesystem)
-- Choose between Markdown (.md) or PDF format
+- Choose between Markdown (.md), PDF, or SRT subtitle format
 - Markdown files will automatically open after creation
 - PDF files will be created and a notification will be shown (PDFs open in your system's default PDF viewer)
+- SRT files will be created as `.srt` subtitle files (LLM processing is skipped for SRT; always creates a new file)
 
 **PDF Attachment Folder**: When enabled, PDF files are stored in Obsidian's attachment folder (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option, which stores PDFs in the same directory as the current file. If PDF cover notes are also enabled, PDFs will be automatically nested in subfolders underneath the cover note location. This setting only affects PDF files; Markdown files use normal directory selection.
 
@@ -99,6 +101,8 @@ When creating PDF transcripts, you can automatically generate markdown cover not
 2. Configure the cover note location (supports template variables: `{ChannelName}`, `{VideoName}`)
 3. Optionally specify a custom template file for cover notes
 4. When a PDF is created, a markdown cover note will be automatically generated and opened
+
+**No open file required**: If "PDF cover note location" is configured, you can create PDF transcripts even when no document is open (the cover note location acts as the target directory). This also works with the clipboard command.
 
 **Nesting PDFs Under Cover Notes:**
 
@@ -147,6 +151,24 @@ When both "Use attachment folder for PDFs" and "Create PDF cover note" are enabl
 - Set the template path in Settings → YouTube Transcript Settings → PDF → PDF cover note template
 - The template will be processed with all available variables
 - If the template file is not found, the default template will be used
+
+### Prevent Duplicate Notes
+
+The plugin can check whether a transcript for the same video already exists in your vault before fetching:
+
+1. Enable "Prevent duplicate notes" in Settings → YouTube Transcript Settings → File Creation
+2. Set "Duplicate check property" to the YAML frontmatter key that holds the video URL or ID (default: `url`)
+3. When you fetch a transcript with "Create new file" enabled, the plugin will search all markdown files in your vault for a note whose frontmatter property matches the video
+4. If a duplicate is found, a notice will show the existing note's name and the operation is cancelled — no network request is made
+
+**How matching works:**
+- The frontmatter property value can be a full YouTube URL (`https://www.youtube.com/watch?v=VIDEO_ID`), a short URL (`https://youtu.be/VIDEO_ID`), or a bare video ID
+- All formats resolve to the same video ID for comparison, so different URL formats won't cause false negatives
+
+**Notes:**
+- The check only applies when "Create new file" is enabled — inserting into an existing note always proceeds
+- Only markdown files are checked; PDF and SRT files are not
+- The check uses Obsidian's in-memory metadata cache, so it adds no meaningful delay before the network request
 
 ### Timestamps
 
@@ -324,11 +346,11 @@ When fetching a transcript, you can configure:
 
 - **Transcript language**: Select your preferred transcript language from available options. The dropdown automatically populates when you enter a YouTube URL. Choose "Auto" to use your preferred language setting, or select a specific language to override it for this video.
 - **Create new file**: Create a new file instead of inserting into current note (default can be set in settings)
-- **File format**: Choose between Markdown (.md) or PDF format (only shown when creating new file)
+- **File format**: Choose between Markdown (.md), PDF, or SRT format (only shown when creating new file)
 - **Include video URL**: Add the video URL as a markdown link
 - **Tag with channel name**: Add channel name as a tag
 - **Use LLM processing**: Enable/disable LLM processing for this transcript (only shown if providers are configured)
-- **LLM provider**: Select which LLM provider to use (only shown if providers are configured)
+- **LLM provider**: Select which LLM provider to use, including any configured custom providers (only shown if providers are configured)
 - **Generate summary**: Generate a summary (requires LLM processing enabled and a provider configured)
 - **Directory selection**: Choose from saved directories or enter a custom directory path (only shown when creating new file)
 
@@ -352,7 +374,9 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Default note name**: Template for note file names. Supports `{VideoName}` and `{ChannelName}` variables. Default: `{VideoName}`
 - **Default directory**: Select one of your saved directories as the default (only shown when you have saved directories). When set, new files will be created in this directory by default, and you can use the clipboard command even when no document is open
 - **Saved directories**: List of frequently used directories for quick selection in the modal. Add directories here, then optionally select one as the default
-- **File format**: Default file format for new transcript files (Markdown or PDF)
+- **File format**: Default file format for new transcript files (Markdown, PDF, or SRT)
+- **Prevent duplicate notes**: When enabled, checks whether a transcript for the same video already exists in your vault before fetching. Only applies when "Create new file" is enabled
+- **Duplicate check property**: The YAML frontmatter property name to check for duplicate detection (default: `url`). The plugin compares the video ID extracted from this property's value against the current video
 
 ### PDF Settings
 - **Use attachment folder for PDFs**: When enabled, PDF files will be stored in the folder specified by Obsidian's "Attachment folder" setting (Settings → Files & Links → Default location for new attachments). This respects the "below the current folder" option. If "Create PDF cover note" is also enabled, PDFs will be automatically nested in subfolders underneath the cover note location. Markdown files are not affected and use normal directory selection.
@@ -461,6 +485,10 @@ Test coverage includes:
 - Frontmatter generation
 - Language selection and fallback logic
 - Force LLM output language functionality
+- SRT subtitle format generation (time formatting, cue structure, segment filtering, end-time calculation)
+- Duplicate note prevention (video URL matching, frontmatter property extraction)
+- Custom LLM provider key validation
+- PDF cover note directory guard logic (no open file required when location is configured)
 
 See [test/README.md](test/README.md) for more details.
 
