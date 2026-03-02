@@ -301,8 +301,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         return !!(
           this.settings.claudeKey && this.settings.claudeKey.trim() !== ""
         );
-      default:
-        return false;
+      default: {
+        const customProvider = this.settings.customProviders?.find(
+          (p) => p.id === provider
+        );
+        return !!(
+          customProvider &&
+          customProvider.apiKey &&
+          customProvider.apiKey.trim() !== ""
+        );
+      }
     }
   }
 

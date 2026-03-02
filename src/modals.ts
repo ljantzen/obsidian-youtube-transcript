@@ -518,7 +518,10 @@ export class YouTubeUrlModal extends Modal {
     const hasAnyProviderKey =
       this.callbacks.hasProviderKey("openai") ||
       this.callbacks.hasProviderKey("gemini") ||
-      this.callbacks.hasProviderKey("claude");
+      this.callbacks.hasProviderKey("claude") ||
+      (this.settings.customProviders ?? []).some((p) =>
+        this.callbacks.hasProviderKey(p.id)
+      );
 
     // Only show LLM-related options if at least one provider is configured
     let useLLMCheckbox: HTMLInputElement | null = null;
@@ -573,6 +576,11 @@ export class YouTubeUrlModal extends Modal {
       }
       if (this.callbacks.hasProviderKey("claude")) {
         providerDropdown.add(new Option("Anthropic Claude", "claude"));
+      }
+      for (const customProvider of this.settings.customProviders ?? []) {
+        if (this.callbacks.hasProviderKey(customProvider.id)) {
+          providerDropdown.add(new Option(customProvider.name, customProvider.id));
+        }
       }
 
       // Set default value to the current provider if it has a key, otherwise first available
