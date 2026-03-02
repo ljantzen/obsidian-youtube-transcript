@@ -505,8 +505,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       if (createNewFile) {
         const activeFile = this.app.workspace.getActiveFile();
-        // Only require active file if no directory is selected (need to use current file's directory)
-        if (!activeFile && !selectedDirectory) {
+        // Only require active file if no directory is selected and we can't derive one from PDF cover note settings
+        const hasPdfCoverNoteDirectory =
+          fileFormat === "pdf" &&
+          this.settings.createPdfCoverNote &&
+          !!this.settings.pdfCoverNoteLocation?.trim();
+        if (!activeFile && !selectedDirectory && !hasPdfCoverNoteDirectory) {
           throw new Error(
             "Please open a file first to determine the directory, or set a default directory in settings",
           );
@@ -603,6 +607,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       directory = lastSlashIndex >= 0
         ? activeFile.path.substring(0, lastSlashIndex)
         : ""; // File is in root
+    } else if (
+      fileFormat === "pdf" &&
+      this.settings.createPdfCoverNote &&
+      this.settings.pdfCoverNoteLocation?.trim()
+    ) {
+      directory = ""; // Will be overwritten by the PDF cover note location logic below
     } else {
       throw new Error(
         "Cannot determine directory: no active file and no directory specified"
