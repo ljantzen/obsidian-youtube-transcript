@@ -12,75 +12,137 @@ import type {
 } from "./types";
 import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
 
-const INNERTUBE_AK = atob(
-  "QUl6YVN5QU9fRkoyU2xxVThRNFNURUhMR0NpbHdfWTlfMTFxY1c4",
-);
-const INNERTUBE_PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_AK}`;
+const INNERTUBE_PLAYER_URL = "https://www.youtube.com/youtubei/v1/player";
 
-// ANDROID client context - less restricted than WEB client for transcript access
-const INNERTUBE_ANDROID_CONTEXT = {
-  client: {
-    clientName: "ANDROID",
-    clientVersion: "19.09.37",
-    androidSdkVersion: 30,
-    hl: "en",
-    gl: "US",
-  },
-};
+interface InnerTubeClientConfig {
+  context: object;
+  userAgent: string;
+}
+
+function makeClientConfigs(lang: string, country: string): InnerTubeClientConfig[] {
+  return [
+    // ANDROID client — primary, good for caption access
+    {
+      context: {
+        client: {
+          clientName: "ANDROID",
+          clientVersion: "19.44.38",
+          androidSdkVersion: 34,
+          hl: lang,
+          gl: country,
+        },
+      },
+      userAgent: "com.google.android.youtube/19.44.38 (Linux; U; Android 14) gzip",
+    },
+    // IOS client — fallback #1
+    {
+      context: {
+        client: {
+          clientName: "IOS",
+          clientVersion: "19.45.4",
+          deviceModel: "iPhone16,2",
+          hl: lang,
+          gl: country,
+        },
+      },
+      userAgent: "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X)",
+    },
+    // WEB_EMBEDDED_PLAYER — fallback #2
+    {
+      context: {
+        client: {
+          clientName: "WEB_EMBEDDED_PLAYER",
+          clientVersion: "2.20231121.08.00",
+          hl: lang,
+          gl: country,
+        },
+        thirdParty: {
+          embedUrl: "https://www.youtube.com/",
+        },
+      },
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    },
+    // TVHTML5_SIMPLY_EMBEDDED_PLAYER — fallback #3, minimal restrictions
+    {
+      context: {
+        client: {
+          clientName: "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+          clientVersion: "2.0",
+          hl: lang,
+          gl: country,
+        },
+        thirdParty: {
+          embedUrl: "https://www.youtube.com/",
+        },
+      },
+      userAgent: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1",
+    },
+  ];
+}
 
 /**
- * Fetches player data from YouTube's InnerTube API using ANDROID client.
- * The ANDROID client is less restricted than WEB client for caption access.
+ * Fetches player data from YouTube's InnerTube API.
+ * Tries multiple client strategies for resilience against YouTube API changes.
+ * Only throws immediately for video-level restrictions (ERROR, LOGIN_REQUIRED).
+ * UNPLAYABLE with a client-rejection message causes the next client to be tried.
  */
 async function fetchPlayerDataWithAndroidClient(
   videoId: string,
   lang?: string,
   country?: string,
 ): Promise<any> {
-  const context = {
-    ...INNERTUBE_ANDROID_CONTEXT,
-    client: {
-      ...INNERTUBE_ANDROID_CONTEXT.client,
-      hl: lang || "en",
-      gl: country || "US",
-    },
-  };
+  const clients = makeClientConfigs(lang || "en", country || "US");
+  const errors: string[] = [];
 
-  const response = await requestUrl({
-    url: INNERTUBE_PLAYER_URL,
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent":
-        "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
-    },
-    body: JSON.stringify({
-      context: context,
-      videoId: videoId,
-    }),
-  });
+  for (const client of clients) {
+    const clientName = (client.context as any).client.clientName as string;
+    let response;
+    try {
+      response = await requestUrl({
+        url: INNERTUBE_PLAYER_URL,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": client.userAgent,
+        },
+        body: JSON.stringify({
+          context: client.context,
+          videoId: videoId,
+        }),
+      });
+    } catch (err) {
+      errors.push(`${clientName}: request error`);
+      continue;
+    }
 
-  if (response.status < 200 || response.status >= 300) {
-    throw new Error(`Failed to fetch video info: ${response.status}`);
+    if (response.status < 200 || response.status >= 300) {
+      errors.push(`${clientName}: HTTP ${response.status}`);
+      continue;
+    }
+
+    const data = response.json;
+    const ps = data?.playabilityStatus;
+    if (ps) {
+      if (ps.status === "ERROR") {
+        // Video-level error (e.g. "Video unavailable") — no point trying other clients
+        throw new Error(ps.reason || "Video unavailable");
+      }
+      if (ps.status === "LOGIN_REQUIRED") {
+        // Video requires authentication — no point trying other clients
+        throw new Error("This video requires login to view");
+      }
+      if (ps.status === "UNPLAYABLE") {
+        // Often a client-level rejection ("no longer supported in this application")
+        // Try the next client instead of failing immediately
+        errors.push(`${clientName}: UNPLAYABLE — ${ps.reason || "unknown reason"}`);
+        continue;
+      }
+    }
+
+    return data;
   }
 
-  const data = response.json;
-
-  // Check playability status
-  const playabilityStatus = data.playabilityStatus;
-  if (playabilityStatus) {
-    if (playabilityStatus.status === "ERROR") {
-      throw new Error(playabilityStatus.reason || "Video unavailable");
-    }
-    if (playabilityStatus.status === "LOGIN_REQUIRED") {
-      throw new Error("This video requires login to view");
-    }
-    if (playabilityStatus.status === "UNPLAYABLE") {
-      throw new Error(playabilityStatus.reason || "Video is unplayable");
-    }
-  }
-
-  return data;
+  throw new Error(`Failed to fetch video info. All clients failed: ${errors.join("; ")}`);
 }
 
 /**
