@@ -310,6 +310,35 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName("Prevent duplicate notes")
+      .setDesc(
+        "When enabled, creating a transcript will be blocked if a note already exists with a matching value in the frontmatter property below",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.checkForDuplicates ?? false)
+          .onChange(async (value) => {
+            this.settings.checkForDuplicates = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Duplicate check property")
+      .setDesc(
+        'The frontmatter property used to detect duplicates. Defaults to "url", which the plugin writes automatically.',
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("url")
+          .setValue(this.settings.duplicateCheckProperty || "url")
+          .onChange(async (value) => {
+            this.settings.duplicateCheckProperty = value.trim() || "url";
+            await this.saveSettings();
+          });
+      });
+
     // Timestamp section
     new Setting(containerEl).setName("Timestamp").setHeading();
 

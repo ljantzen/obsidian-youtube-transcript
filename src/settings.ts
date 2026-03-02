@@ -43,6 +43,8 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   forceLLMLanguage: false, // Default to false - LLM can output in any language
   defaultNoteName: "{VideoName}", // Default to video title
   defaultCoverNoteName: "{VideoName}", // Default to video title
+  checkForDuplicates: false, // Default to false - opt-in feature
+  duplicateCheckProperty: "url", // Default to "url" - the property the plugin writes by default
 };
 
 /**

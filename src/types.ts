@@ -42,6 +42,8 @@ export interface YouTubeTranscriptPluginSettings {
   forceLLMLanguage: boolean; // When enabled, LLM output will be forced to match the transcript language
   defaultNoteName: string; // Template for note names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
   defaultCoverNoteName: string; // Template for cover note names. Supports {VideoName}, {ChannelName}, {PdfDirectory}. Default: "{VideoName}"
+  checkForDuplicates: boolean; // When enabled, prevents creating a new note if one already exists for the same video
+  duplicateCheckProperty: string; // The frontmatter property to check for duplicate detection (e.g., "url")
 }
 
 export interface CaptionTrack {

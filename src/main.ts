@@ -420,6 +420,18 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
   }
 
+  findDuplicateNote(videoId: string): TFile | null {
+    const property = this.settings.duplicateCheckProperty || "url";
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      const propValue = cache?.frontmatter?.[property];
+      if (typeof propValue === "string" && extractVideoId(propValue) === videoId) {
+        return file;
+      }
+    }
+    return null;
+  }
+
   async processTranscript(
     url: string,
     createNewFile: boolean,
@@ -432,6 +444,20 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     fileFormat: "markdown" | "pdf",
     languageCode: string | null,
   ) {
+    if (createNewFile && this.settings.checkForDuplicates) {
+      const videoId = extractVideoId(url);
+      if (videoId) {
+        const existingNote = this.findDuplicateNote(videoId);
+        if (existingNote) {
+          new Notice(
+            `A note for this video already exists: "${existingNote.basename}"`,
+            10000,
+          );
+          return;
+        }
+      }
+    }
+
     const fetchingNotice = new Notice(
       "Fetching transcript from YouTube...",
       0,
