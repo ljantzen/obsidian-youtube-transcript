@@ -181,19 +181,40 @@ describe("Settings", () => {
 
   it("should validate file format setting", () => {
     const settings = {
-      fileFormat: "markdown" as "markdown" | "pdf",
+      fileFormat: "markdown" as "markdown" | "pdf" | "srt",
     };
 
     expect(typeof settings.fileFormat).toBe("string");
-    expect(["markdown", "pdf"]).toContain(settings.fileFormat);
+    expect(["markdown", "pdf", "srt"]).toContain(settings.fileFormat);
 
     // Test switching to PDF
     settings.fileFormat = "pdf";
     expect(settings.fileFormat).toBe("pdf");
 
+    // Test switching to SRT
+    settings.fileFormat = "srt";
+    expect(settings.fileFormat).toBe("srt");
+
     // Test switching back to markdown
     settings.fileFormat = "markdown";
     expect(settings.fileFormat).toBe("markdown");
+  });
+
+  it("should validate duplicate check settings", () => {
+    const settings = {
+      checkForDuplicates: false,
+      duplicateCheckProperty: "url",
+    };
+
+    expect(typeof settings.checkForDuplicates).toBe("boolean");
+    expect(settings.checkForDuplicates).toBe(false);
+    expect(typeof settings.duplicateCheckProperty).toBe("string");
+    expect(settings.duplicateCheckProperty).toBe("url");
+
+    settings.checkForDuplicates = true;
+    settings.duplicateCheckProperty = "source";
+    expect(settings.checkForDuplicates).toBe(true);
+    expect(settings.duplicateCheckProperty).toBe("source");
   });
 
   it("should validate timestamp frequency values", () => {
