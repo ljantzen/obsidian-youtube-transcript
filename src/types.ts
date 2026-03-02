@@ -1,5 +1,11 @@
 export type LLMProvider = "openai" | "gemini" | "claude" | string;
 
+export interface TranscriptSegment {
+  text: string;
+  startTime: number; // in seconds
+  duration?: number; // in seconds, if available from source
+}
+
 export interface CustomLLMProvider {
   id: string;
   name: string;
@@ -31,7 +37,7 @@ export interface YouTubeTranscriptPluginSettings {
   localVideoDirectory: string; // Filesystem directory where local video files are stored (empty = use YouTube URLs)
   savedDirectories: string[]; // List of user-configurable directories for storing transcript files
   defaultDirectory: string | null; // Default directory from savedDirectories to use when creating new files (null = use current file's directory)
-  fileFormat: "markdown" | "pdf"; // File format for saved transcripts
+  fileFormat: "markdown" | "pdf" | "srt"; // File format for saved transcripts
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
   createPdfCoverNote: boolean; // When enabled, a cover note will be created for PDF files
   pdfCoverNoteLocation: string; // Location/path for PDF cover notes
@@ -81,6 +87,7 @@ export interface TranscriptResult {
   summary: string | null;
   channelName: string | null;
   videoDetails: VideoDetails | null;
+  segments: TranscriptSegment[];
 }
 
 export interface LLMResponse {

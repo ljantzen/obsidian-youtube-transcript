@@ -2,6 +2,7 @@ import { Notice, requestUrl, App } from "obsidian";
 import type {
   CaptionTrack,
   TranscriptResult,
+  TranscriptSegment,
   LLMProvider,
   YouTubeTranscriptPluginSettings,
   StatusCallback,
@@ -368,6 +369,7 @@ export async function getYouTubeTranscript(
             summary: parsedResult.summary,
             channelName: channelName,
             videoDetails: videoDetails,
+            segments: parsedResult.segments,
           };
         } else {
           console.warn(
@@ -444,6 +446,7 @@ export async function getYouTubeTranscript(
     summary: parsedResult.summary,
     channelName: channelName,
     videoDetails: videoDetails,
+    segments: parsedResult.segments,
   };
 }
 
@@ -458,7 +461,7 @@ async function parseTranscript(
   statusCallback?: StatusCallback,
   RetryModal?: RetryModalConstructor,
   transcriptLanguageCode?: string,
-): Promise<LLMResponse> {
+): Promise<LLMResponse & { segments: TranscriptSegment[] }> {
   // Parse XML and extract text with timestamps
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(transcriptXml, "text/xml");
@@ -484,11 +487,6 @@ async function parseTranscript(
   }
 
   // Extract text with timestamps
-  interface TranscriptSegment {
-    text: string;
-    startTime: number;
-  }
-
   const transcriptSegments: TranscriptSegment[] = [];
   for (let i = 0; i < textElements.length; i++) {
     const element = textElements[i];
@@ -509,9 +507,15 @@ async function parseTranscript(
         element.getAttribute("t") ??
         element.getAttribute("begin");
       const startTime = startAttr ? parseFloat(startAttr) : -1;
+      // Extract duration: try "dur" (YouTube timedtext), then "d", then "end" (TTML)
+      const durAttr =
+        element.getAttribute("dur") ??
+        element.getAttribute("d");
+      const duration = durAttr ? parseFloat(durAttr) : undefined;
       transcriptSegments.push({
         text: text.trim(),
         startTime: startTime,
+        duration: duration,
       });
     }
   }
@@ -531,9 +535,14 @@ async function parseTranscript(
           node.getAttribute("t") ??
           node.getAttribute("begin");
         const startTime = startAttr ? parseFloat(startAttr) : -1;
+        const durAttr2 =
+          node.getAttribute("dur") ??
+          node.getAttribute("d");
+        const duration2 = durAttr2 ? parseFloat(durAttr2) : undefined;
         transcriptSegments.push({
           text: text.trim(),
           startTime: startTime,
+          duration: duration2,
         });
       }
     }
@@ -718,7 +727,7 @@ async function parseTranscript(
         RetryModal,
         transcriptLanguageCode,
       );
-      return processed;
+      return { ...processed, segments: transcriptSegments };
     }
   }
 
@@ -733,7 +742,7 @@ async function parseTranscript(
       10000,
     );
   }
-  return { transcript: rawTranscript, summary: null };
+  return { transcript: rawTranscript, summary: null, segments: transcriptSegments };
 }
 
 async function processWithLLM(

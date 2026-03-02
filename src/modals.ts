@@ -90,7 +90,7 @@ export class YouTubeUrlModal extends Modal {
     llmProvider: LLMProvider,
     selectedDirectory: string | null,
     tagWithChannelName: boolean,
-    fileFormat: "markdown" | "pdf",
+    fileFormat: "markdown" | "pdf" | "srt",
     languageCode: string | null,
   ) => void | Promise<void>;
   settings: YouTubeTranscriptPluginSettings;
@@ -109,7 +109,7 @@ export class YouTubeUrlModal extends Modal {
       llmProvider: LLMProvider,
       selectedDirectory: string | null,
       tagWithChannelName: boolean,
-      fileFormat: "markdown" | "pdf",
+      fileFormat: "markdown" | "pdf" | "srt",
       languageCode: string | null,
     ) => void | Promise<void>,
   ) {
@@ -450,6 +450,7 @@ export class YouTubeUrlModal extends Modal {
     });
     fileFormatDropdown.add(new Option("Markdown", "markdown"));
     fileFormatDropdown.add(new Option("PDF", "pdf"));
+    fileFormatDropdown.add(new Option("SRT", "srt"));
     fileFormatDropdown.value = this.settings.fileFormat || "markdown";
     
     // Note: PDF generation requires Electron API access
@@ -464,9 +465,10 @@ export class YouTubeUrlModal extends Modal {
     createNewFileCheckbox.addEventListener("change", updateCreateNewFileVisibility);
     updateCreateNewFileVisibility();
 
-    // When PDF is selected, automatically check createNewFile (PDFs always need a new file)
+    // When PDF or SRT is selected, automatically check createNewFile (both always need a new file)
     fileFormatDropdown.addEventListener("change", () => {
-      if (fileFormatDropdown.value === "pdf" && !createNewFileCheckbox.checked) {
+      const fmt = fileFormatDropdown.value;
+      if ((fmt === "pdf" || fmt === "srt") && !createNewFileCheckbox.checked) {
         createNewFileCheckbox.checked = true;
         updateCreateNewFileVisibility();
       }
@@ -656,9 +658,9 @@ export class YouTubeUrlModal extends Modal {
           return;
         }
         // Get file format first to determine if createNewFile should be forced
-        const fileFormat = fileFormatDropdown.value as "markdown" | "pdf";
-        // PDF format always requires creating a new file
-        const createNewFile = fileFormat === "pdf" ? true : createNewFileCheckbox.checked;
+        const fileFormat = fileFormatDropdown.value as "markdown" | "pdf" | "srt";
+        // PDF and SRT formats always require creating a new file
+        const createNewFile = (fileFormat === "pdf" || fileFormat === "srt") ? true : createNewFileCheckbox.checked;
         const includeVideoUrl = includeUrlCheckbox.checked;
         const generateSummary = hasAnyProviderKey && generateSummaryCheckbox
           ? generateSummaryCheckbox.checked
@@ -718,9 +720,9 @@ export class YouTubeUrlModal extends Modal {
         const url = input.value.trim();
         if (url) {
           // Get file format first to determine if createNewFile should be forced
-          const fileFormat = fileFormatDropdown.value as "markdown" | "pdf";
-          // PDF format always requires creating a new file
-          const createNewFile = fileFormat === "pdf" ? true : createNewFileCheckbox.checked;
+          const fileFormat = fileFormatDropdown.value as "markdown" | "pdf" | "srt";
+          // PDF and SRT formats always require creating a new file
+          const createNewFile = (fileFormat === "pdf" || fileFormat === "srt") ? true : createNewFileCheckbox.checked;
           const includeVideoUrl = includeUrlCheckbox.checked;
           const generateSummary = hasAnyProviderKey && generateSummaryCheckbox
             ? generateSummaryCheckbox.checked

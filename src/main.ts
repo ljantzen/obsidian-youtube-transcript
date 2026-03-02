@@ -8,6 +8,7 @@ import {
 import type {
   YouTubeTranscriptPluginSettings,
   LLMProvider,
+  TranscriptSegment,
   VideoDetails,
 } from "./types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
@@ -17,6 +18,7 @@ import { YouTubeUrlModal, RetryConfirmationModal } from "./modals";
 import { YouTubeTranscriptSettingTab } from "./settingsTab";
 import { UserCancelledError } from "./llm/openai";
 import { generatePdfFromMarkdown } from "./pdfGenerator";
+import { generateSrt } from "./srtFormatter";
 
 export default class YouTubeTranscriptPlugin extends Plugin {
   settings: YouTubeTranscriptPluginSettings;
@@ -330,7 +332,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         llmProvider: LLMProvider,
         selectedDirectory: string | null,
         tagWithChannelName: boolean,
-        fileFormat: "markdown" | "pdf",
+        fileFormat: "markdown" | "pdf" | "srt",
         languageCode: string | null,
       ) => {
         await this.processTranscript(
@@ -375,8 +377,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const tagWithChannelName = this.settings.tagWithChannelName ?? false;
       const fileFormat = this.settings.fileFormat ?? "markdown";
 
-      // PDF format always requires creating a new file
-      if (fileFormat === "pdf") {
+      // PDF and SRT formats always require creating a new file
+      if (fileFormat === "pdf" || fileFormat === "srt") {
         createNewFile = true;
       }
 
@@ -441,7 +443,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     llmProvider: LLMProvider,
     selectedDirectory: string | null,
     tagWithChannelName: boolean,
-    fileFormat: "markdown" | "pdf",
+    fileFormat: "markdown" | "pdf" | "srt",
     languageCode: string | null,
   ) {
     if (createNewFile && this.settings.checkForDuplicates) {
@@ -471,8 +473,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             ? this.settings.preferredLanguage 
             : null);
 
-      // Only use LLM if explicitly enabled and provider has a key
-      const effectiveLLMProvider = useLLM && this.hasProviderKey(llmProvider) ? llmProvider : null;
+      // SRT uses raw timing data — LLM processing would destroy cue boundaries
+      // Only use LLM if explicitly enabled, provider has a key, and format is not SRT
+      const effectiveLLMProvider = (useLLM && this.hasProviderKey(llmProvider) && fileFormat !== "srt") ? llmProvider : null;
 
       const result = await getYouTubeTranscript(
         this.app,
@@ -491,7 +494,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         languageToUse,
       );
 
-      const { transcript, title, summary, channelName, videoDetails } = result;
+      const { transcript, title, summary, channelName, videoDetails, segments } = result;
 
       if (!transcript || transcript.trim().length === 0) {
         throw new Error("Transcript is empty");
@@ -528,15 +531,22 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           tagWithChannelName,
           fileFormat,
           videoDetails,
+          segments,
         );
-        const formatNotice = fileFormat === "pdf" 
+        const formatNotice = fileFormat === "pdf"
           ? `PDF file created successfully! (${transcript.length} characters)`
+          : fileFormat === "srt"
+          ? `SRT file created successfully! (${segments.length} cues)`
           : `Transcript file created successfully! (${transcript.length} characters)`;
         new Notice(formatNotice);
       } else {
-        // PDF format cannot be inserted into existing files, must create new file
+        // PDF and SRT formats cannot be inserted into existing files, must create new file
         if (fileFormat === "pdf") {
           new Notice("PDF format requires creating a new file. Please enable 'Create new file' in settings or use the modal to create a PDF.", 10000);
+          return;
+        }
+        if (fileFormat === "srt") {
+          new Notice("SRT format requires creating a new file. Please enable 'Create new file' in settings or use the modal to create an SRT file.", 10000);
           return;
         }
 
@@ -586,8 +596,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     selectedDirectory: string | null, // null = use current file's directory, string = use this directory
     channelName: string | null,
     tagWithChannelName: boolean,
-    fileFormat: "markdown" | "pdf",
+    fileFormat: "markdown" | "pdf" | "srt",
     videoDetails: VideoDetails | null,
+    segments: TranscriptSegment[] = [],
   ) {
     // Apply note name template
     const noteNameTemplate = this.settings.defaultNoteName || "{VideoName}";
@@ -620,7 +631,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Determine file extension based on format
-    const fileExtension = fileFormat === "pdf" ? "pdf" : "md";
+    const fileExtension = fileFormat === "pdf" ? "pdf" : fileFormat === "srt" ? "srt" : "md";
 
     // Check if we should nest PDF under cover note (when cover notes are enabled)
     if (
@@ -751,6 +762,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     const markdownContent = parts.join("\n\n");
 
+    // For SRT, generate cue content from raw segments (ignore markdownContent)
+    const srtContent = fileFormat === "srt" ? generateSrt(segments) : null;
+
     // Create the file based on format
     try {
       if (fileFormat === "pdf") {
@@ -772,6 +786,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           );
           throw pdfError;
         }
+      } else if (fileFormat === "srt") {
+        await this.app.vault.create(newFilePath, srtContent!);
       } else {
         // Create markdown file as text
         await this.app.vault.create(newFilePath, markdownContent);
@@ -798,6 +814,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             markdownContent,
           );
           await this.app.vault.createBinary(newFilePath, pdfBuffer);
+        } else if (fileFormat === "srt") {
+          await this.app.vault.create(newFilePath, srtContent!);
         } else {
           await this.app.vault.create(newFilePath, markdownContent);
         }

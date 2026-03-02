@@ -66,9 +66,10 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         dropdown
           .addOption("markdown", "Markdown")
           .addOption("pdf", "PDF")
+          .addOption("srt", "SRT")
           .setValue(this.settings.fileFormat || "markdown")
           .onChange(async (value) => {
-            this.settings.fileFormat = value as "markdown" | "pdf";
+            this.settings.fileFormat = value as "markdown" | "pdf" | "srt";
             await this.saveSettings();
           });
       });
