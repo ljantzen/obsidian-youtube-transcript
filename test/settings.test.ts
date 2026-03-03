@@ -22,7 +22,7 @@ describe("Settings", () => {
       includeTimestampsInLLM: false,
       localVideoDirectory: "",
       savedDirectories: [],
-      fileFormat: "markdown" as "markdown" | "pdf",
+      fileFormats: ["markdown"] as ("markdown" | "pdf" | "srt")[],
       createPdfCoverNote: false,
       pdfCoverNoteLocation: "",
       pdfCoverNoteTemplate: "",
@@ -42,7 +42,8 @@ describe("Settings", () => {
     expect(defaultSettings.timestampFrequency).toBe(0);
     expect(defaultSettings.includeTimestampsInLLM).toBe(false);
     expect(defaultSettings.localVideoDirectory).toBe("");
-    expect(defaultSettings.fileFormat).toBe("markdown");
+    expect(Array.isArray(defaultSettings.fileFormats)).toBe(true);
+    expect(defaultSettings.fileFormats).toContain("markdown");
     expect(defaultSettings.createPdfCoverNote).toBe(false);
     expect(defaultSettings.pdfCoverNoteLocation).toBe("");
     expect(defaultSettings.pdfCoverNoteTemplate).toBe("");
@@ -179,25 +180,24 @@ describe("Settings", () => {
     expect(settings.savedDirectories).toContain('Notes/YouTube');
   });
 
-  it("should validate file format setting", () => {
+  it("should validate file formats setting", () => {
     const settings = {
-      fileFormat: "markdown" as "markdown" | "pdf" | "srt",
+      fileFormats: ["markdown"] as ("markdown" | "pdf" | "srt")[],
     };
 
-    expect(typeof settings.fileFormat).toBe("string");
-    expect(["markdown", "pdf", "srt"]).toContain(settings.fileFormat);
+    expect(Array.isArray(settings.fileFormats)).toBe(true);
+    expect(settings.fileFormats).toContain("markdown");
 
-    // Test switching to PDF
-    settings.fileFormat = "pdf";
-    expect(settings.fileFormat).toBe("pdf");
+    // Test adding multiple formats
+    settings.fileFormats = ["markdown", "pdf"];
+    expect(settings.fileFormats).toHaveLength(2);
+    expect(settings.fileFormats).toContain("markdown");
+    expect(settings.fileFormats).toContain("pdf");
 
-    // Test switching to SRT
-    settings.fileFormat = "srt";
-    expect(settings.fileFormat).toBe("srt");
-
-    // Test switching back to markdown
-    settings.fileFormat = "markdown";
-    expect(settings.fileFormat).toBe("markdown");
+    // Test with all formats
+    settings.fileFormats = ["markdown", "pdf", "srt"];
+    expect(settings.fileFormats).toHaveLength(3);
+    expect(settings.fileFormats).toContain("srt");
   });
 
   it("should validate duplicate check settings", () => {

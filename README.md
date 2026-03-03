@@ -10,7 +10,7 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Summary generation** - Automatically generate concise summaries of video content
 - **Channel name tagging** - Automatically tag notes with the YouTube channel name
 - **Insert or create new files** - Insert transcripts into current note or create a new file based on video title
-- **Multiple file formats** - Save transcripts as Markdown (.md), PDF, or SRT subtitle files
+- **Multiple file formats** - Save transcripts as Markdown (.md), PDF, or SRT subtitle files. Generate multiple formats in one request!
 - **Prevent duplicate notes** - Optionally check whether a transcript for the same video already exists before fetching
 - **PDF cover notes** - Automatically create markdown cover notes for PDF transcripts with customizable templates
 - **Video metadata** - Automatically extract and include video metadata (upload date, view count, duration, etc.) in transcripts and cover notes
@@ -84,10 +84,30 @@ The plugin includes a command that automatically fetches transcripts from your c
   - The same directory as the current file (if no default directory is set and no directory is selected)
 - **With a default directory set**: You can create new files even when no document is open (useful for the clipboard command)
 - The filename will be based on the video title (sanitized for filesystem)
-- Choose between Markdown (.md), PDF, or SRT subtitle format
-- Markdown files will automatically open after creation
-- PDF files will be created and a notification will be shown (PDFs open in your system's default PDF viewer)
-- SRT files will be created as `.srt` subtitle files (LLM processing is skipped for SRT; always creates a new file)
+
+### Multiple Output Formats
+
+The plugin allows you to generate **one or more file formats** in a single request:
+
+**In the modal:**
+- Check the boxes for the formats you want to generate (Markdown, PDF, SRT)
+- Select one or more formats — all will be created in one request
+- The transcript is fetched once and used for all selected formats
+
+**Example:** Select PDF, Markdown, and SRT to create:
+- `My Video.md` - Searchable markdown transcript
+- `My Video/My Video.pdf` - PDF with optional cover note
+- `My Video.srt` - SRT subtitle file
+
+**Format Details:**
+- **Markdown (.md)**: Full transcript with timestamps as clickable links. Opens automatically after creation.
+- **PDF**: Professional document format. Creates nested folder with optional markdown cover note. PDFs open in your system's default PDF viewer.
+- **SRT**: Subtitle format for video players. LLM processing is automatically skipped for SRT files to preserve timing cues.
+
+**Available Formats:**
+- Configure which formats are available in Settings → YouTube Transcript Settings → Available file formats
+- Only enabled formats appear in the modal dropdown
+- At least one format must always be enabled
 
 ### PDF Cover Notes
 
@@ -346,15 +366,21 @@ When fetching a transcript, you can configure:
 
 - **Transcript language**: Select your preferred transcript language from available options. The dropdown automatically populates when you enter a YouTube URL. Choose "Auto" to use your preferred language setting, or select a specific language to override it for this video.
 - **Create new file**: Create a new file instead of inserting into current note (default can be set in settings)
-- **File format**: Choose between Markdown (.md), PDF, or SRT format (only shown when creating new file)
+- **File formats**: Check the boxes for which formats you want to generate (Markdown, PDF, SRT). You can select multiple formats to create all of them in one request. (Only shown when creating new file. At least one format must be selected.)
 - **Include video URL**: Add the video URL as a markdown link
 - **Tag with channel name**: Add channel name as a tag
-- **Use LLM processing**: Enable/disable LLM processing for this transcript (only shown if providers are configured)
+- **Use LLM processing**: Enable/disable LLM processing for this transcript (only shown if providers are configured) — Note: LLM processing is automatically skipped for SRT files
 - **LLM provider**: Select which LLM provider to use, including any configured custom providers (only shown if providers are configured)
 - **Generate summary**: Generate a summary (requires LLM processing enabled and a provider configured)
 - **Directory selection**: Choose from saved directories or enter a custom directory path (only shown when creating new file)
 
 **Note**: The modal automatically prefills the URL field if you have a YouTube URL in your clipboard, and automatically fetches available languages for the video. All modal options can be overridden per-transcript, regardless of your default settings.
+
+**Multiple Formats Workflow**: When you select multiple formats (e.g., Markdown + PDF + SRT), the plugin:
+1. Fetches the transcript once from YouTube
+2. Processes it once with LLM (if enabled, skipped for SRT)
+3. Generates files for all selected formats
+4. Shows notifications for each file created
 
 ## Settings
 
@@ -374,7 +400,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Default note name**: Template for note file names. Supports `{VideoName}` and `{ChannelName}` variables. Default: `{VideoName}`
 - **Default directory**: Select one of your saved directories as the default (only shown when you have saved directories). When set, new files will be created in this directory by default, and you can use the clipboard command even when no document is open
 - **Saved directories**: List of frequently used directories for quick selection in the modal. Add directories here, then optionally select one as the default
-- **File format**: Default file format for new transcript files (Markdown, PDF, or SRT)
+- **Available file formats**: Select which file formats should be available in the transcript creation modal. Check the boxes for formats you want to use (Markdown, PDF, SRT). Only enabled formats appear in the modal. At least one format must always be enabled.
 - **Prevent duplicate notes**: When enabled, checks whether a transcript for the same video already exists in your vault before fetching. Only applies when "Create new file" is enabled
 - **Duplicate check property**: The YAML frontmatter property name to check for duplicate detection (default: `url`). The plugin compares the video ID extracted from this property's value against the current video
 

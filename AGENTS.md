@@ -198,7 +198,7 @@ if (selectedDirectory !== null) {
 
 ```typescript
 // Core settings
-fileFormat: "markdown" | "pdf"       // Output format
+fileFormats: ("markdown" | "pdf" | "srt")[] // Available output formats
 createNewFile: boolean               // New file vs insert into current
 defaultDirectory: string | null      // Default location for files
 

@@ -18,7 +18,7 @@
   "savedDirectories": [
   ],
   "defaultDirectory": "",
-  "fileFormat": "markdown",
+  "fileFormats": ["markdown", "pdf"],
   "createNewFile": true,
   "useAttachmentFolderForPdf": true,
   "createPdfCoverNote": true,

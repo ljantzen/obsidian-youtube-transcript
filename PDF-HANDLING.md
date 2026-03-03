@@ -63,7 +63,7 @@ If `pdfCoverNoteLocation` is also set, the cover note is created at that locatio
 **Settings:**
 ```json
 {
-  "fileFormat": "pdf",
+  "fileFormats": ["pdf"],
   "createPdfCoverNote": true,
   "pdfCoverNoteLocation": ""
 }
@@ -80,7 +80,7 @@ If `pdfCoverNoteLocation` is also set, the cover note is created at that locatio
 **Settings:**
 ```json
 {
-  "fileFormat": "pdf",
+  "fileFormats": ["pdf"],
   "createPdfCoverNote": true,
   "pdfCoverNoteLocation": "Notes/Videos"
 }
@@ -97,7 +97,7 @@ If `pdfCoverNoteLocation` is also set, the cover note is created at that locatio
 **Settings:**
 ```json
 {
-  "fileFormat": "pdf",
+  "fileFormats": ["pdf"],
   "createPdfCoverNote": true,
   "pdfCoverNoteLocation": "Media/{ChannelName}"
 }
@@ -131,7 +131,7 @@ Variables are replaced before path normalization, so you can use them in `pdfCov
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `fileFormat` | `"markdown" \| "pdf"` | `"markdown"` | File format for saved transcripts |
+| `fileFormats` | `("markdown" \| "pdf" \| "srt")[]` | `["markdown"]` | Available file formats for saved transcripts |
 | `createPdfCoverNote` | `boolean` | `false` | Whether to create a cover note for PDFs (also enables PDF nesting) |
 | `pdfCoverNoteLocation` | `string` | `""` | Path for cover notes (empty = same directory as PDF) |
 | `pdfCoverNoteTemplate` | `string` | `""` | Path to template file for cover notes (empty = use default template) |

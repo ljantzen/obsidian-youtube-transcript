@@ -4,9 +4,10 @@ import { DEFAULT_SETTINGS } from "../src/settings";
 type FileFormat = "markdown" | "pdf" | "srt";
 
 describe("File Format Settings", () => {
-  it("should have fileFormat in default settings", () => {
-    expect(DEFAULT_SETTINGS.fileFormat).toBe("markdown");
-    expect(["markdown", "pdf", "srt"]).toContain(DEFAULT_SETTINGS.fileFormat);
+  it("should have fileFormats in default settings", () => {
+    expect(Array.isArray(DEFAULT_SETTINGS.fileFormats)).toBe(true);
+    expect(DEFAULT_SETTINGS.fileFormats).toContain("markdown");
+    expect(["markdown", "pdf", "srt"]).toContain(DEFAULT_SETTINGS.fileFormats[0]);
   });
 
   it("should validate file format values", () => {

@@ -18,6 +18,7 @@ import {
   YouTubeUrlModal,
   RetryConfirmationModal,
   DuplicateNoteErrorModal,
+  MultipleFormatsWithCoverNoteModal,
 } from "./modals";
 import { YouTubeTranscriptSettingTab } from "./settingsTab";
 import { UserCancelledError } from "./llm/openai";
@@ -208,9 +209,17 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
-    // Ensure fileFormat has a default value if missing (backward compatibility)
-    if (this.settings.fileFormat === undefined) {
-      this.settings.fileFormat = DEFAULT_SETTINGS.fileFormat;
+    // Migrate from old fileFormat (single) to new fileFormats (array)
+    if ((this.settings as any).fileFormat !== undefined) {
+      const oldFormat = (this.settings as any).fileFormat;
+      delete (this.settings as any).fileFormat;
+      this.settings.fileFormats = [oldFormat];
+      await this.saveSettings();
+    }
+
+    // Ensure fileFormats has a default value if missing (backward compatibility)
+    if (this.settings.fileFormats === undefined || this.settings.fileFormats.length === 0) {
+      this.settings.fileFormats = DEFAULT_SETTINGS.fileFormats;
       await this.saveSettings();
     }
 
@@ -334,21 +343,32 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         llmProvider: LLMProvider,
         selectedDirectory: string | null,
         tagWithChannelName: boolean,
-        fileFormat: "markdown" | "pdf" | "srt",
+        fileFormats: ("markdown" | "pdf" | "srt")[],
         languageCode: string | null,
       ) => {
-        await this.processTranscript(
-          url,
-          createNewFile,
-          includeVideoUrl,
-          generateSummary,
-          useLLM,
-          llmProvider,
-          selectedDirectory,
-          tagWithChannelName,
-          fileFormat,
-          languageCode,
-        );
+        // Check for conflict: Markdown + PDF with cover notes enabled
+        const hasBothMarkdownAndPdf = fileFormats.includes("markdown") && fileFormats.includes("pdf");
+        const disablePdfCoverNote = hasBothMarkdownAndPdf && this.settings.createPdfCoverNote;
+        if (disablePdfCoverNote) {
+          new MultipleFormatsWithCoverNoteModal(this.app).open();
+        }
+
+        // Process each selected format
+        for (const fileFormat of fileFormats) {
+          await this.processTranscript(
+            url,
+            createNewFile,
+            includeVideoUrl,
+            generateSummary,
+            useLLM,
+            llmProvider,
+            selectedDirectory,
+            tagWithChannelName,
+            fileFormat,
+            languageCode,
+            disablePdfCoverNote,
+          );
+        }
       },
     ).open();
   }
@@ -377,7 +397,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const includeVideoUrl = this.settings.includeVideoUrl ?? false;
       const generateSummary = this.settings.generateSummary ?? false;
       const tagWithChannelName = this.settings.tagWithChannelName ?? false;
-      const fileFormat = this.settings.fileFormat ?? "markdown";
+      const fileFormat = (this.settings.fileFormats && this.settings.fileFormats.length > 0)
+        ? this.settings.fileFormats[0]
+        : "markdown";
 
       // PDF and SRT formats always require creating a new file
       if (fileFormat === "pdf" || fileFormat === "srt") {
@@ -447,6 +469,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     tagWithChannelName: boolean,
     fileFormat: "markdown" | "pdf" | "srt",
     languageCode: string | null,
+    disablePdfCoverNote: boolean = false,
   ) {
     if (createNewFile && this.settings.checkForDuplicates) {
       const videoId = extractVideoId(url);
@@ -513,6 +536,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         // Only require active file if no directory is selected and we can't derive one from PDF cover note settings
         const hasPdfCoverNoteDirectory =
           fileFormat === "pdf" &&
+          !disablePdfCoverNote &&
           this.settings.createPdfCoverNote &&
           !!this.settings.pdfCoverNoteLocation?.trim();
         if (!activeFile && !selectedDirectory && !hasPdfCoverNoteDirectory) {
@@ -534,6 +558,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           fileFormat,
           videoDetails,
           segments,
+          disablePdfCoverNote,
         );
         const formatNotice = fileFormat === "pdf"
           ? `PDF file created successfully! (${transcript.length} characters)`
@@ -601,6 +626,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     fileFormat: "markdown" | "pdf" | "srt",
     videoDetails: VideoDetails | null,
     segments: TranscriptSegment[] = [],
+    disablePdfCoverNote: boolean = false,
   ) {
     // Apply note name template
     const noteNameTemplate = this.settings.defaultNoteName || "{VideoName}";
@@ -622,6 +648,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         : ""; // File is in root
     } else if (
       fileFormat === "pdf" &&
+      !disablePdfCoverNote &&
       this.settings.createPdfCoverNote &&
       this.settings.pdfCoverNoteLocation?.trim()
     ) {
@@ -638,6 +665,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Check if we should nest PDF under cover note (when cover notes are enabled)
     if (
       fileFormat === "pdf" &&
+      !disablePdfCoverNote &&
       this.settings.createPdfCoverNote
     ) {
       // Determine cover note directory:
@@ -820,7 +848,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Create cover note for PDF if enabled
-    if (fileFormat === "pdf" && this.settings.createPdfCoverNote) {
+    if (fileFormat === "pdf" && !disablePdfCoverNote && this.settings.createPdfCoverNote) {
       await this.createPdfCoverNote(
         newFilePath,
         videoTitle,

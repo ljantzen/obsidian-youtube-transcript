@@ -58,21 +58,65 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Files and folders").setHeading();
 
     new Setting(containerEl)
-      .setName("Default file format")
+      .setName("Available file formats")
       .setDesc(
-        "Default file format for new transcript files (can be overridden in the modal)",
-      )
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption("markdown", "Markdown")
-          .addOption("pdf", "PDF")
-          .addOption("srt", "SRT")
-          .setValue(this.settings.fileFormat || "markdown")
-          .onChange(async (value) => {
-            this.settings.fileFormat = value as "markdown" | "pdf" | "srt";
-            await this.saveSettings();
-          });
+        "Select which file formats should be available in the transcript creation modal",
+      );
+
+    const formatCheckboxes: Record<string, HTMLInputElement> = {};
+    const formatLabels: Record<string, HTMLElement> = {};
+    const formatsContainer = containerEl.createDiv({
+      attr: { style: "margin-left: 1.5em; margin-bottom: 1em;" },
+    });
+
+    const formats: ("markdown" | "pdf" | "srt")[] = ["markdown", "pdf", "srt"];
+    const formatNames: Record<string, string> = {
+      markdown: "Markdown (.md)",
+      pdf: "PDF",
+      srt: "SRT Subtitles (.srt)",
+    };
+
+    formats.forEach((format) => {
+      const checkboxContainer = formatsContainer.createDiv({
+        attr: { style: "display: flex; align-items: center; margin-bottom: 0.5em;" },
       });
+
+      const checkbox = checkboxContainer.createEl("input", {
+        type: "checkbox",
+        attr: { id: `format-${format}` },
+      }) as HTMLInputElement;
+
+      checkbox.checked =
+        this.settings.fileFormats && this.settings.fileFormats.includes(format);
+
+      checkbox.addEventListener("change", async () => {
+        const selectedFormats = formats.filter((f) => {
+          const cb = formatCheckboxes[f];
+          return cb && cb.checked;
+        });
+
+        // Ensure at least one format is always selected
+        if (selectedFormats.length === 0) {
+          checkbox.checked = true;
+          return;
+        }
+
+        this.settings.fileFormats = selectedFormats;
+        await this.saveSettings();
+      });
+
+      formatCheckboxes[format] = checkbox;
+
+      const label = checkboxContainer.createEl("label", {
+        text: formatNames[format],
+        attr: {
+          for: `format-${format}`,
+          style: "margin-left: 0.5em; cursor: pointer; flex: 1;",
+        },
+      });
+
+      formatLabels[format] = label;
+    });
 
     new Setting(containerEl).setName("Transcript directories").setHeading();
 

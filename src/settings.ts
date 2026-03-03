@@ -32,7 +32,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   localVideoDirectory: "", // Empty = use YouTube URLs, set to use local file:// URLs
   savedDirectories: [], // Empty array = no saved directories, users can add directories in settings
   defaultDirectory: null, // null = use current file's directory, or set to one of the savedDirectories paths
-  fileFormat: "markdown", // Default to markdown for backward compatibility
+  fileFormats: ["markdown"], // Default to markdown only
   createNewFile: false, // Default to false - insert into current file by default
   createPdfCoverNote: false, // Default to false - do not create cover note for PDFs by default
   pdfCoverNoteLocation: "", // Default to empty string - no specific location set
@@ -42,7 +42,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   forceLLMLanguage: false, // Default to false - LLM can output in any language
   defaultNoteName: "{VideoName}", // Default to video title
   defaultCoverNoteName: "{VideoName}", // Default to video title
-  checkForDuplicates: false, // Default to false - opt-in feature
+  checkForDuplicates: false, // Default to false - do not prevent duplicate transcripts
   duplicateCheckProperty: "url", // Default to "url" - the property the plugin writes by default
 };
 

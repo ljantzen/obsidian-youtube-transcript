@@ -84,12 +84,14 @@ describe('Clipboard Command', () => {
       expect(tagWithChannelName).toBe(false);
     });
 
-    it('should use default fileFormat setting', () => {
+    it('should use default fileFormats setting', () => {
       const settings = {
-        fileFormat: 'pdf' as 'markdown' | 'pdf',
+        fileFormats: ['pdf'] as ('markdown' | 'pdf' | 'srt')[],
       };
-      
-      const fileFormat = settings.fileFormat ?? 'markdown';
+
+      const fileFormat = (settings.fileFormats && settings.fileFormats.length > 0)
+        ? settings.fileFormats[0]
+        : 'markdown';
       expect(fileFormat).toBe('pdf');
     });
 
