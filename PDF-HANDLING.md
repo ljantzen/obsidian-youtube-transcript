@@ -40,21 +40,21 @@ The cover note location is determined by `pdfCoverNoteLocation`:
 
 ### PDF Nesting
 
-When `pdfAttachmentFolderName` is set, PDFs are nested in a subfolder under the cover note location. For example:
+When `createPdfCoverNote` is enabled, PDFs are automatically nested in a subfolder under the cover note location using the video title as the folder name. For example:
 
-- **Settings**: `pdfAttachmentFolderName="{ChannelName}"`
+- **Settings**: `createPdfCoverNote=true`
 - **Selected directory**: `Videos`
-- **Result**: 
+- **Result**:
   - Cover note: `Videos/My Video.md`
-  - PDF: `Videos/Acme/My Video.pdf`
+  - PDF: `Videos/My Video/My Video.pdf`
 
 If `pdfCoverNoteLocation` is also set, the cover note is created at that location:
 
-- **Settings**: `pdfCoverNoteLocation="Notes", pdfAttachmentFolderName="{ChannelName}"`
+- **Settings**: `pdfCoverNoteLocation="Notes", createPdfCoverNote=true`
 - **Selected directory**: (ignored when pdfCoverNoteLocation is set)
 - **Result**:
   - Cover note: `Notes/My Video.md`
-  - PDF: `Notes/Acme/My Video.pdf`
+  - PDF: `Notes/My Video/My Video.pdf`
 
 ## Configuration Examples
 
@@ -65,8 +65,7 @@ If `pdfCoverNoteLocation` is also set, the cover note is created at that locatio
 {
   "fileFormat": "pdf",
   "createPdfCoverNote": true,
-  "pdfCoverNoteLocation": "",
-  "pdfAttachmentFolderName": ""
+  "pdfCoverNoteLocation": ""
 }
 ```
 
@@ -74,35 +73,16 @@ If `pdfCoverNoteLocation` is also set, the cover note is created at that locatio
 
 **Result:**
 - Cover note: `Transcripts/My Video.md`
-- PDF: `Transcripts/My Video.pdf`
+- PDF: `Transcripts/My Video/My Video.pdf`
 
-### Example 2: PDF nested by channel, cover note at parent level
-
-**Settings:**
-```json
-{
-  "fileFormat": "pdf",
-  "createPdfCoverNote": true,
-  "pdfCoverNoteLocation": "",
-  "pdfAttachmentFolderName": "{ChannelName}"
-}
-```
-
-**Selected directory:** `Transcripts`
-
-**Result:**
-- Cover note: `Transcripts/My Video.md`
-- PDF: `Transcripts/Acme/My Video.pdf`
-
-### Example 3: Cover note and PDF in dedicated location
+### Example 2: PDF and cover note in dedicated location
 
 **Settings:**
 ```json
 {
   "fileFormat": "pdf",
   "createPdfCoverNote": true,
-  "pdfCoverNoteLocation": "Notes/Videos",
-  "pdfAttachmentFolderName": "{ChannelName}"
+  "pdfCoverNoteLocation": "Notes/Videos"
 }
 ```
 
@@ -110,17 +90,16 @@ If `pdfCoverNoteLocation` is also set, the cover note is created at that locatio
 
 **Result:**
 - Cover note: `Notes/Videos/My Video.md`
-- PDF: `Notes/Videos/Acme/My Video.pdf`
+- PDF: `Notes/Videos/My Video/My Video.pdf`
 
-### Example 4: Cover note and PDF together in the same subfolder
+### Example 3: Cover note and PDF together in the same subfolder
 
 **Settings:**
 ```json
 {
   "fileFormat": "pdf",
   "createPdfCoverNote": true,
-  "pdfCoverNoteLocation": "Media/{ChannelName}",
-  "pdfAttachmentFolderName": ""
+  "pdfCoverNoteLocation": "Media/{ChannelName}"
 }
 ```
 
@@ -128,18 +107,16 @@ If `pdfCoverNoteLocation` is also set, the cover note is created at that locatio
 
 **Result:**
 - Cover note: `Media/Acme/My Video.md`
-- PDF: `Media/Acme/My Video.pdf`
+- PDF: `Media/Acme/My Video/My Video.pdf`
 
 ## Simplified Behavior Matrix
 
-| Cover Notes | pdfCoverNoteLocation | pdfAttachmentFolderName | Selected Dir | Cover Note Location | PDF Location |
-|-------------|---------------------|-------------------------|--------------|---------------------|--------------|
-| No          | N/A                 | N/A                     | `Transcripts` | N/A | `Transcripts/My Video.pdf` |
-| Yes         | (empty)             | (empty)                 | `Transcripts` | `Transcripts/My Video.md` | `Transcripts/My Video.pdf` |
-| Yes         | (empty)             | `{ChannelName}`         | `Transcripts` | `Transcripts/My Video.md` | `Transcripts/Acme/My Video.pdf` |
-| Yes         | `Notes`             | (empty)                 | (ignored) | `Notes/My Video.md` | `Notes/My Video.pdf` |
-| Yes         | `Notes`             | `{ChannelName}`         | (ignored) | `Notes/My Video.md` | `Notes/Acme/My Video.pdf` |
-| Yes         | `Notes/{ChannelName}` | (empty)                 | (ignored) | `Notes/Acme/My Video.md` | `Notes/Acme/My Video.pdf` |
+| Cover Notes | pdfCoverNoteLocation | Selected Dir | Cover Note Location | PDF Location |
+|-------------|---------------------|--------------|---------------------|--------------|
+| No          | N/A                 | `Transcripts` | N/A | `Transcripts/My Video.pdf` |
+| Yes         | (empty)             | `Transcripts` | `Transcripts/My Video.md` | `Transcripts/My Video/My Video.pdf` |
+| Yes         | `Notes`             | (ignored) | `Notes/My Video.md` | `Notes/My Video/My Video.pdf` |
+| Yes         | `Notes/{ChannelName}` | (ignored) | `Notes/Acme/My Video.md` | `Notes/Acme/My Video/My Video.pdf` |
 
 ## Template Variables
 
@@ -148,17 +125,16 @@ The following template variables are supported in file/folder names:
 - `{VideoName}`: The sanitized video title
 - `{ChannelName}`: The sanitized channel name (empty if not available)
 
-Variables are replaced before path normalization, so you can use them in `pdfCoverNoteLocation` and `pdfAttachmentFolderName`.
+Variables are replaced before path normalization, so you can use them in `pdfCoverNoteLocation`.
 
 ## Settings Reference
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `fileFormat` | `"markdown" \| "pdf"` | `"markdown"` | File format for saved transcripts |
-| `createPdfCoverNote` | `boolean` | `false` | Whether to create a cover note for PDFs |
+| `createPdfCoverNote` | `boolean` | `false` | Whether to create a cover note for PDFs (also enables PDF nesting) |
 | `pdfCoverNoteLocation` | `string` | `""` | Path for cover notes (empty = same directory as PDF) |
 | `pdfCoverNoteTemplate` | `string` | `""` | Path to template file for cover notes (empty = use default template) |
-| `pdfAttachmentFolderName` | `string` | `""` | Subfolder name for nesting PDFs (empty = no nesting) |
 | `defaultCoverNoteName` | `string` | `"{VideoName}"` | Template for cover note file names |
 
 ## Migration Notes

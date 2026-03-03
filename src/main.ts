@@ -256,7 +256,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
-    // Remove obsolete nestPdfUnderCoverNote and useAttachmentFolderForPdf settings (backward compatibility)
+    // Remove obsolete nestPdfUnderCoverNote, useAttachmentFolderForPdf, and pdfAttachmentFolderName settings (backward compatibility)
     if ((this.settings as any).nestPdfUnderCoverNote !== undefined) {
       delete (this.settings as any).nestPdfUnderCoverNote;
       await this.saveSettings();
@@ -265,10 +265,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       delete (this.settings as any).useAttachmentFolderForPdf;
       await this.saveSettings();
     }
-
-    // Ensure pdfAttachmentFolderName has a default value if missing (backward compatibility)
-    if (this.settings.pdfAttachmentFolderName === undefined) {
-      this.settings.pdfAttachmentFolderName = DEFAULT_SETTINGS.pdfAttachmentFolderName;
+    if ((this.settings as any).pdfAttachmentFolderName !== undefined) {
+      delete (this.settings as any).pdfAttachmentFolderName;
       await this.saveSettings();
     }
 
@@ -660,18 +658,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         coverNoteDirectory = baseDirectory;
       }
       
-      // Calculate attachment folder name
-      const attachmentFolderName = this.calculatePdfAttachmentFolderName(
-        baseSanitizedTitle,
-        videoTitle,
-        channelName,
-      );
-      
       // Update directory to nest PDF under cover note
       if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
-        directory = `${coverNoteDirectory}/${attachmentFolderName}`;
+        directory = `${coverNoteDirectory}/${baseSanitizedTitle}`;
       } else {
-        directory = attachmentFolderName;
+        directory = baseSanitizedTitle;
       }
     }
 
@@ -881,11 +872,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       return coverNoteLocation;
     } else {
       // When cover note location is empty, use the PDF's directory
-      // If PDF nesting is enabled (createPdfCoverNote with pdfAttachmentFolderName),
-      // the PDF is in a nested subfolder, so we need the parent directory for the cover note
+      // If PDF nesting is enabled (createPdfCoverNote), the PDF is in a nested subfolder,
+      // so we need the parent directory for the cover note
       const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-      
-      if (this.settings.createPdfCoverNote && this.settings.pdfAttachmentFolderName) {
+
+      if (this.settings.createPdfCoverNote) {
         // PDF is nested - use parent directory for cover note
         // e.g., PDF at "Attachments/VideoTitle/video.pdf" -> cover note dir is "Attachments"
         const parentDir = pdfDir.substring(0, pdfDir.lastIndexOf("/"));
@@ -895,47 +886,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         return pdfDir || "";
       }
     }
-  }
-
-  /**
-   * Calculates the attachment folder name for nesting PDFs under cover notes
-   * @param pdfFileNameWithoutExt The PDF filename without extension (used as fallback)
-   * @param videoTitle The video title (for {VideoName} template variable)
-   * @param channelName The channel name (for {ChannelName} template variable, can be null)
-   * @returns The calculated attachment folder name
-   */
-  private calculatePdfAttachmentFolderName(
-    pdfFileNameWithoutExt: string,
-    videoTitle: string,
-    channelName: string | null,
-  ): string {
-    let folderName = this.settings.pdfAttachmentFolderName || "";
-    
-    if (folderName.trim() === "") {
-      // If empty, use PDF filename without extension
-      return pdfFileNameWithoutExt;
-    }
-    
-    // Replace template variables
-    if (channelName) {
-      const sanitizedChannelName = sanitizeFilename(channelName);
-      folderName = folderName.replace(/{ChannelName}/g, sanitizedChannelName);
-    } else {
-      folderName = folderName.replace(/{ChannelName}/g, "");
-    }
-    
-    const sanitizedVideoName = sanitizeFilename(videoTitle);
-    folderName = folderName.replace(/{VideoName}/g, sanitizedVideoName);
-    
-    // Clean up any slashes (folder name should not contain path separators)
-    folderName = folderName.replace(/\/+/g, "").trim();
-    
-    // If still empty after processing, use PDF filename
-    if (folderName === "") {
-      return pdfFileNameWithoutExt;
-    }
-    
-    return folderName;
   }
 
   async createPdfCoverNote(

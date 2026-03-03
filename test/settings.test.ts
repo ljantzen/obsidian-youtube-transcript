@@ -235,7 +235,6 @@ describe("Settings", () => {
       createPdfCoverNote: false,
       pdfCoverNoteLocation: "",
       pdfCoverNoteTemplate: "",
-      pdfAttachmentFolderName: "",
       preferredLanguage: "",
       forceLLMLanguage: false,
     };
@@ -243,13 +242,11 @@ describe("Settings", () => {
     expect(typeof settings.createPdfCoverNote).toBe("boolean");
     expect(typeof settings.pdfCoverNoteLocation).toBe("string");
     expect(typeof settings.pdfCoverNoteTemplate).toBe("string");
-    expect(typeof settings.pdfAttachmentFolderName).toBe("string");
     expect(typeof settings.preferredLanguage).toBe("string");
     expect(typeof settings.forceLLMLanguage).toBe("boolean");
     expect(settings.createPdfCoverNote).toBe(false);
     expect(settings.pdfCoverNoteLocation).toBe("");
     expect(settings.pdfCoverNoteTemplate).toBe("");
-    expect(settings.pdfAttachmentFolderName).toBe("");
     expect(settings.preferredLanguage).toBe("");
     expect(settings.forceLLMLanguage).toBe(false);
 
@@ -257,14 +254,12 @@ describe("Settings", () => {
     settings.createPdfCoverNote = true;
     settings.pdfCoverNoteLocation = "Notes/{ChannelName}";
     settings.pdfCoverNoteTemplate = "Templates/Cover Note.md";
-    settings.pdfAttachmentFolderName = "attachments/{VideoName}";
     settings.preferredLanguage = "es";
     settings.forceLLMLanguage = true;
 
     expect(settings.createPdfCoverNote).toBe(true);
     expect(settings.pdfCoverNoteLocation).toBe("Notes/{ChannelName}");
     expect(settings.pdfCoverNoteTemplate).toBe("Templates/Cover Note.md");
-    expect(settings.pdfAttachmentFolderName).toBe("attachments/{VideoName}");
     expect(settings.preferredLanguage).toBe("es");
     expect(settings.forceLLMLanguage).toBe(true);
   });

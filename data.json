@@ -24,8 +24,6 @@
   "createPdfCoverNote": true,
   "pdfCoverNoteLocation": "",
   "pdfCoverNoteTemplate": "",
-  "nestPdfUnderCoverNote": false, 
-  "pdfAttachmentFolderName": "",
   "singleLineTranscript": false,
   "preferredLanguage": "en",
   "forceLLMLanguage": true,

@@ -484,26 +484,6 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         new FileSuggest(this.app, text.inputEl);
       });
 
-    new Setting(containerEl)
-      .setName("PDF attachment folder name")
-      .setDesc(
-        "Name of the folder to nest PDFs under when 'Use attachment folder for PDFs' and 'Create PDF cover note' are both enabled. Leave empty to use the PDF filename (without extension) as the folder name. Supports template variables: {ChannelName} and {VideoName}.",
-      )
-      .addText((text) => {
-        text
-          .setPlaceholder("attachments or {VideoName}")
-          .setValue(this.settings.pdfAttachmentFolderName || "")
-          .onChange(async (value) => {
-            // Normalize: remove leading/trailing slashes, ensure forward slashes
-            const normalizedPath = value
-              .trim()
-              .replace(/^\/+|\/+$/g, "")
-              .replace(/\\/g, "/");
-            this.settings.pdfAttachmentFolderName = normalizedPath;
-            await this.saveSettings();
-          });
-      });
-
     // LLM section
     new Setting(containerEl).setName("LLM").setHeading();
 

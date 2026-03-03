@@ -42,7 +42,6 @@ export interface YouTubeTranscriptPluginSettings {
   createPdfCoverNote: boolean; // When enabled, a cover note will be created for PDF files
   pdfCoverNoteLocation: string; // Location/path for PDF cover notes
   pdfCoverNoteTemplate: string; // Path to template file for PDF cover notes (empty = use default template)
-  pdfAttachmentFolderName: string; // Name of the folder to nest PDFs under when useAttachmentFolderForPdf and createPdfCoverNote are enabled
   singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks
   preferredLanguage: string; // Preferred transcript language code (e.g., "en", "es", "fr"). Empty = auto-select (prefers English)
   forceLLMLanguage: boolean; // When enabled, LLM output will be forced to match the transcript language

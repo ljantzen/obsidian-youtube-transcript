@@ -205,7 +205,6 @@ defaultDirectory: string | null      // Default location for files
 // PDF-specific settings
 createPdfCoverNote: boolean          // Create MD note alongside PDF
 pdfCoverNoteLocation: string         // Where to put cover notes
-pdfAttachmentFolderName: string      // Subfolder for nested PDFs
 
 // LLM settings
 useLLMProcessing: boolean            // Enable LLM cleanup
@@ -217,7 +216,7 @@ generateSummary: boolean             // Create summary section
 
 1. **Template variables** are replaced in multiple places:
    - File names: `defaultNoteName`, `defaultCoverNoteName`
-   - Paths: `pdfCoverNoteLocation`, `pdfAttachmentFolderName`
+   - Paths: `pdfCoverNoteLocation`
    - Variables: `{VideoName}`, `{ChannelName}`, `{PdfDirectory}`
 
 2. **Directory creation timing:**

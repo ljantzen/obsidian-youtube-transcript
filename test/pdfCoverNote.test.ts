@@ -61,33 +61,6 @@ describe("PDF Cover Note Settings", () => {
     expect(settings.pdfCoverNoteTemplate).toContain(".md");
   });
 
-  it("should have pdfAttachmentFolderName in default settings", () => {
-    const defaultSettings = {
-      pdfAttachmentFolderName: "",
-    };
-
-    expect(typeof defaultSettings.pdfAttachmentFolderName).toBe("string");
-    expect(defaultSettings.pdfAttachmentFolderName).toBe("");
-  });
-
-  it("should handle pdfAttachmentFolderName with template variables", () => {
-    const settings = {
-      pdfAttachmentFolderName: "attachments/{ChannelName}/{VideoName}",
-    };
-
-    expect(settings.pdfAttachmentFolderName).toBe("attachments/{ChannelName}/{VideoName}");
-    expect(settings.pdfAttachmentFolderName).toContain("{ChannelName}");
-    expect(settings.pdfAttachmentFolderName).toContain("{VideoName}");
-  });
-
-  it("should handle empty pdfAttachmentFolderName (uses PDF filename)", () => {
-    const settings = {
-      pdfAttachmentFolderName: "",
-    };
-
-    expect(settings.pdfAttachmentFolderName).toBe("");
-    // When empty, the system should use the PDF filename without extension as the folder name
-  });
 });
 
 describe("PDF Cover Note Template Variables", () => {
