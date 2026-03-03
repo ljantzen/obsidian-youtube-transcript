@@ -14,7 +14,11 @@ import type {
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
 import { getYouTubeTranscript } from "./youtube";
-import { YouTubeUrlModal, RetryConfirmationModal } from "./modals";
+import {
+  YouTubeUrlModal,
+  RetryConfirmationModal,
+  DuplicateNoteErrorModal,
+} from "./modals";
 import { YouTubeTranscriptSettingTab } from "./settingsTab";
 import { UserCancelledError } from "./llm/openai";
 import { generatePdfFromMarkdown } from "./pdfGenerator";
@@ -449,10 +453,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       if (videoId) {
         const existingNote = this.findDuplicateNote(videoId);
         if (existingNote) {
-          new Notice(
-            `A note for this video already exists: "${existingNote.basename}"`,
-            10000,
-          );
+          new DuplicateNoteErrorModal(
+            this.app,
+            existingNote.basename,
+          ).open();
           return;
         }
       }
