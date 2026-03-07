@@ -81,10 +81,86 @@ function makeClientConfigs(lang: string, country: string): InnerTubeClientConfig
 }
 
 /**
+ * Extracts a JSON object from HTML by key (e.g. "ytInitialPlayerResponse").
+ * Handles deeply nested objects without regex size limits.
+ */
+function extractJsonFromHtml(html: string, key: string): any | null {
+  const keyIdx = html.indexOf(key);
+  if (keyIdx === -1) return null;
+
+  const startIdx = html.indexOf("{", keyIdx);
+  if (startIdx === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = startIdx; i < html.length; i++) {
+    const ch = html[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.substring(startIdx, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetches player data by scraping ytInitialPlayerResponse from the YouTube watch page.
+ * This is the most reliable fallback as it uses the same data the browser player uses.
+ */
+async function fetchPlayerDataFromWatchPage(videoId: string): Promise<any> {
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  let response;
+  try {
+    response = await requestUrl({
+      url: watchUrl,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+  } catch (err) {
+    throw new Error("Watch page request failed");
+  }
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`Watch page returned HTTP ${response.status}`);
+  }
+
+  const data = extractJsonFromHtml(response.text, "ytInitialPlayerResponse");
+  if (!data) {
+    throw new Error("Could not find player data in watch page");
+  }
+
+  const ps = data?.playabilityStatus;
+  if (ps?.status === "LOGIN_REQUIRED") {
+    throw new Error("This video requires login to view");
+  }
+  if (ps?.status === "ERROR") {
+    throw new Error(ps.reason || "Video unavailable");
+  }
+
+  return data;
+}
+
+/**
  * Fetches player data from YouTube's InnerTube API.
- * Tries multiple client strategies for resilience against YouTube API changes.
- * Only throws immediately for video-level restrictions (ERROR, LOGIN_REQUIRED).
- * UNPLAYABLE with a client-rejection message causes the next client to be tried.
+ * Tries multiple client strategies, then falls back to scraping the watch page.
+ * Only throws immediately for LOGIN_REQUIRED (auth-gated content).
+ * ERROR and UNPLAYABLE from API clients cause the next strategy to be tried.
  */
 async function fetchPlayerDataWithAndroidClient(
   videoId: string,
@@ -123,18 +199,13 @@ async function fetchPlayerDataWithAndroidClient(
     const data = response.json;
     const ps = data?.playabilityStatus;
     if (ps) {
-      if (ps.status === "ERROR") {
-        // Video-level error (e.g. "Video unavailable") — no point trying other clients
-        throw new Error(ps.reason || "Video unavailable");
-      }
       if (ps.status === "LOGIN_REQUIRED") {
         // Video requires authentication — no point trying other clients
         throw new Error("This video requires login to view");
       }
-      if (ps.status === "UNPLAYABLE") {
-        // Often a client-level rejection ("no longer supported in this application")
-        // Try the next client instead of failing immediately
-        errors.push(`${clientName}: UNPLAYABLE — ${ps.reason || "unknown reason"}`);
+      if (ps.status === "ERROR" || ps.status === "UNPLAYABLE") {
+        // May be a client-level rejection — try the next client
+        errors.push(`${clientName}: ${ps.status} — ${ps.reason || "unknown reason"}`);
         continue;
       }
     }
@@ -142,7 +213,21 @@ async function fetchPlayerDataWithAndroidClient(
     return data;
   }
 
-  throw new Error(`Failed to fetch video info. All clients failed: ${errors.join("; ")}`);
+  // All InnerTube clients failed — fall back to scraping the watch page HTML.
+  // This works for publicly available videos that YouTube blocks via the API
+  // (e.g. when po_token / API key requirements kick in for mobile clients).
+  console.warn(
+    `All InnerTube clients failed (${errors.join("; ")}). Falling back to watch page scrape.`,
+  );
+  try {
+    return await fetchPlayerDataFromWatchPage(videoId);
+  } catch (scrapeError) {
+    const scrapeMsg =
+      scrapeError instanceof Error ? scrapeError.message : "unknown error";
+    throw new Error(
+      `Failed to fetch video info. API clients: ${errors.join("; ")}. Watch page fallback: ${scrapeMsg}`,
+    );
+  }
 }
 
 /**
@@ -485,7 +570,7 @@ export async function getYouTubeTranscript(
       JSON.stringify(transcriptResponse.headers, null, 2),
     );
     throw new Error(
-      `Transcript URL returned empty response. YouTube may be blocking automated requests or requiring authentication. Video: ${videoId}. Try accessing the video in a browser first, or check if the video has captions enabled.`,
+      `YouTube returned an empty transcript for video ${videoId}. YouTube now requires authentication for transcript access and is blocking unauthenticated requests. This affects all videos — it is a YouTube-side change, not specific to this video or channel.`,
     );
   }
 

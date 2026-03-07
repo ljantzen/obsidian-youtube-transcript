@@ -19,6 +19,7 @@ import {
   RetryConfirmationModal,
   DuplicateNoteErrorModal,
   MultipleFormatsWithCoverNoteModal,
+  TranscriptFetchErrorModal,
 } from "./modals";
 import { YouTubeTranscriptSettingTab } from "./settingsTab";
 import { UserCancelledError } from "./llm/openai";
@@ -606,7 +607,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      new Notice(`Error fetching transcript: ${errorMessage}`, 10000);
+      new TranscriptFetchErrorModal(this.app, errorMessage).open();
       console.error("Transcript fetch error:", error);
     } finally {
       fetchingNotice.hide();
