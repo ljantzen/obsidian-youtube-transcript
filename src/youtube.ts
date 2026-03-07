@@ -17,11 +17,43 @@ const INNERTUBE_PLAYER_URL = "https://www.youtube.com/youtubei/v1/player";
 interface InnerTubeClientConfig {
   context: object;
   userAgent: string;
+  extraHeaders?: Record<string, string>;
 }
 
-function makeClientConfigs(lang: string, country: string): InnerTubeClientConfig[] {
+function makeClientConfigs(
+  lang: string,
+  country: string,
+  visitorData?: string | null,
+): InnerTubeClientConfig[] {
+  const vd = visitorData || "";
   return [
-    // ANDROID client — primary, good for caption access
+    // ANDROID_VR (Oculus Quest) — primary. Does not require po_token when
+    // visitorData from the watch page is supplied. This is what yt-dlp uses.
+    {
+      context: {
+        client: {
+          clientName: "ANDROID_VR",
+          clientVersion: "1.71.26",
+          deviceMake: "Oculus",
+          deviceModel: "Quest 3",
+          androidSdkVersion: 32,
+          osName: "Android",
+          osVersion: "12L",
+          userAgent: "com.google.android.apps.youtube.vr.oculus/1.71.26 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+          hl: lang,
+          gl: country,
+          ...(vd ? { visitorData: vd } : {}),
+        },
+      },
+      userAgent: "com.google.android.apps.youtube.vr.oculus/1.71.26 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+      extraHeaders: {
+        "X-YouTube-Client-Name": "28",
+        "X-YouTube-Client-Version": "1.71.26",
+        "Origin": "https://www.youtube.com",
+        ...(vd ? { "X-Goog-Visitor-Id": vd } : {}),
+      },
+    },
+    // ANDROID — fallback #1
     {
       context: {
         client: {
@@ -34,7 +66,7 @@ function makeClientConfigs(lang: string, country: string): InnerTubeClientConfig
       },
       userAgent: "com.google.android.youtube/19.44.38 (Linux; U; Android 14) gzip",
     },
-    // IOS client — fallback #1
+    // IOS — fallback #2
     {
       context: {
         client: {
@@ -47,7 +79,7 @@ function makeClientConfigs(lang: string, country: string): InnerTubeClientConfig
       },
       userAgent: "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X)",
     },
-    // WEB_EMBEDDED_PLAYER — fallback #2
+    // WEB_EMBEDDED_PLAYER — fallback #3
     {
       context: {
         client: {
@@ -62,7 +94,7 @@ function makeClientConfigs(lang: string, country: string): InnerTubeClientConfig
       },
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     },
-    // TVHTML5_SIMPLY_EMBEDDED_PLAYER — fallback #3, minimal restrictions
+    // TVHTML5_SIMPLY_EMBEDDED_PLAYER — fallback #4
     {
       context: {
         client: {
@@ -116,11 +148,18 @@ function extractJsonFromHtml(html: string, key: string): any | null {
   return null;
 }
 
+interface WatchPageData {
+  visitorData: string | null;
+  playerData: any | null;
+}
+
 /**
- * Fetches player data by scraping ytInitialPlayerResponse from the YouTube watch page.
- * This is the most reliable fallback as it uses the same data the browser player uses.
+ * Fetches the YouTube watch page and extracts both visitorData (needed by
+ * ANDROID_VR to bypass bot detection) and ytInitialPlayerResponse (used as a
+ * last-resort fallback if all InnerTube API clients fail).
+ * Never throws — returns nulls if the fetch fails.
  */
-async function fetchPlayerDataFromWatchPage(videoId: string): Promise<any> {
+async function fetchWatchPageData(videoId: string): Promise<WatchPageData> {
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
   let response;
   try {
@@ -132,42 +171,42 @@ async function fetchPlayerDataFromWatchPage(videoId: string): Promise<any> {
         "Accept-Language": "en-US,en;q=0.9",
       },
     });
-  } catch (err) {
-    throw new Error("Watch page request failed");
+  } catch {
+    return { visitorData: null, playerData: null };
   }
 
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`Watch page returned HTTP ${response.status}`);
+    return { visitorData: null, playerData: null };
   }
 
-  const data = extractJsonFromHtml(response.text, "ytInitialPlayerResponse");
-  if (!data) {
-    throw new Error("Could not find player data in watch page");
-  }
-
-  const ps = data?.playabilityStatus;
-  if (ps?.status === "LOGIN_REQUIRED") {
-    throw new Error("This video requires login to view");
-  }
-  if (ps?.status === "ERROR") {
-    throw new Error(ps.reason || "Video unavailable");
-  }
-
-  return data;
+  const html = response.text;
+  const vdMatch = html.match(/"VISITOR_DATA":\s*"([^"]+)"/);
+  const visitorData = vdMatch ? vdMatch[1] : null;
+  const playerData = extractJsonFromHtml(html, "ytInitialPlayerResponse");
+  return { visitorData, playerData };
 }
 
 /**
  * Fetches player data from YouTube's InnerTube API.
- * Tries multiple client strategies, then falls back to scraping the watch page.
+ *
+ * Strategy:
+ * 1. Fetch the watch page first to obtain visitorData (required by ANDROID_VR)
+ *    and a backup copy of ytInitialPlayerResponse.
+ * 2. Try API clients in order. ANDROID_VR + visitorData is the primary path
+ *    (what yt-dlp uses; works without a po_token).
+ * 3. If all API clients fail, use the backup playerData from the watch page.
+ *
  * Only throws immediately for LOGIN_REQUIRED (auth-gated content).
- * ERROR and UNPLAYABLE from API clients cause the next strategy to be tried.
  */
 async function fetchPlayerDataWithAndroidClient(
   videoId: string,
   lang?: string,
   country?: string,
 ): Promise<any> {
-  const clients = makeClientConfigs(lang || "en", country || "US");
+  // Fetch watch page first — we need visitorData for ANDROID_VR to work
+  const { visitorData, playerData: htmlPlayerData } = await fetchWatchPageData(videoId);
+
+  const clients = makeClientConfigs(lang || "en", country || "US", visitorData);
   const errors: string[] = [];
 
   for (const client of clients) {
@@ -180,6 +219,7 @@ async function fetchPlayerDataWithAndroidClient(
         headers: {
           "Content-Type": "application/json",
           "User-Agent": client.userAgent,
+          ...client.extraHeaders,
         },
         body: JSON.stringify({
           context: client.context,
@@ -213,21 +253,26 @@ async function fetchPlayerDataWithAndroidClient(
     return data;
   }
 
-  // All InnerTube clients failed — fall back to scraping the watch page HTML.
-  // This works for publicly available videos that YouTube blocks via the API
-  // (e.g. when po_token / API key requirements kick in for mobile clients).
-  console.warn(
-    `All InnerTube clients failed (${errors.join("; ")}). Falling back to watch page scrape.`,
-  );
-  try {
-    return await fetchPlayerDataFromWatchPage(videoId);
-  } catch (scrapeError) {
-    const scrapeMsg =
-      scrapeError instanceof Error ? scrapeError.message : "unknown error";
-    throw new Error(
-      `Failed to fetch video info. API clients: ${errors.join("; ")}. Watch page fallback: ${scrapeMsg}`,
+  // All InnerTube API clients failed — use the watch page HTML player data as
+  // a last resort. This gives us caption URLs but they may still be blocked
+  // (see transcript fetch fallbacks below).
+  if (htmlPlayerData) {
+    const ps = htmlPlayerData?.playabilityStatus;
+    if (ps?.status === "LOGIN_REQUIRED") {
+      throw new Error("This video requires login to view");
+    }
+    if (ps?.status === "ERROR") {
+      throw new Error(ps.reason || "Video unavailable");
+    }
+    console.warn(
+      `All InnerTube clients failed (${errors.join("; ")}). Using watch page HTML player data.`,
     );
+    return htmlPlayerData;
   }
+
+  throw new Error(
+    `Failed to fetch video info. All clients failed: ${errors.join("; ")}`,
+  );
 }
 
 /**
