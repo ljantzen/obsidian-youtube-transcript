@@ -264,6 +264,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
+    // Ensure srtLocation has a default value if missing (backward compatibility)
+    if (this.settings.srtLocation === undefined) {
+      this.settings.srtLocation = DEFAULT_SETTINGS.srtLocation;
+      await this.saveSettings();
+    }
+
     // Ensure pdfCoverNoteTemplate has a default value if missing (backward compatibility)
     if (this.settings.pdfCoverNoteTemplate === undefined) {
       this.settings.pdfCoverNoteTemplate = DEFAULT_SETTINGS.pdfCoverNoteTemplate;
@@ -534,13 +540,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       if (createNewFile) {
         const activeFile = this.app.workspace.getActiveFile();
-        // Only require active file if no directory is selected and we can't derive one from PDF cover note settings
+        // Only require active file if no directory is selected and we can't derive one from format-specific location settings
         const hasPdfCoverNoteDirectory =
           fileFormat === "pdf" &&
           !disablePdfCoverNote &&
           this.settings.createPdfCoverNote &&
           !!this.settings.pdfCoverNoteLocation?.trim();
-        if (!activeFile && !selectedDirectory && !hasPdfCoverNoteDirectory) {
+        const hasSrtDirectory =
+          fileFormat === "srt" &&
+          !!this.settings.srtLocation?.trim();
+        if (!activeFile && !selectedDirectory && !hasPdfCoverNoteDirectory && !hasSrtDirectory) {
           throw new Error(
             "Please open a file first to determine the directory, or set a default directory in settings",
           );
@@ -654,6 +663,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.pdfCoverNoteLocation?.trim()
     ) {
       directory = ""; // Will be overwritten by the PDF cover note location logic below
+    } else if (fileFormat === "srt" && this.settings.srtLocation?.trim()) {
+      directory = this.settings.srtLocation.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
     } else {
       throw new Error(
         "Cannot determine directory: no active file and no directory specified"
