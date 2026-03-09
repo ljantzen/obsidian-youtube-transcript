@@ -1,30 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { extractVideoId, normalizeUrl } from '../src/utils';
 
 describe('URL formatting and video URL inclusion', () => {
-	const extractVideoId = (url: string): string | null => {
-		const patterns = [
-			/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-			/^([a-zA-Z0-9_-]{11})$/
-		];
-
-		for (const pattern of patterns) {
-			const match = url.match(pattern);
-			if (match) {
-				return match[1];
-			}
-		}
-		return null;
-	};
-
-	const normalizeUrl = (url: string): string => {
-		const videoId = extractVideoId(url);
-		return videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
-	};
-
-	const formatVideoUrlMarkdown = (title: string, url: string): string => {
-		return `![${title}](${url})`;
-	};
-
 	it('should normalize various URL formats to watch URL', () => {
 		const testCases = [
 			{
@@ -54,14 +31,14 @@ describe('URL formatting and video URL inclusion', () => {
 	it('should format video URL in markdown format', () => {
 		const title = 'Test Video Title';
 		const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-		const result = formatVideoUrlMarkdown(title, url);
+		const result = `![${title}](${url})`;
 		expect(result).toBe(`![${title}](${url})`);
 	});
 
 	it('should handle special characters in video title', () => {
 		const title = 'Video: Title with "quotes" & special chars';
 		const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-		const result = formatVideoUrlMarkdown(title, url);
+		const result = `![${title}](${url})`;
 		expect(result).toContain(title);
 		expect(result).toContain(url);
 	});
@@ -91,12 +68,12 @@ describe('URL formatting and video URL inclusion', () => {
 		expect(result).toContain('## Summary');
 		expect(result).toContain('## Transcript');
 		expect(result).toContain(transcript);
-		
+
 		// Verify order: URL comes before summary, summary before transcript
 		const urlIndex = result.indexOf('![Test Video]');
 		const summaryIndex = result.indexOf('## Summary');
 		const transcriptIndex = result.indexOf('This is the transcript');
-		
+
 		expect(urlIndex).toBeLessThan(summaryIndex);
 		expect(summaryIndex).toBeLessThan(transcriptIndex);
 	});
@@ -115,5 +92,16 @@ describe('URL formatting and video URL inclusion', () => {
 		const result = parts.join('\n\n');
 		expect(result).not.toContain('![Title]');
 		expect(result).toContain(transcript);
+	});
+
+	it('should extract video ID from various URL formats', () => {
+		expect(extractVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+		expect(extractVideoId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+		expect(extractVideoId('dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+	});
+
+	it('should return the original URL unchanged when it is not a YouTube URL', () => {
+		const nonYouTubeUrl = 'https://example.com/video';
+		expect(normalizeUrl(nonYouTubeUrl)).toBe(nonYouTubeUrl);
 	});
 });

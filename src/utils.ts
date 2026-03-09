@@ -35,9 +35,14 @@ export function validateClaudeModelName(modelName: string): boolean {
   // - claude-opus-4, claude-opus-4-1, claude-opus-4-1-20250805
   // - claude-sonnet-4, claude-sonnet-4-20250514
   // - claude-haiku-4, claude-haiku-4-5, claude-haiku-4-5-20251001
-  // Pattern: claude-{type}-4(-{minor})?(-{date})?
-  const validPattern = /^claude-(opus|sonnet|haiku)-4(-[0-9]+)?(-[0-9]{8})?$/;
+  // Minor version is 1-2 digits; date is exactly 8 digits.
+  const validPattern = /^claude-(opus|sonnet|haiku)-4(-[0-9]{1,2})?(-[0-9]{8})?$/;
   return validPattern.test(modelName);
+}
+
+export function normalizeUrl(url: string): string {
+  const videoId = extractVideoId(url);
+  return videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
 }
 
 export function sanitizeTagName(tagName: string): string {

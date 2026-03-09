@@ -13,6 +13,7 @@ import type {
 } from "./types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
+import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
 import { getYouTubeTranscript } from "./youtube";
 import {
   YouTubeUrlModal,
@@ -308,30 +309,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   }
 
   hasProviderKey(provider: LLMProvider): boolean {
-    switch (provider) {
-      case "openai":
-        return !!(
-          this.settings.openaiKey && this.settings.openaiKey.trim() !== ""
-        );
-      case "gemini":
-        return !!(
-          this.settings.geminiKey && this.settings.geminiKey.trim() !== ""
-        );
-      case "claude":
-        return !!(
-          this.settings.claudeKey && this.settings.claudeKey.trim() !== ""
-        );
-      default: {
-        const customProvider = this.settings.customProviders?.find(
-          (p) => p.id === provider
-        );
-        return !!(
-          customProvider &&
-          customProvider.apiKey &&
-          customProvider.apiKey.trim() !== ""
-        );
-      }
-    }
+    return hasProviderKeyFn(provider, this.settings);
   }
 
   fetchTranscript() {

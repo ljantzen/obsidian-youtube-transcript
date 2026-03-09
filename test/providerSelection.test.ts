@@ -1,90 +1,38 @@
 import { describe, it, expect } from "vitest";
-
-type LLMProvider = "openai" | "gemini" | "claude" | "none";
-
-// Mock helper functions that mirror the plugin implementation
-const hasProviderKey = (
-  provider: LLMProvider,
-  settings: {
-    openaiKey: string;
-    geminiKey: string;
-    claudeKey: string;
-  },
-): boolean => {
-  switch (provider) {
-    case "openai":
-      return !!(settings.openaiKey && settings.openaiKey.trim() !== "");
-    case "gemini":
-      return !!(settings.geminiKey && settings.geminiKey.trim() !== "");
-    case "claude":
-      return !!(settings.claudeKey && settings.claudeKey.trim() !== "");
-    default:
-      return false;
-  }
-};
-
-const getProviderName = (provider: LLMProvider): string => {
-  switch (provider) {
-    case "openai":
-      return "OpenAI";
-    case "gemini":
-      return "Gemini";
-    case "claude":
-      return "Claude";
-    default:
-      return "LLM";
-  }
-};
+import { hasProviderKey, getProviderName } from "../src/providerUtils";
+import { validateClaudeModelName } from "../src/utils";
+import { DEFAULT_SETTINGS } from "../src/settings";
 
 describe("Provider Selection", () => {
   describe("hasProviderKey", () => {
     it("should return true when OpenAI key is present", () => {
-      const settings = {
-        openaiKey: "sk-test123",
-        geminiKey: "",
-        claudeKey: "",
-      };
+      const settings = { ...DEFAULT_SETTINGS, openaiKey: "sk-test123" };
       expect(hasProviderKey("openai", settings)).toBe(true);
     });
 
     it("should return false when OpenAI key is empty", () => {
-      const settings = {
-        openaiKey: "",
-        geminiKey: "",
-        claudeKey: "",
-      };
+      const settings = { ...DEFAULT_SETTINGS, openaiKey: "" };
       expect(hasProviderKey("openai", settings)).toBe(false);
     });
 
     it("should return false when OpenAI key is only whitespace", () => {
-      const settings = {
-        openaiKey: "   ",
-        geminiKey: "",
-        claudeKey: "",
-      };
+      const settings = { ...DEFAULT_SETTINGS, openaiKey: "   " };
       expect(hasProviderKey("openai", settings)).toBe(false);
     });
 
     it("should return true when Gemini key is present", () => {
-      const settings = {
-        openaiKey: "",
-        geminiKey: "AIzaSyTest123",
-        claudeKey: "",
-      };
+      const settings = { ...DEFAULT_SETTINGS, geminiKey: "AIzaSyTest123" };
       expect(hasProviderKey("gemini", settings)).toBe(true);
     });
 
     it("should return true when Claude key is present", () => {
-      const settings = {
-        openaiKey: "",
-        geminiKey: "",
-        claudeKey: "sk-ant-test123",
-      };
+      const settings = { ...DEFAULT_SETTINGS, claudeKey: "sk-ant-test123" };
       expect(hasProviderKey("claude", settings)).toBe(true);
     });
 
     it('should return false for "none" provider', () => {
       const settings = {
+        ...DEFAULT_SETTINGS,
         openaiKey: "sk-test",
         geminiKey: "test",
         claudeKey: "test",
@@ -104,23 +52,23 @@ describe("Provider Selection", () => {
 
   describe("Provider selection logic", () => {
     it("should prefer provided provider over settings provider", () => {
-      const settingsProvider: LLMProvider = "openai";
-      const providedProvider: LLMProvider = "gemini";
+      const settingsProvider = "openai";
+      const providedProvider = "gemini";
       const providerToUse = providedProvider || settingsProvider;
 
       expect(providerToUse).toBe("gemini");
     });
 
     it("should fallback to settings provider when none provided", () => {
-      const settingsProvider: LLMProvider = "openai";
-      const providedProvider: LLMProvider | null = null;
+      const settingsProvider = "openai";
+      const providedProvider: string | null = null;
       const providerToUse = providedProvider || settingsProvider;
 
       expect(providerToUse).toBe("openai");
     });
 
     it('should handle "none" provider correctly', () => {
-      const provider: LLMProvider = "none";
+      const provider = "none";
       expect(provider).toBe("none");
       expect(provider !== "none").toBe(false);
     });
@@ -130,18 +78,15 @@ describe("Provider Selection", () => {
 describe("Model Selection", () => {
   describe("Default models", () => {
     it("should have correct default OpenAI model", () => {
-      const defaultOpenaiModel = "gpt-4o-mini";
-      expect(defaultOpenaiModel).toBe("gpt-4o-mini");
+      expect(DEFAULT_SETTINGS.openaiModel).toBe("gpt-4o-mini");
     });
 
     it("should have correct default Gemini model", () => {
-      const defaultGeminiModel = "gemini-2.0-flash";
-      expect(defaultGeminiModel).toBe("gemini-2.0-flash");
+      expect(DEFAULT_SETTINGS.geminiModel).toBe("gemini-2.0-flash");
     });
 
     it("should have correct default Claude model", () => {
-      const defaultClaudeModel = "claude-sonnet-4-20250514";
-      expect(defaultClaudeModel).toBe("claude-sonnet-4-20250514");
+      expect(DEFAULT_SETTINGS.claudeModel).toBe("claude-sonnet-4-20250514");
     });
   });
 
@@ -198,7 +143,6 @@ describe("Model Selection", () => {
 
     it("should accept valid Claude version 4 models", () => {
       const validModels = [
-        // Claude version 4 models only
         "claude-opus-4-1",
         "claude-opus-4-1-20250805",
         "claude-opus-4",
@@ -206,16 +150,6 @@ describe("Model Selection", () => {
         "claude-sonnet-4",
         "claude-sonnet-4-20250514",
       ];
-
-      // Mock validation function matching the plugin implementation
-      const validateClaudeModelName = (modelName: string): boolean => {
-        const validPatterns = [
-          /^claude-opus-4-1(-[0-9]{8})?$/,
-          /^claude-opus-4(-[0-9]{8})?$/,
-          /^claude-sonnet-4(-[0-9]{8})?$/,
-        ];
-        return validPatterns.some((pattern) => pattern.test(modelName));
-      };
 
       validModels.forEach((model) => {
         expect(model.length).toBeGreaterThan(0);
@@ -226,7 +160,6 @@ describe("Model Selection", () => {
 
     it("should reject invalid Claude models", () => {
       const invalidModels = [
-        // Version 3 models (no longer supported)
         "claude-3-7-sonnet-latest",
         "claude-3-7-sonnet-20250219",
         "claude-3-5-sonnet-latest",
@@ -235,25 +168,15 @@ describe("Model Selection", () => {
         "claude-3-5-haiku-20241022",
         "claude-3-haiku",
         "claude-3-haiku-20240307",
-        // Invalid formats
         "claude-invalid",
         "claude-3-invalid",
         "claude-opus-invalid",
         "claude-opus-4-invalid",
         "claude-opus-4-2024102", // too short date
         "claude-opus-4-202410221", // too long date
-        "claude-2-opus", // wrong version format
-        "claude-5-opus", // future version not yet supported
+        "claude-2-opus",
+        "claude-5-opus",
       ];
-
-      const validateClaudeModelName = (modelName: string): boolean => {
-        const validPatterns = [
-          /^claude-opus-4-1(-[0-9]{8})?$/,
-          /^claude-opus-4(-[0-9]{8})?$/,
-          /^claude-sonnet-4(-[0-9]{8})?$/,
-        ];
-        return validPatterns.some((pattern) => pattern.test(modelName));
-      };
 
       invalidModels.forEach((model) => {
         expect(validateClaudeModelName(model)).toBe(false);
@@ -265,38 +188,22 @@ describe("Model Selection", () => {
 describe("Settings Backward Compatibility", () => {
   it("should infer provider from existing keys", () => {
     const testCases = [
-      {
-        openaiKey: "sk-test",
-        geminiKey: "",
-        claudeKey: "",
-        expected: "openai",
-      },
-      {
-        openaiKey: "",
-        geminiKey: "AIza-test",
-        claudeKey: "",
-        expected: "gemini",
-      },
-      {
-        openaiKey: "",
-        geminiKey: "",
-        claudeKey: "sk-ant-test",
-        expected: "claude",
-      },
+      { openaiKey: "sk-test", geminiKey: "", claudeKey: "", expected: "openai" },
+      { openaiKey: "", geminiKey: "AIza-test", claudeKey: "", expected: "gemini" },
+      { openaiKey: "", geminiKey: "", claudeKey: "sk-ant-test", expected: "claude" },
       { openaiKey: "", geminiKey: "", claudeKey: "", expected: "none" },
     ];
 
     testCases.forEach(({ openaiKey, geminiKey, claudeKey, expected }) => {
-      let inferredProvider: LLMProvider = "none";
+      const settings = { ...DEFAULT_SETTINGS, openaiKey, geminiKey, claudeKey };
+      let inferredProvider = "none";
 
-      if (openaiKey && openaiKey.trim() !== "") {
+      if (hasProviderKey("openai", settings)) {
         inferredProvider = "openai";
-      } else if (geminiKey && geminiKey.trim() !== "") {
+      } else if (hasProviderKey("gemini", settings)) {
         inferredProvider = "gemini";
-      } else if (claudeKey && claudeKey.trim() !== "") {
+      } else if (hasProviderKey("claude", settings)) {
         inferredProvider = "claude";
-      } else {
-        inferredProvider = "none";
       }
 
       expect(inferredProvider).toBe(expected);
@@ -304,30 +211,18 @@ describe("Settings Backward Compatibility", () => {
   });
 
   it("should initialize model fields with defaults if missing", () => {
-    const defaultModels = {
-      openaiModel: "gpt-4o-mini",
-      geminiModel: "gemini-2.0-flash-exp",
-      claudeModel: "claude-sonnet-4-20250514",
-    };
-
     const settings: {
       openaiModel?: string;
       geminiModel?: string;
       claudeModel?: string;
     } = {};
 
-    if (settings.openaiModel === undefined) {
-      settings.openaiModel = defaultModels.openaiModel;
-    }
-    if (settings.geminiModel === undefined) {
-      settings.geminiModel = defaultModels.geminiModel;
-    }
-    if (settings.claudeModel === undefined) {
-      settings.claudeModel = defaultModels.claudeModel;
-    }
+    if (settings.openaiModel === undefined) settings.openaiModel = DEFAULT_SETTINGS.openaiModel;
+    if (settings.geminiModel === undefined) settings.geminiModel = DEFAULT_SETTINGS.geminiModel;
+    if (settings.claudeModel === undefined) settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
 
     expect(settings.openaiModel).toBe("gpt-4o-mini");
-    expect(settings.geminiModel).toBe("gemini-2.0-flash-exp");
+    expect(settings.geminiModel).toBe("gemini-2.0-flash");
     expect(settings.claudeModel).toBe("claude-sonnet-4-20250514");
   });
 });

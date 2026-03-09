@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { extractVideoId } from "../src/utils";
+import { hasProviderKey } from "../src/providerUtils";
 import { DEFAULT_SETTINGS } from "../src/settings";
-import type { YouTubeTranscriptPluginSettings, TranscriptSegment, CustomLLMProvider } from "../src/types";
+import type { TranscriptSegment, CustomLLMProvider, YouTubeTranscriptPluginSettings } from "../src/types";
 
 // The core logic of findDuplicateNote extracted for unit testing:
 // Checks whether a frontmatter property value refers to the same video as videoId.
@@ -20,32 +21,16 @@ function shouldRequireActiveFile(params: {
   fileFormat: "markdown" | "pdf" | "srt";
   createPdfCoverNote: boolean;
   pdfCoverNoteLocation: string;
+  srtLocation: string;
 }): boolean {
   if (!params.createNewFile) return false;
   const hasPdfCoverNoteDirectory =
     params.fileFormat === "pdf" &&
     params.createPdfCoverNote &&
     !!params.pdfCoverNoteLocation?.trim();
-  return !params.hasActiveFile && !params.selectedDirectory && !hasPdfCoverNoteDirectory;
-}
-
-// The hasProviderKey logic for custom providers
-function hasProviderKey(
-  provider: string,
-  settings: Pick<YouTubeTranscriptPluginSettings, "openaiKey" | "geminiKey" | "claudeKey" | "customProviders">,
-): boolean {
-  switch (provider) {
-    case "openai":
-      return !!(settings.openaiKey && settings.openaiKey.trim() !== "");
-    case "gemini":
-      return !!(settings.geminiKey && settings.geminiKey.trim() !== "");
-    case "claude":
-      return !!(settings.claudeKey && settings.claudeKey.trim() !== "");
-    default: {
-      const customProvider = settings.customProviders?.find((p) => p.id === provider);
-      return !!(customProvider && customProvider.apiKey && customProvider.apiKey.trim() !== "");
-    }
-  }
+  const hasSrtDirectory =
+    params.fileFormat === "srt" && !!params.srtLocation?.trim();
+  return !params.hasActiveFile && !params.selectedDirectory && !hasPdfCoverNoteDirectory && !hasSrtDirectory;
 }
 
 describe("Duplicate check settings", () => {
@@ -132,6 +117,7 @@ describe("PDF cover note directory — active file guard", () => {
     fileFormat: "pdf" as const,
     createPdfCoverNote: true,
     pdfCoverNoteLocation: "Transcripts/PDF",
+    srtLocation: "",
   };
 
   it("does not require active file when pdfCoverNoteLocation is set", () => {
@@ -150,7 +136,7 @@ describe("PDF cover note directory — active file guard", () => {
     expect(shouldRequireActiveFile({ ...base, createPdfCoverNote: false })).toBe(true);
   });
 
-  it("requires active file when fileFormat is not pdf", () => {
+  it("requires active file when fileFormat is not pdf (and no srtLocation)", () => {
     expect(shouldRequireActiveFile({ ...base, fileFormat: "markdown" })).toBe(true);
     expect(shouldRequireActiveFile({ ...base, fileFormat: "srt" })).toBe(true);
   });
@@ -173,6 +159,35 @@ describe("PDF cover note directory — active file guard", () => {
 
   it("returns false entirely when createNewFile is false", () => {
     expect(shouldRequireActiveFile({ ...base, createNewFile: false })).toBe(false);
+  });
+});
+
+describe("SRT location — active file guard", () => {
+  const base = {
+    createNewFile: true,
+    hasActiveFile: false,
+    selectedDirectory: null,
+    fileFormat: "srt" as const,
+    createPdfCoverNote: false,
+    pdfCoverNoteLocation: "",
+    srtLocation: "Subtitles",
+  };
+
+  it("does not require active file when srtLocation is set", () => {
+    expect(shouldRequireActiveFile(base)).toBe(false);
+  });
+
+  it("requires active file when srtLocation is empty", () => {
+    expect(shouldRequireActiveFile({ ...base, srtLocation: "" })).toBe(true);
+  });
+
+  it("requires active file when srtLocation is whitespace only", () => {
+    expect(shouldRequireActiveFile({ ...base, srtLocation: "   " })).toBe(true);
+  });
+
+  it("requires active file when fileFormat is not srt (and no pdf location)", () => {
+    expect(shouldRequireActiveFile({ ...base, fileFormat: "markdown" })).toBe(true);
+    expect(shouldRequireActiveFile({ ...base, fileFormat: "pdf" })).toBe(true);
   });
 });
 

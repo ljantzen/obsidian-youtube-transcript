@@ -11,6 +11,7 @@ import type {
   VideoDetails,
 } from "./types";
 import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
+import { getProviderName } from "./providerUtils";
 
 const INNERTUBE_PLAYER_URL = "https://www.youtube.com/youtubei/v1/player";
 
@@ -1038,15 +1039,3 @@ function hasProviderKey(
   }
 }
 
-function getProviderName(provider: LLMProvider): string {
-  switch (provider) {
-    case "openai":
-      return "OpenAI";
-    case "gemini":
-      return "Gemini";
-    case "claude":
-      return "Claude";
-    default:
-      return "LLM";
-  }
-}

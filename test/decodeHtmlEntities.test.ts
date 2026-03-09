@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// Test helper function that matches the implementation
-const decodeHtmlEntities = (text: string): string => {
-	// Use DOMParser to safely decode HTML entities
-	const parser = new DOMParser();
-	const doc = parser.parseFromString(text, "text/html");
-	return doc.documentElement.textContent || text;
-};
+import { decodeHtmlEntities } from '../src/utils';
 
 describe('decodeHtmlEntities', () => {
 	it('should decode &quot; to double quote', () => {

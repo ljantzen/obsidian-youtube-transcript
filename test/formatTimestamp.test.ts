@@ -1,43 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// Test helper function that matches the implementation
-const formatTimestamp = (
-  seconds: number,
-  videoUrl: string,
-  videoId: string,
-  localVideoDirectory?: string,
-): string => {
-  // Format seconds as MM:SS or HH:MM:SS
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  let timeString: string;
-  if (hours > 0) {
-    timeString = `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  } else {
-    timeString = `${minutes}:${secs.toString().padStart(2, "0")}`;
-  }
-  
-  // Create markdown link to video at this timestamp
-  let timestampUrl: string;
-  if (localVideoDirectory && localVideoDirectory.trim() !== "") {
-    // Use local file URL if directory is configured
-    // Normalize directory path (remove trailing slashes, ensure forward slashes, remove leading slash)
-    let normalizedDir = localVideoDirectory
-      .trim()
-      .replace(/\\/g, "/")
-      .replace(/\/+$/, "")
-      .replace(/^\/+/, ""); // Remove leading slashes to avoid file:////
-    // Format: file:///path/to/directory/video-id.mp4?t=SECONDS
-    timestampUrl = `file:///${normalizedDir}/${videoId}.mp4?t=${Math.floor(seconds)}`;
-  } else {
-    // Use YouTube URL
-    // YouTube URL format: https://www.youtube.com/watch?v=VIDEO_ID&t=SECONDSs
-    timestampUrl = `${videoUrl}${videoUrl.includes("?") ? "&" : "?"}t=${Math.floor(seconds)}s`;
-  }
-  return `[${timeString}](${timestampUrl})`;
-};
+import { formatTimestamp } from '../src/utils';
 
 describe('formatTimestamp', () => {
   const videoId = 'dQw4w9WgXcQ';
@@ -75,6 +37,12 @@ describe('formatTimestamp', () => {
       expect(result).toContain('dQw4w9WgXcQ');
       expect(result).toContain('list=PLxxx');
       expect(result).toContain('t=330s');
+    });
+
+    it('should append t= with ? when YouTube URL has no query parameters', () => {
+      const plainUrl = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
+      const result = formatTimestamp(60, plainUrl, videoId);
+      expect(result).toContain('?t=60s');
     });
   });
 

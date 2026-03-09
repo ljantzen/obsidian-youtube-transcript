@@ -1,13 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// Test helper function that matches the implementation
-const sanitizeFilename = (filename: string): string => {
-	return filename
-		.replace(/[<>:"/\\|?*]/g, '') // Remove invalid characters
-		.replace(/\s+/g, ' ') // Normalize whitespace
-		.trim()
-		.substring(0, 100); // Limit length
-};
+import { sanitizeFilename, sanitizeTagName } from '../src/utils';
 
 describe('sanitizeFilename', () => {
 	it('should remove invalid filename characters', () => {
@@ -65,5 +57,35 @@ describe('sanitizeFilename', () => {
 		const result = sanitizeFilename(input);
 		// Should preserve unicode but remove emojis if they cause issues
 		expect(result).toContain('Video Title');
+	});
+});
+
+describe('sanitizeTagName', () => {
+	it('should replace spaces with hyphens', () => {
+		expect(sanitizeTagName('hello world')).toBe('hello-world');
+	});
+
+	it('should remove non-alphanumeric characters except hyphens and underscores', () => {
+		expect(sanitizeTagName('hello!@#world')).toBe('helloworld');
+	});
+
+	it('should collapse multiple hyphens', () => {
+		expect(sanitizeTagName('hello---world')).toBe('hello-world');
+	});
+
+	it('should remove leading and trailing hyphens', () => {
+		expect(sanitizeTagName('-hello-world-')).toBe('hello-world');
+	});
+
+	it('should convert to lowercase', () => {
+		expect(sanitizeTagName('Hello World')).toBe('hello-world');
+	});
+
+	it('should limit length to 50 characters', () => {
+		expect(sanitizeTagName('a'.repeat(60))).toHaveLength(50);
+	});
+
+	it('should handle empty string', () => {
+		expect(sanitizeTagName('')).toBe('');
 	});
 });
