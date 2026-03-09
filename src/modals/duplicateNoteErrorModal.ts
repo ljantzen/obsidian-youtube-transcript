@@ -28,10 +28,19 @@ export class DuplicateNoteErrorModal extends Modal {
       },
     });
     noteContainer.createEl("strong", { text: "Existing note: " });
-    noteContainer.createEl("code", { text: this.noteName });
+    const link = noteContainer.createEl("a", {
+      text: this.noteName,
+      cls: "internal-link",
+      attr: { "data-href": this.noteName, href: this.noteName },
+    });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.app.workspace.openLinkText(this.noteName, "", false);
+      this.close();
+    });
 
     contentEl.createEl("p", {
-      text: "No network request was made. You can open the existing note or try with a different video.",
+      text: "No transcript was fetched. You can open the existing note or try with a different video.",
       attr: { style: "color: var(--text-muted); font-size: 0.9em;" },
     });
 
