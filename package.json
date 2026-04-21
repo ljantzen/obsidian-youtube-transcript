@@ -20,9 +20,9 @@
 	"devDependencies": {
 		"@eslint/compat": "^2.0.3",
 		"@types/node": "^25.3.5",
-		"@vitest/coverage-v8": "^4.0.17",
+		"@vitest/coverage-v8": "^4.1.5",
 		"builtin-modules": "5.1.0",
-		"esbuild": "^0.27.3",
+		"esbuild": "^0.28.0",
 		"eslint": "^10.0.0",
 		"eslint-plugin-obsidianmd": "^0.2.4",
 		"happy-dom": "^20.8.3",
