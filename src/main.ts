@@ -463,7 +463,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         if (existingNote) {
           new DuplicateNoteErrorModal(
             this.app,
-            existingNote.basename,
+            existingNote.path.replace(/\.md$/, ""),
           ).open();
           return;
         }
