@@ -508,6 +508,21 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName("PDF attachment folder")
+      .setDesc(
+        "Folder name used to nest PDF files under the cover note location. Leave empty to use the video title as the folder name.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("attachments")
+          .setValue(this.settings.pdfAttachmentFolder || "")
+          .onChange(async (value) => {
+            this.settings.pdfAttachmentFolder = value.trim().replace(/[/\\]+/g, "").trim();
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
       .setName("SRT file location")
       .setDesc(
         "Location/path where SRT files should be created. Leave empty to use the current file's directory or the default directory.",

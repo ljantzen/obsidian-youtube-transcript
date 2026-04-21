@@ -41,6 +41,7 @@ export interface YouTubeTranscriptPluginSettings {
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
   createPdfCoverNote: boolean; // When enabled, a cover note will be created for PDF files
   pdfCoverNoteLocation: string; // Location/path for PDF cover notes
+  pdfAttachmentFolder: string; // Subfolder name for PDFs when cover notes are enabled (empty = use video title)
   srtLocation: string; // Location/path where SRT files should be created
   pdfCoverNoteTemplate: string; // Path to template file for PDF cover notes (empty = use default template)
   singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks

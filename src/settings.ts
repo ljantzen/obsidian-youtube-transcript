@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   createNewFile: false, // Default to false - insert into current file by default
   createPdfCoverNote: false, // Default to false - do not create cover note for PDFs by default
   pdfCoverNoteLocation: "", // Default to empty string - no specific location set
+  pdfAttachmentFolder: "", // Default to empty string - use video title as subfolder name
   srtLocation: "", // Default to empty string - no specific location set
   pdfCoverNoteTemplate: "", // Default to empty string - use default template
   singleLineTranscript: false, // Default to false - use line breaks for readability

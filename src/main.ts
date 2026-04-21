@@ -271,6 +271,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       await this.saveSettings();
     }
 
+    // Ensure pdfAttachmentFolder has a default value if missing (backward compatibility)
+    if (this.settings.pdfAttachmentFolder === undefined) {
+      this.settings.pdfAttachmentFolder = DEFAULT_SETTINGS.pdfAttachmentFolder;
+      await this.saveSettings();
+    }
+
     // Ensure pdfCoverNoteTemplate has a default value if missing (backward compatibility)
     if (this.settings.pdfCoverNoteTemplate === undefined) {
       this.settings.pdfCoverNoteTemplate = DEFAULT_SETTINGS.pdfCoverNoteTemplate;
@@ -681,10 +687,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
       
       // Update directory to nest PDF under cover note
+      const attachmentFolder = this.settings.pdfAttachmentFolder?.trim()
+        .replace(/[/\\]+/g, "").trim() || baseSanitizedTitle;
       if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
-        directory = `${coverNoteDirectory}/${baseSanitizedTitle}`;
+        directory = `${coverNoteDirectory}/${attachmentFolder}`;
       } else {
-        directory = baseSanitizedTitle;
+        directory = attachmentFolder;
       }
     }
 
