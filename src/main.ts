@@ -470,14 +470,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const baseSanitizedTitle = sanitizeFilename(noteName || videoTitle);
 
     // Determine which directory to use
+    // Format-specific locations take precedence over default/selected directory
     let directory: string;
-    if (selectedDirectory !== null) {
-      directory = selectedDirectory;
-    } else if (activeFile) {
-      const lastSlashIndex = activeFile.path.lastIndexOf("/");
-      directory = lastSlashIndex >= 0
-        ? activeFile.path.substring(0, lastSlashIndex)
-        : ""; // File is in root
+    if (fileFormat === "srt" && this.settings.srtLocation?.trim()) {
+      directory = normalizePath(this.settings.srtLocation);
     } else if (
       fileFormat === "pdf" &&
       !disablePdfCoverNote &&
@@ -485,8 +481,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings.pdfCoverNoteLocation?.trim()
     ) {
       directory = ""; // Will be overwritten by the PDF cover note location logic below
-    } else if (fileFormat === "srt" && this.settings.srtLocation?.trim()) {
-      directory = normalizePath(this.settings.srtLocation);
+    } else if (selectedDirectory !== null) {
+      directory = selectedDirectory;
+    } else if (activeFile) {
+      const lastSlashIndex = activeFile.path.lastIndexOf("/");
+      directory = lastSlashIndex >= 0
+        ? activeFile.path.substring(0, lastSlashIndex)
+        : ""; // File is in root
     } else {
       throw new Error(
         "Cannot determine directory: no active file and no directory specified"
