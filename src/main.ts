@@ -788,6 +788,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           // Replace {SrtLink}
           processedContent = processedContent.replace(/{SrtLink}/g, srtLinkPath ?? "");
 
+          // Replace {PdfDirectory}
+          const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
+          const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
+          processedContent = processedContent.replace(/{PdfDirectory}/g, pdfDirectory);
+
           // Replace videoDetails variables
           if (videoDetails) {
             processedContent = this.replaceVideoDetailsVariables(processedContent, videoDetails);
