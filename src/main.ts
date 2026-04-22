@@ -481,7 +481,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Format-specific locations take precedence over default/selected directory
     let directory: string;
     if (fileFormat === "srt" && this.settings.srtLocation?.trim()) {
-      directory = normalizePath(this.settings.srtLocation);
+      let srtLoc = replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName });
+      srtLoc = srtLoc.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+      directory = normalizePath(srtLoc);
     } else if (
       fileFormat === "pdf" &&
       !disablePdfCoverNote &&
@@ -649,10 +651,27 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Compute expected SRT file path if SRT format is enabled in settings
       let srtFilePath: string | null = null;
       if (this.settings.fileFormats?.includes("srt")) {
-        const srtDir = (this.settings.srtLocation ? normalizePath(this.settings.srtLocation) : "") || directory || "";
-        srtFilePath = srtDir
-          ? `${srtDir}/${baseSanitizedTitle}.srt`
-          : `${baseSanitizedTitle}.srt`;
+        // Use SRT-specific filename template (may differ from note/PDF name template)
+        const srtNameTemplate = this.settings.defaultSrtFileName || "{VideoName}";
+        let srtName = replaceTemplateVariables(srtNameTemplate, { videoTitle, channelName });
+        srtName = srtName.replace(/\s+/g, " ").trim();
+        const srtBaseName = sanitizeFilename(srtName || videoTitle);
+
+        // Use same directory logic as SRT createTranscriptFile to avoid path mismatch
+        let srtDir: string;
+        if (this.settings.srtLocation?.trim()) {
+          let srtLoc = replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName });
+          srtLoc = srtLoc.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+          srtDir = normalizePath(srtLoc);
+        } else if (selectedDirectory !== null) {
+          srtDir = selectedDirectory;
+        } else if (activeFile) {
+          const lastSlash = activeFile.path.lastIndexOf("/");
+          srtDir = lastSlash >= 0 ? activeFile.path.substring(0, lastSlash) : "";
+        } else {
+          srtDir = "";
+        }
+        srtFilePath = srtDir ? `${srtDir}/${srtBaseName}.srt` : `${srtBaseName}.srt`;
       }
 
       await this.createPdfCoverNote(
