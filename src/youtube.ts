@@ -11,7 +11,7 @@ import type {
   VideoDetails,
 } from "./types";
 import { extractVideoId, decodeHtmlEntities, formatTimestamp } from "./utils";
-import { getProviderName } from "./providerUtils";
+import { getProviderName, hasProviderKey } from "./providerUtils";
 
 const INNERTUBE_PLAYER_URL = "https://www.youtube.com/youtubei/v1/player";
 
@@ -1013,29 +1013,3 @@ async function processWithLLM(
     }
   }
 }
-
-function hasProviderKey(
-  provider: LLMProvider,
-  settings: YouTubeTranscriptPluginSettings,
-): boolean {
-  switch (provider) {
-    case "openai":
-      return !!(settings.openaiKey && settings.openaiKey.trim() !== "");
-    case "gemini":
-      return !!(settings.geminiKey && settings.geminiKey.trim() !== "");
-    case "claude":
-      return !!(settings.claudeKey && settings.claudeKey.trim() !== "");
-    default: {
-      // Check if it's a custom provider
-      const customProvider = settings.customProviders?.find(
-        (p) => p.id === provider,
-      );
-      return !!(
-        customProvider &&
-        customProvider.apiKey &&
-        customProvider.apiKey.trim() !== ""
-      );
-    }
-  }
-}
-

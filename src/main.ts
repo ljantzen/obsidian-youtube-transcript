@@ -14,6 +14,8 @@ import type {
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
 import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
+import { replaceTemplateVariables } from "./utils/templateVariables";
+import { normalizePath, normalizeVaultPath } from "./utils/pathUtils";
 import { getYouTubeTranscript } from "./youtube";
 import {
   YouTubeUrlModal,
@@ -634,9 +636,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   ) {
     // Apply note name template
     const noteNameTemplate = this.settings.defaultNoteName || "{VideoName}";
-    let noteName = noteNameTemplate
-      .replace(/{VideoName}/g, videoTitle)
-      .replace(/{ChannelName}/g, channelName || "");
+    let noteName = replaceTemplateVariables(noteNameTemplate, { videoTitle, channelName });
     // Clean up any empty segments from missing channel name
     noteName = noteName.replace(/\s+/g, " ").trim();
     const baseSanitizedTitle = sanitizeFilename(noteName || videoTitle);
@@ -658,7 +658,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     ) {
       directory = ""; // Will be overwritten by the PDF cover note location logic below
     } else if (fileFormat === "srt" && this.settings.srtLocation?.trim()) {
-      directory = this.settings.srtLocation.trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
+      directory = normalizePath(this.settings.srtLocation);
     } else {
       throw new Error(
         "Cannot determine directory: no active file and no directory specified"
@@ -682,14 +682,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       
       // Replace template variables in cover note location
       if (coverNoteDirectory) {
-        if (channelName) {
-          const sanitizedChannelName = sanitizeFilename(channelName);
-          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, sanitizedChannelName);
-        } else {
-          coverNoteDirectory = coverNoteDirectory.replace(/{ChannelName}/g, "");
-        }
-        const sanitizedVideoName = sanitizeFilename(videoTitle);
-        coverNoteDirectory = coverNoteDirectory.replace(/{VideoName}/g, sanitizedVideoName);
+        coverNoteDirectory = replaceTemplateVariables(coverNoteDirectory, { videoTitle, channelName });
         coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
       } else {
         // If no cover note location specified, use the base directory
@@ -860,8 +853,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Compute expected SRT file path if SRT format is enabled in settings
       let srtFilePath: string | null = null;
       if (this.settings.fileFormats?.includes("srt")) {
-        const srtDir = this.settings.srtLocation?.trim()
-          .replace(/^\/+|\/+$/g, "").replace(/\\/g, "/") || directory || "";
+        const srtDir = (this.settings.srtLocation ? normalizePath(this.settings.srtLocation) : "") || directory || "";
         srtFilePath = srtDir
           ? `${srtDir}/${baseSanitizedTitle}.srt`
           : `${baseSanitizedTitle}.srt`;
@@ -904,16 +896,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     let coverNoteLocation = this.settings.pdfCoverNoteLocation || "";
     
     // Replace template variables
-    if (channelName) {
-      const sanitizedChannelName = sanitizeFilename(channelName);
-      coverNoteLocation = coverNoteLocation.replace(/{ChannelName}/g, sanitizedChannelName);
-    } else {
-      coverNoteLocation = coverNoteLocation.replace(/{ChannelName}/g, "");
-    }
-    
-    const sanitizedVideoName = sanitizeFilename(videoTitle);
-    coverNoteLocation = coverNoteLocation.replace(/{VideoName}/g, sanitizedVideoName);
-    
+    coverNoteLocation = replaceTemplateVariables(coverNoteLocation, { videoTitle, channelName });
+
     // Clean up any double slashes or trailing slashes
     coverNoteLocation = coverNoteLocation.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
 
@@ -978,14 +962,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const pdfFileName = pdfFilePath.substring(pdfFilePath.lastIndexOf("/") + 1);
     const pdfFileNameWithoutExt = pdfFileName.replace(/\.pdf$/, "");
     
-    // Use absolute path from vault root for the PDF link (Obsidian supports this)
-    // Remove leading slash if present, as Obsidian paths are relative to vault root
-    const pdfLinkPath = pdfFilePath.startsWith("/") ? pdfFilePath.substring(1) : pdfFilePath;
+    // Use absolute path from vault root for links (Obsidian supports this)
+    const pdfLinkPath = normalizeVaultPath(pdfFilePath);
 
     // Compute SRT link path similarly
-    const srtLinkPath = srtFilePath
-      ? (srtFilePath.startsWith("/") ? srtFilePath.substring(1) : srtFilePath)
-      : null;
+    const srtLinkPath = srtFilePath ? normalizeVaultPath(srtFilePath) : null;
 
     // Build cover note content - use template if specified, otherwise use default
     let coverNoteContent: string;
@@ -1077,10 +1058,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
     
     const coverNoteTemplate = this.settings.defaultCoverNoteName || "{VideoName}";
-    let coverNoteName = coverNoteTemplate
-      .replace(/{VideoName}/g, videoTitle)
-      .replace(/{ChannelName}/g, channelName || "")
-      .replace(/{PdfDirectory}/g, pdfDirectory);
+    let coverNoteName = replaceTemplateVariables(coverNoteTemplate, { videoTitle, channelName, pdfDirectory });
     // Clean up any empty segments from missing channel name
     coverNoteName = coverNoteName.replace(/\s+/g, " ").trim();
     const sanitizedCoverNoteName = sanitizeFilename(coverNoteName || videoTitle);
