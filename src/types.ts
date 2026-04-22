@@ -1,3 +1,5 @@
+import type { TFile } from "obsidian";
+
 export type LLMProvider = "openai" | "gemini" | "claude" | string;
 
 export interface TranscriptSegment {
@@ -89,6 +91,38 @@ export interface TranscriptResult {
   channelName: string | null;
   videoDetails: VideoDetails | null;
   segments: TranscriptSegment[];
+}
+
+export type FileFormat = "markdown" | "pdf" | "srt";
+
+export interface ProcessTranscriptOptions {
+  url: string;
+  createNewFile: boolean;
+  includeVideoUrl: boolean;
+  generateSummary: boolean;
+  useLLM: boolean;
+  llmProvider: LLMProvider;
+  selectedDirectory: string | null;
+  tagWithChannelName: boolean;
+  fileFormat: FileFormat;
+  languageCode: string | null;
+  disablePdfCoverNote?: boolean;
+}
+
+export interface TranscriptFileOptions {
+  activeFile: TFile | null;
+  videoTitle: string;
+  transcript: string;
+  videoUrl: string;
+  summary: string | null;
+  includeVideoUrl: boolean;
+  selectedDirectory: string | null;
+  channelName: string | null;
+  tagWithChannelName: boolean;
+  fileFormat: FileFormat;
+  videoDetails: VideoDetails | null;
+  segments?: TranscriptSegment[];
+  disablePdfCoverNote?: boolean;
 }
 
 export interface LLMResponse {

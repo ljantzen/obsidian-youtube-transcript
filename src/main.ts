@@ -10,6 +10,9 @@ import type {
   LLMProvider,
   TranscriptSegment,
   VideoDetails,
+  FileFormat,
+  ProcessTranscriptOptions,
+  TranscriptFileOptions,
 } from "./types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
@@ -17,6 +20,7 @@ import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
 import { replaceTemplateVariables } from "./utils/templateVariables";
 import { normalizePath, normalizeVaultPath } from "./utils/pathUtils";
 import { getYouTubeTranscript } from "./youtube";
+import { getFormatHandler } from "./fileFormatHandlers";
 import {
   YouTubeUrlModal,
   RetryConfirmationModal,
@@ -26,8 +30,6 @@ import {
 } from "./modals";
 import { YouTubeTranscriptSettingTab } from "./settingsTab";
 import { UserCancelledError } from "./llm/openai";
-import { generatePdfFromMarkdown } from "./pdfGenerator";
-import { generateSrt } from "./srtFormatter";
 
 export default class YouTubeTranscriptPlugin extends Plugin {
   settings: YouTubeTranscriptPluginSettings;
@@ -76,240 +78,96 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   async loadSettings() {
     const loadedData = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+    await this.runSettingsMigrations(loadedData);
+  }
 
-    // Backward compatibility: migrate from old "none" provider to useLLMProcessing toggle
-    if (this.settings.useLLMProcessing === undefined) {
-      // Check if old data had "none" as provider or no provider set
+  private async runSettingsMigrations(loadedData: Record<string, unknown> | null) {
+    let changed = false;
+
+    // useLLMProcessing: infer from old "none" provider
+    if (loadedData?.useLLMProcessing === undefined) {
       const oldProvider = loadedData?.llmProvider;
-      if (oldProvider === "none" || oldProvider === undefined) {
-        this.settings.useLLMProcessing = false;
-      } else {
-        // Had a real provider, so enable LLM processing
-        this.settings.useLLMProcessing = true;
-      }
+      this.settings.useLLMProcessing = oldProvider !== "none" && oldProvider !== undefined;
+      changed = true;
     }
 
-    // Backward compatibility: if llmProvider is not set or was "none", infer from existing keys
+    // llmProvider: infer from saved keys if was "none" or missing
     if (
       this.settings.llmProvider === undefined ||
       (loadedData?.llmProvider as string) === "none"
     ) {
-      if (this.settings.openaiKey && this.settings.openaiKey.trim() !== "") {
+      if (this.settings.openaiKey?.trim()) {
         this.settings.llmProvider = "openai";
-      } else if (
-        this.settings.geminiKey &&
-        this.settings.geminiKey.trim() !== ""
-      ) {
+      } else if (this.settings.geminiKey?.trim()) {
         this.settings.llmProvider = "gemini";
-      } else if (
-        this.settings.claudeKey &&
-        this.settings.claudeKey.trim() !== ""
-      ) {
+      } else if (this.settings.claudeKey?.trim()) {
         this.settings.llmProvider = "claude";
       } else {
-        this.settings.llmProvider = "openai"; // Default to openai
+        this.settings.llmProvider = DEFAULT_SETTINGS.llmProvider;
       }
-      await this.saveSettings();
+      changed = true;
     }
 
-    // Ensure new API key fields exist (backward compatibility)
-    if (this.settings.geminiKey === undefined) {
-      this.settings.geminiKey = "";
-      await this.saveSettings();
-    }
-    if (this.settings.claudeKey === undefined) {
-      this.settings.claudeKey = "";
-      await this.saveSettings();
+    // claudeModel: migrate v3 model names to v4
+    if (this.settings.claudeModel && !validateClaudeModelName(this.settings.claudeModel)) {
+      this.settings.claudeModel = this.settings.claudeModel.includes("opus")
+        ? "claude-opus-4-20250514"
+        : DEFAULT_SETTINGS.claudeModel;
+      changed = true;
     }
 
-    // Ensure model fields exist (backward compatibility)
-    if (this.settings.openaiModel === undefined) {
-      this.settings.openaiModel = DEFAULT_SETTINGS.openaiModel;
-      await this.saveSettings();
-    }
-    if (this.settings.geminiModel === undefined) {
-      this.settings.geminiModel = DEFAULT_SETTINGS.geminiModel;
-      await this.saveSettings();
-    }
-    if (this.settings.claudeModel === undefined) {
-      this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
-      await this.saveSettings();
-    } else if (!validateClaudeModelName(this.settings.claudeModel)) {
-      // Migrate old version 3 models to version 4
-      const oldModel = this.settings.claudeModel;
-      if (oldModel.includes("sonnet")) {
-        this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
-      } else if (oldModel.includes("opus")) {
-        this.settings.claudeModel = "claude-opus-4-20250514";
-      } else {
-        this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
-      }
-      await this.saveSettings();
-    }
-
-    // Ensure prompt has a default value if empty
+    // prompt: repair empty saved value
     if (!this.settings.prompt || this.settings.prompt.trim() === "") {
       this.settings.prompt = DEFAULT_PROMPT;
-      await this.saveSettings();
+      changed = true;
     }
 
-    // Ensure timeout has a default value if missing (backward compatibility)
-    if (
-      this.settings.openaiTimeout === undefined ||
-      this.settings.openaiTimeout <= 0
-    ) {
+    // openaiTimeout: repair zero/negative saved value
+    if (!this.settings.openaiTimeout || this.settings.openaiTimeout <= 0) {
       this.settings.openaiTimeout = DEFAULT_SETTINGS.openaiTimeout;
-      await this.saveSettings();
+      changed = true;
     }
 
-    // Ensure includeVideoUrl has a default value if missing (backward compatibility)
-    if (this.settings.includeVideoUrl === undefined) {
-      this.settings.includeVideoUrl = DEFAULT_SETTINGS.includeVideoUrl;
-      await this.saveSettings();
-    }
-
-    // Ensure generateSummary has a default value if missing (backward compatibility)
-    if (this.settings.generateSummary === undefined) {
-      this.settings.generateSummary = DEFAULT_SETTINGS.generateSummary;
-      await this.saveSettings();
-    }
-
-    // Ensure tagWithChannelName has a default value if missing (backward compatibility)
-    if (this.settings.tagWithChannelName === undefined) {
-      this.settings.tagWithChannelName = DEFAULT_SETTINGS.tagWithChannelName;
-      await this.saveSettings();
-    }
-
-    // Ensure timestamp settings have default values if missing (backward compatibility)
-    // Normalise to boolean so "Include timestamps" is reliably honoured (e.g. if saved as string)
-    if (this.settings.includeTimestamps === undefined) {
-      this.settings.includeTimestamps = DEFAULT_SETTINGS.includeTimestamps;
-      await this.saveSettings();
-    } else if (typeof this.settings.includeTimestamps !== "boolean") {
+    // includeTimestamps: coerce non-boolean saved value
+    if (typeof this.settings.includeTimestamps !== "boolean") {
       this.settings.includeTimestamps =
-        this.settings.includeTimestamps === true ||
+        (this.settings.includeTimestamps as unknown) === true ||
         String(this.settings.includeTimestamps).toLowerCase() === "true";
-      await this.saveSettings();
-    }
-    if (this.settings.timestampFrequency === undefined) {
-      this.settings.timestampFrequency = DEFAULT_SETTINGS.timestampFrequency;
-      await this.saveSettings();
-    }
-    if (this.settings.includeTimestampsInLLM === undefined) {
-      this.settings.includeTimestampsInLLM =
-        DEFAULT_SETTINGS.includeTimestampsInLLM;
-      await this.saveSettings();
+      changed = true;
     }
 
-    // Ensure localVideoDirectory has a default value if missing (backward compatibility)
-    if (this.settings.localVideoDirectory === undefined) {
-      this.settings.localVideoDirectory = DEFAULT_SETTINGS.localVideoDirectory;
-      await this.saveSettings();
-    }
-
-    // Ensure savedDirectories has a default value if missing (backward compatibility)
-    if (this.settings.savedDirectories === undefined) {
-      this.settings.savedDirectories = DEFAULT_SETTINGS.savedDirectories;
-      await this.saveSettings();
-    }
-
-    // Migrate from old fileFormat (single) to new fileFormats (array)
+    // fileFormat (string) → fileFormats (array)
     if ((this.settings as any).fileFormat !== undefined) {
       const oldFormat = (this.settings as any).fileFormat;
       delete (this.settings as any).fileFormat;
       this.settings.fileFormats = [oldFormat];
-      await this.saveSettings();
+      changed = true;
     }
 
-    // Ensure fileFormats has a default value if missing (backward compatibility)
-    if (this.settings.fileFormats === undefined || this.settings.fileFormats.length === 0) {
+    // fileFormats: repair empty array (Object.assign won't override a saved [])
+    if (this.settings.fileFormats.length === 0) {
       this.settings.fileFormats = DEFAULT_SETTINGS.fileFormats;
-      await this.saveSettings();
+      changed = true;
     }
 
-    // Ensure createNewFile has a default value if missing (backward compatibility)
-    if (this.settings.createNewFile === undefined) {
-      this.settings.createNewFile = DEFAULT_SETTINGS.createNewFile;
-      await this.saveSettings();
+    // defaultDirectory: cross-validate against savedDirectories
+    if (
+      this.settings.defaultDirectory &&
+      !(this.settings.savedDirectories ?? []).includes(this.settings.defaultDirectory)
+    ) {
+      this.settings.defaultDirectory = null;
+      changed = true;
     }
 
-    // Ensure defaultDirectory has a default value if missing (backward compatibility)
-    if (this.settings.defaultDirectory === undefined) {
-      this.settings.defaultDirectory = DEFAULT_SETTINGS.defaultDirectory;
-      await this.saveSettings();
-    }
-
-    // Validate that defaultDirectory is still in savedDirectories (if set)
-    if (this.settings.defaultDirectory) {
-      const savedDirs = this.settings.savedDirectories || [];
-      if (!savedDirs.includes(this.settings.defaultDirectory)) {
-        // Default directory no longer exists in saved directories, clear it
-        this.settings.defaultDirectory = null;
-        await this.saveSettings();
+    // Remove obsolete fields
+    for (const field of ["nestPdfUnderCoverNote", "useAttachmentFolderForPdf", "pdfAttachmentFolderName"]) {
+      if ((this.settings as any)[field] !== undefined) {
+        delete (this.settings as any)[field];
+        changed = true;
       }
     }
 
-    // Ensure singleLineTranscript has a default value if missing (backward compatibility)
-    if (this.settings.singleLineTranscript === undefined) {
-      this.settings.singleLineTranscript = DEFAULT_SETTINGS.singleLineTranscript;
-      await this.saveSettings();
-    }
-
-    // Ensure createPdfCoverNote has a default value if missing (backward compatibility)
-    if (this.settings.createPdfCoverNote === undefined) {
-      this.settings.createPdfCoverNote = DEFAULT_SETTINGS.createPdfCoverNote;
-      await this.saveSettings();
-    }
-
-    // Ensure pdfCoverNoteLocation has a default value if missing (backward compatibility)
-    if (this.settings.pdfCoverNoteLocation === undefined) {
-      this.settings.pdfCoverNoteLocation = DEFAULT_SETTINGS.pdfCoverNoteLocation;
-      await this.saveSettings();
-    }
-
-    // Ensure srtLocation has a default value if missing (backward compatibility)
-    if (this.settings.srtLocation === undefined) {
-      this.settings.srtLocation = DEFAULT_SETTINGS.srtLocation;
-      await this.saveSettings();
-    }
-
-    // Ensure pdfAttachmentFolder has a default value if missing (backward compatibility)
-    if (this.settings.pdfAttachmentFolder === undefined) {
-      this.settings.pdfAttachmentFolder = DEFAULT_SETTINGS.pdfAttachmentFolder;
-      await this.saveSettings();
-    }
-
-    // Ensure pdfCoverNoteTemplate has a default value if missing (backward compatibility)
-    if (this.settings.pdfCoverNoteTemplate === undefined) {
-      this.settings.pdfCoverNoteTemplate = DEFAULT_SETTINGS.pdfCoverNoteTemplate;
-      await this.saveSettings();
-    }
-
-    // Remove obsolete nestPdfUnderCoverNote, useAttachmentFolderForPdf, and pdfAttachmentFolderName settings (backward compatibility)
-    if ((this.settings as any).nestPdfUnderCoverNote !== undefined) {
-      delete (this.settings as any).nestPdfUnderCoverNote;
-      await this.saveSettings();
-    }
-    if ((this.settings as any).useAttachmentFolderForPdf !== undefined) {
-      delete (this.settings as any).useAttachmentFolderForPdf;
-      await this.saveSettings();
-    }
-    if ((this.settings as any).pdfAttachmentFolderName !== undefined) {
-      delete (this.settings as any).pdfAttachmentFolderName;
-      await this.saveSettings();
-    }
-
-    // Ensure preferredLanguage has a default value if missing (backward compatibility)
-    if (this.settings.preferredLanguage === undefined) {
-      this.settings.preferredLanguage = DEFAULT_SETTINGS.preferredLanguage;
-      await this.saveSettings();
-    }
-
-    // Ensure forceLLMLanguage has a default value if missing (backward compatibility)
-    if (this.settings.forceLLMLanguage === undefined) {
-      this.settings.forceLLMLanguage = DEFAULT_SETTINGS.forceLLMLanguage;
-      await this.saveSettings();
-    }
+    if (changed) await this.saveSettings();
   }
 
   async saveSettings() {
@@ -348,19 +206,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
         // Process each selected format
         for (const fileFormat of fileFormats) {
-          await this.processTranscript(
-            url,
-            createNewFile,
-            includeVideoUrl,
-            generateSummary,
-            useLLM,
-            llmProvider,
-            selectedDirectory,
-            tagWithChannelName,
-            fileFormat,
-            languageCode,
-            disablePdfCoverNote,
-          );
+          await this.processTranscript({
+            url, createNewFile, includeVideoUrl, generateSummary, useLLM,
+            llmProvider, selectedDirectory, tagWithChannelName,
+            fileFormat, languageCode, disablePdfCoverNote,
+          });
         }
       },
     ).open();
@@ -420,19 +270,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       // Process each selected format
       for (const fileFormat of fileFormats) {
-        await this.processTranscript(
-          trimmedUrl,
-          createNewFile,
-          includeVideoUrl,
-          generateSummary,
-          useLLM,
-          llmProvider,
-          selectedDirectory,
-          tagWithChannelName,
-          fileFormat as "markdown" | "pdf" | "srt",
-          languageCode,
-          disablePdfCoverNote,
-        );
+        await this.processTranscript({
+          url: trimmedUrl,
+          createNewFile, includeVideoUrl, generateSummary, useLLM,
+          llmProvider, selectedDirectory, tagWithChannelName,
+          fileFormat: fileFormat as FileFormat,
+          languageCode, disablePdfCoverNote,
+        });
       }
     } catch (error: unknown) {
       // Handle clipboard access errors
@@ -461,19 +305,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     return null;
   }
 
-  async processTranscript(
-    url: string,
-    createNewFile: boolean,
-    includeVideoUrl: boolean,
-    generateSummary: boolean,
-    useLLM: boolean,
-    llmProvider: LLMProvider,
-    selectedDirectory: string | null,
-    tagWithChannelName: boolean,
-    fileFormat: "markdown" | "pdf" | "srt",
-    languageCode: string | null,
-    disablePdfCoverNote: boolean = false,
-  ) {
+  async processTranscript(options: ProcessTranscriptOptions) {
+    const {
+      url, createNewFile, includeVideoUrl, generateSummary, useLLM,
+      llmProvider, selectedDirectory, tagWithChannelName, fileFormat,
+      languageCode, disablePdfCoverNote = false,
+    } = options;
     if (createNewFile && this.settings.checkForDuplicates) {
       const videoId = extractVideoId(url);
       if (videoId) {
@@ -551,11 +388,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           );
         }
 
-        await this.createTranscriptFile(
-          activeFile || null,
-          title,
+        await this.createTranscriptFile({
+          activeFile: activeFile || null,
+          videoTitle: title,
           transcript,
-          normalizedUrl,
+          videoUrl: normalizedUrl,
           summary,
           includeVideoUrl,
           selectedDirectory,
@@ -565,7 +402,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           videoDetails,
           segments,
           disablePdfCoverNote,
-        );
+        });
         const formatNotice = fileFormat === "pdf"
           ? `PDF file created successfully! (${transcript.length} characters)`
           : fileFormat === "srt"
@@ -619,21 +456,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
   }
 
-  async createTranscriptFile(
-    activeFile: TFile | null,
-    videoTitle: string,
-    transcript: string,
-    videoUrl: string,
-    summary: string | null,
-    includeVideoUrl: boolean,
-    selectedDirectory: string | null, // null = use current file's directory, string = use this directory
-    channelName: string | null,
-    tagWithChannelName: boolean,
-    fileFormat: "markdown" | "pdf" | "srt",
-    videoDetails: VideoDetails | null,
-    segments: TranscriptSegment[] = [],
-    disablePdfCoverNote: boolean = false,
-  ) {
+  async createTranscriptFile(options: TranscriptFileOptions) {
+    const {
+      activeFile, videoTitle, transcript, videoUrl, summary, includeVideoUrl,
+      selectedDirectory, channelName, tagWithChannelName, fileFormat,
+      videoDetails, segments = [], disablePdfCoverNote = false,
+    } = options;
     // Apply note name template
     const noteNameTemplate = this.settings.defaultNoteName || "{VideoName}";
     let noteName = replaceTemplateVariables(noteNameTemplate, { videoTitle, channelName });
@@ -666,7 +494,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Determine file extension based on format
-    const fileExtension = fileFormat === "pdf" ? "pdf" : fileFormat === "srt" ? "srt" : "md";
+    const handler = getFormatHandler(fileFormat);
+    const fileExtension = handler.extension;
 
     // Check if we should nest PDF under cover note (when cover notes are enabled)
     if (
@@ -787,44 +616,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const markdownContent = parts.join("\n\n");
 
     // For SRT, generate cue content from raw segments (ignore markdownContent)
-    const srtContent = fileFormat === "srt" ? generateSrt(segments) : null;
-
-    // Create the file based on format
     try {
-      if (fileFormat === "pdf") {
-        try {
-          // Generate PDF from markdown
-          const pdfBuffer = await generatePdfFromMarkdown(
-            this.app,
-            markdownContent,
-          );
-          // Create PDF file as binary
-          await this.app.vault.createBinary(newFilePath, pdfBuffer);
-        } catch (pdfError: unknown) {
-          const pdfErrorMessage =
-            pdfError instanceof Error ? pdfError.message : "Unknown error";
-          // If PDF generation fails, show error and suggest using markdown
-          new Notice(
-            `PDF generation failed: ${pdfErrorMessage}. Please try markdown format instead.`,
-            10000,
-          );
-          throw pdfError;
-        }
-      } else if (fileFormat === "srt") {
-        await this.app.vault.create(newFilePath, srtContent!);
-      } else {
-        // Create markdown file as text
-        await this.app.vault.create(newFilePath, markdownContent);
-      }
+      await handler.createFile(this.app, newFilePath, markdownContent, segments);
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      // Handle race condition: if file was created between check and create
-      if (
-        errorMessage.includes("already exists") ||
-        errorMessage.includes("file exists")
-      ) {
-        // Find next available path and try again
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      if (errorMessage.includes("already exists") || errorMessage.includes("file exists")) {
+        // Race condition: resolve next available path and retry once
         const baseName = directory
           ? `${directory}/${baseSanitizedTitle}`
           : baseSanitizedTitle;
@@ -832,17 +629,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           newFilePath = `${baseName} (${counter}).${fileExtension}`;
           counter++;
         }
-        if (fileFormat === "pdf") {
-          const pdfBuffer = await generatePdfFromMarkdown(
-            this.app,
-            markdownContent,
-          );
-          await this.app.vault.createBinary(newFilePath, pdfBuffer);
-        } else if (fileFormat === "srt") {
-          await this.app.vault.create(newFilePath, srtContent!);
-        } else {
-          await this.app.vault.create(newFilePath, markdownContent);
-        }
+        await handler.createFile(this.app, newFilePath, markdownContent, segments);
       } else {
         throw error;
       }
@@ -872,12 +659,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Open the file (only for markdown files, PDFs will open in system viewer)
-    if (fileFormat === "markdown") {
-      await this.app.workspace.openLinkText(newFilePath, "", false);
-    } else {
-      // For PDF, just show a notice
-      new Notice(`PDF file created: ${newFilePath}`);
-    }
+    await handler.postCreate(this.app, newFilePath);
   }
 
   /**
