@@ -18,12 +18,22 @@ if [ -z "$LATEST_TAG" ]; then
   exit 1
 fi
 
-IFS='.' read -r MAJOR MINOR PATCH <<EOF
+# Check if a custom version was provided as argument
+if [ -n "$1" ]; then
+  NEW_VERSION="$1"
+  # Validate version format (basic check for x.y.z)
+  if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "Error: Version must be in x.y.z format (e.g., 2.0.0)"
+    exit 1
+  fi
+else
+  # Default: auto-increment patch version
+  IFS='.' read -r MAJOR MINOR PATCH <<EOF
 $LATEST_TAG
 EOF
-
-NEW_PATCH=$((PATCH + 1))
-NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+  NEW_PATCH=$((PATCH + 1))
+  NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+fi
 
 echo "Latest version: $LATEST_TAG"
 echo "New version:    $NEW_VERSION"
