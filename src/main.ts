@@ -368,7 +368,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     try {
       // Read clipboard
       const clipboardText = await navigator.clipboard.readText();
-      
+
       if (!clipboardText || clipboardText.trim() === "") {
         new Notice("No text found in clipboard", 10000);
         return;
@@ -377,7 +377,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Validate YouTube URL
       const trimmedUrl = clipboardText.trim();
       const videoId = extractVideoId(trimmedUrl);
-      
+
       if (!videoId) {
         new Notice("Invalid YouTube URL in clipboard. Please copy a valid YouTube URL or video ID.", 10000);
         return;
@@ -388,13 +388,20 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const includeVideoUrl = this.settings.includeVideoUrl ?? false;
       const generateSummary = this.settings.generateSummary ?? false;
       const tagWithChannelName = this.settings.tagWithChannelName ?? false;
-      const fileFormat = (this.settings.fileFormats && this.settings.fileFormats.length > 0)
-        ? this.settings.fileFormats[0]
-        : "markdown";
+      const fileFormats = (this.settings.fileFormats && this.settings.fileFormats.length > 0)
+        ? this.settings.fileFormats
+        : ["markdown"];
 
       // PDF and SRT formats always require creating a new file
-      if (fileFormat === "pdf" || fileFormat === "srt") {
+      if (fileFormats.includes("pdf") || fileFormats.includes("srt")) {
         createNewFile = true;
+      }
+
+      // Check for conflict: Markdown + PDF with cover notes enabled
+      const hasBothMarkdownAndPdf = fileFormats.includes("markdown") && fileFormats.includes("pdf");
+      const disablePdfCoverNote = hasBothMarkdownAndPdf && this.settings.createPdfCoverNote;
+      if (disablePdfCoverNote) {
+        new MultipleFormatsWithCoverNoteModal(this.app).open();
       }
 
       // Determine if LLM processing should be used
@@ -409,19 +416,22 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         ? this.settings.preferredLanguage
         : null;
 
-      // Process transcript with default settings
-      await this.processTranscript(
-        trimmedUrl,
-        createNewFile,
-        includeVideoUrl,
-        generateSummary,
-        useLLM,
-        llmProvider,
-        selectedDirectory,
-        tagWithChannelName,
-        fileFormat,
-        languageCode,
-      );
+      // Process each selected format
+      for (const fileFormat of fileFormats) {
+        await this.processTranscript(
+          trimmedUrl,
+          createNewFile,
+          includeVideoUrl,
+          generateSummary,
+          useLLM,
+          llmProvider,
+          selectedDirectory,
+          tagWithChannelName,
+          fileFormat,
+          languageCode,
+          disablePdfCoverNote,
+        );
+      }
     } catch (error: unknown) {
       // Handle clipboard access errors
       if (error instanceof Error && error.name === "NotAllowedError") {
