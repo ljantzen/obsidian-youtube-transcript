@@ -411,6 +411,10 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Default cover note name**: Template for cover note file names. Supports `{VideoName}`, `{ChannelName}`, and `{PdfDirectory}` variables. Default: `{VideoName}`
 - **PDF cover note location**: Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Uses the FolderSuggest and supports `{ChannelName}` and `{VideoName}` template variables
 - **PDF cover note template**: Path to a markdown template file for custom cover note formatting. Supports all template variables listed in the PDF Cover Notes section. Leave empty to use the default template.
+- **PDF attachment folder**: Subfolder name for PDFs when cover notes are enabled. Allows custom folder names (e.g., "attachments"). Leave empty to use the video title as the folder name.
+
+### SRT Settings
+- **SRT attachment folder**: Folder path where SRT subtitle files should be created. Leave empty to use the current file's directory or the default directory. The folder will be created automatically if it doesn't exist.
 
 ### Content Options
 - **Preferred languages**: Comma-separated list of preferred transcript language codes in order of preference (e.g., "en,es,fr" for English, then Spanish, then French). Languages will be tried in order until one is available. Leave empty for auto-select (prefers English). You can override this in the modal when multiple languages are available.
@@ -502,7 +506,7 @@ Test coverage includes:
 - Integration tests for complete workflows
 - Default directory functionality
 - Create new file setting
-- Clipboard command with default settings
+- Clipboard command with default settings and multiple format processing
 - Single line transcript formatting
 - PDF cover note functionality
 - PDF nesting under cover notes (when cover notes are enabled)

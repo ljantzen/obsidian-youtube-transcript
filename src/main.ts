@@ -427,7 +427,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           llmProvider,
           selectedDirectory,
           tagWithChannelName,
-          fileFormat,
+          fileFormat as "markdown" | "pdf" | "srt",
           languageCode,
           disablePdfCoverNote,
         );
