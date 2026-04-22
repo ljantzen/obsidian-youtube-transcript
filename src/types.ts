@@ -45,6 +45,7 @@ export interface YouTubeTranscriptPluginSettings {
   pdfCoverNoteLocation: string; // Location/path for PDF cover notes
   pdfAttachmentFolder: string; // Subfolder name for PDFs when cover notes are enabled (empty = use video title)
   srtLocation: string; // Location/path where SRT files should be created
+  defaultSrtFileName: string; // Template for SRT file names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
   pdfCoverNoteTemplate: string; // Path to template file for PDF cover notes (empty = use default template)
   singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks
   preferredLanguage: string; // Preferred transcript language code (e.g., "en", "es", "fr"). Empty = auto-select (prefers English)

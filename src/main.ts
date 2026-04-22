@@ -462,12 +462,20 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       selectedDirectory, channelName, tagWithChannelName, fileFormat,
       videoDetails, segments = [], disablePdfCoverNote = false,
     } = options;
-    // Apply note name template
-    const noteNameTemplate = this.settings.defaultNoteName || "{VideoName}";
-    let noteName = replaceTemplateVariables(noteNameTemplate, { videoTitle, channelName });
-    // Clean up any empty segments from missing channel name
-    noteName = noteName.replace(/\s+/g, " ").trim();
-    const baseSanitizedTitle = sanitizeFilename(noteName || videoTitle);
+    // Apply file name template based on format
+    let baseSanitizedTitle: string;
+    if (fileFormat === "srt") {
+      const srtNameTemplate = this.settings.defaultSrtFileName || "{VideoName}";
+      let srtName = replaceTemplateVariables(srtNameTemplate, { videoTitle, channelName });
+      srtName = srtName.replace(/\s+/g, " ").trim();
+      baseSanitizedTitle = sanitizeFilename(srtName || videoTitle);
+    } else {
+      const noteNameTemplate = this.settings.defaultNoteName || "{VideoName}";
+      let noteName = replaceTemplateVariables(noteNameTemplate, { videoTitle, channelName });
+      // Clean up any empty segments from missing channel name
+      noteName = noteName.replace(/\s+/g, " ").trim();
+      baseSanitizedTitle = sanitizeFilename(noteName || videoTitle);
+    }
 
     // Determine which directory to use
     // Format-specific locations take precedence over default/selected directory

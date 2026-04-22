@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   pdfCoverNoteLocation: "", // Default to empty string - no specific location set
   pdfAttachmentFolder: "", // Default to empty string - use video title as subfolder name
   srtLocation: "", // Default to empty string - no specific location set
+  defaultSrtFileName: "{VideoName}", // Default to video title
   pdfCoverNoteTemplate: "", // Default to empty string - use default template
   singleLineTranscript: false, // Default to false - use line breaks for readability
   preferredLanguage: "", // Default to empty string - auto-select (prefers English)

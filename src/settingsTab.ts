@@ -542,6 +542,21 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName("Default SRT file name")
+      .setDesc(
+        "Template for SRT file names. Supports {VideoName} and {ChannelName} variables.",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("{VideoName}")
+          .setValue(this.settings.defaultSrtFileName || "{VideoName}")
+          .onChange(async (value) => {
+            this.settings.defaultSrtFileName = value || "{VideoName}";
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
       .setName("PDF cover note template")
       .setDesc(
         "Path to a markdown template file for PDF cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {SrtLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",

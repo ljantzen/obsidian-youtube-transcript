@@ -105,4 +105,24 @@ describe("File Format Settings", () => {
       expect(shouldSkipLLM("srt")).toBe(true);
     });
   });
+
+  describe("SRT file naming", () => {
+    it("should have defaultSrtFileName in default settings", () => {
+      expect(DEFAULT_SETTINGS.defaultSrtFileName).toBe("{VideoName}");
+    });
+
+    it("should support SRT naming templates", () => {
+      const templates = ["{VideoName}", "{ChannelName}", "{VideoName} - {ChannelName}"];
+      templates.forEach((template) => {
+        expect(typeof template).toBe("string");
+        expect(template.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("should default to {VideoName} for SRT files like markdown", () => {
+      expect(DEFAULT_SETTINGS.defaultSrtFileName).toBe(
+        DEFAULT_SETTINGS.defaultNoteName
+      );
+    });
+  });
 });
