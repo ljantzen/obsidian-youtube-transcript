@@ -816,9 +816,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           // Replace {SrtLink}
           processedContent = processedContent.replace(/{SrtLink}/g, srtLinkPath ?? "");
 
-          // Replace {PdfDirectory}
+          // Replace {PdfDirectory} with full path of PDF's directory (excluding filename)
           const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-          const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
+          const pdfDirectory = pdfDirPath || "";
           processedContent = processedContent.replace(/{PdfDirectory}/g, pdfDirectory);
 
           // Replace videoDetails variables
@@ -868,9 +868,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Create cover note file - apply cover note name template
-    // Extract PDF directory name (just the folder name, not full path)
+    // Full path of the PDF's directory (excluding filename), used for {PdfDirectory}
     const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-    const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
+    const pdfDirectory = pdfDirPath || "";
     
     const coverNoteTemplate = this.settings.defaultCoverNoteName || "{VideoName}";
     let coverNoteName = replaceTemplateVariables(coverNoteTemplate, { videoTitle, channelName, pdfDirectory });

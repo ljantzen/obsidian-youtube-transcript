@@ -63,32 +63,31 @@ describe("PDF Cover Note Root Directory Handling", () => {
     expect(coverNotePath).toBe("Notes/PDF Covers/Test Video.md");
   });
 
-  it("should extract PDF directory name correctly from root", () => {
-    // Simulate the logic at lines 1214-1215 in main.ts
+  it("should extract PDF directory path correctly from root", () => {
     const pdfFilePath = "Test Video.pdf";
     const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-    const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
+    const pdfDirectory = pdfDirPath || "";
     
-    // When in root, pdfDirPath is "", substring(0) on "" returns ""
+    // When in root, pdfDirPath is "" → empty string
     expect(pdfDirectory).toBe("");
   });
 
-  it("should extract PDF directory name correctly from subdirectory", () => {
+  it("should extract PDF directory path correctly from subdirectory", () => {
     const pdfFilePath = "Transcripts/Test Video.pdf";
     const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-    const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
+    const pdfDirectory = pdfDirPath || "";
     
-    // Should extract just "Transcripts"
+    // Full directory path: "Transcripts"
     expect(pdfDirectory).toBe("Transcripts");
   });
 
-  it("should extract PDF directory name correctly from nested subdirectory", () => {
+  it("should extract full PDF directory path from nested subdirectory", () => {
     const pdfFilePath = "Notes/PDF/Transcripts/Test Video.pdf";
     const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-    const pdfDirectory = pdfDirPath.substring(pdfDirPath.lastIndexOf("/") + 1) || "";
+    const pdfDirectory = pdfDirPath || "";
     
-    // Should extract just the last directory name "Transcripts"
-    expect(pdfDirectory).toBe("Transcripts");
+    // Full directory path, not just the last segment
+    expect(pdfDirectory).toBe("Notes/PDF/Transcripts");
   });
 
   it("should calculate parent directory for nested PDF", () => {
