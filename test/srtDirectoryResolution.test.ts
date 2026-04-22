@@ -24,10 +24,16 @@ interface SrtDirParams {
 /** Mirrors the fixed srtLocation directory resolution in createTranscriptFile(). */
 function resolveSrtDirectory(params: SrtDirParams): string {
   const { srtLocation, videoTitle, channelName, selectedDirectory, activeFilePath } = params;
-  if (srtLocation?.trim()) {
-    let srtLoc = replaceTemplateVariables(srtLocation, { videoTitle, channelName });
-    srtLoc = srtLoc.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-    return normalizePath(srtLoc);
+  // Resolve template vars first; empty result falls through to next option
+  const resolvedSrtLocation = srtLocation?.trim()
+    ? normalizePath(
+        replaceTemplateVariables(srtLocation, { videoTitle, channelName })
+          .replace(/\/+/g, "/")
+          .replace(/^\/|\/$/g, ""),
+      )
+    : "";
+  if (resolvedSrtLocation) {
+    return resolvedSrtLocation;
   } else if (selectedDirectory !== null) {
     return selectedDirectory;
   } else if (activeFilePath) {
@@ -65,11 +71,17 @@ function computeSrtPathForCoverNote(params: SrtPathForCoverNoteParams): string {
   const srtBaseName = sanitizeFilename(srtName || videoTitle);
 
   // Directory: same resolution as SRT file creation itself
+  // Resolve template vars first; empty result falls through to next option
+  const resolvedSrtLoc = srtLocation?.trim()
+    ? normalizePath(
+        replaceTemplateVariables(srtLocation, { videoTitle, channelName })
+          .replace(/\/+/g, "/")
+          .replace(/^\/|\/$/g, ""),
+      )
+    : "";
   let srtDir: string;
-  if (srtLocation?.trim()) {
-    let srtLoc = replaceTemplateVariables(srtLocation, { videoTitle, channelName });
-    srtLoc = srtLoc.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-    srtDir = normalizePath(srtLoc);
+  if (resolvedSrtLoc) {
+    srtDir = resolvedSrtLoc;
   } else if (selectedDirectory !== null) {
     srtDir = selectedDirectory;
   } else if (activeFilePath) {
@@ -132,15 +144,27 @@ describe("SRT directory resolution (issue #81)", () => {
       expect(dir).toBe("Subtitles");
     });
 
-    it("collapses double slashes produced by empty {ChannelName}", () => {
+    it("falls back to selectedDirectory when {ChannelName} expands to empty string", () => {
+      const dir = resolveSrtDirectory({
+        srtLocation: "{ChannelName}",
+        videoTitle: "Video",
+        channelName: null, // empty channel → {ChannelName} becomes "" → entire srtLocation is empty
+        selectedDirectory: "Transcripts",
+        activeFilePath: null,
+      });
+      // Should fall through to selectedDirectory, not silently use root
+      expect(dir).toBe("Transcripts");
+    });
+
+    it("uses static suffix when only {ChannelName} prefix expands to empty", () => {
       const dir = resolveSrtDirectory({
         srtLocation: "{ChannelName}/SRT",
         videoTitle: "Video",
-        channelName: null, // empty channel → {ChannelName} becomes ""
-        selectedDirectory: null,
+        channelName: null, // {ChannelName} → "", leaving "/SRT" → cleaned to "SRT"
+        selectedDirectory: "Fallback",
         activeFilePath: null,
       });
-      // "//SRT" → collapsed to "/SRT" → stripped to "SRT"
+      // "SRT" is non-empty → used directly, not the fallback
       expect(dir).toBe("SRT");
     });
 

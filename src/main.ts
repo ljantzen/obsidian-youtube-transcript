@@ -479,11 +479,18 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Determine which directory to use
     // Format-specific locations take precedence over default/selected directory
+    // Resolve SRT location up-front so template-expansion-to-empty falls through correctly
+    const resolvedSrtLocation = (fileFormat === "srt" && this.settings.srtLocation?.trim())
+      ? normalizePath(
+          replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName })
+            .replace(/\/+/g, "/")
+            .replace(/^\/|\/$/g, ""),
+        )
+      : "";
+
     let directory: string;
-    if (fileFormat === "srt" && this.settings.srtLocation?.trim()) {
-      let srtLoc = replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName });
-      srtLoc = srtLoc.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-      directory = normalizePath(srtLoc);
+    if (resolvedSrtLocation) {
+      directory = resolvedSrtLocation;
     } else if (
       fileFormat === "pdf" &&
       !disablePdfCoverNote &&
@@ -658,11 +665,17 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         const srtBaseName = sanitizeFilename(srtName || videoTitle);
 
         // Use same directory logic as SRT createTranscriptFile to avoid path mismatch
+        // Resolve template vars first; if they expand to empty, fall through to next option
         let srtDir: string;
-        if (this.settings.srtLocation?.trim()) {
-          let srtLoc = replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName });
-          srtLoc = srtLoc.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-          srtDir = normalizePath(srtLoc);
+        const resolvedSrtLoc = this.settings.srtLocation?.trim()
+          ? normalizePath(
+              replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName })
+                .replace(/\/+/g, "/")
+                .replace(/^\/|\/$/g, ""),
+            )
+          : "";
+        if (resolvedSrtLoc) {
+          srtDir = resolvedSrtLoc;
         } else if (selectedDirectory !== null) {
           srtDir = selectedDirectory;
         } else if (activeFile) {
