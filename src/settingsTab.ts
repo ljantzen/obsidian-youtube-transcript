@@ -523,9 +523,9 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("SRT file location")
+      .setName("SRT attachment folder")
       .setDesc(
-        "Location/path where SRT files should be created. Leave empty to use the current file's directory or the default directory.",
+        "Folder path where SRT files should be created. The folder will be created automatically if it doesn't exist. Leave empty to use the current file's directory or the default directory.",
       )
       .addText((text) => {
         text
@@ -539,7 +539,6 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             this.settings.srtLocation = normalizedPath;
             await this.saveSettings();
           });
-        new FolderSuggest(this.app, text.inputEl);
       });
 
     new Setting(containerEl)
