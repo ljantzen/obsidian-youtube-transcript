@@ -151,6 +151,7 @@ If you previously used the plugin with `useAttachmentFolderForPdf` and `pdfAttac
 - `{VideoUrl}` - YouTube video URL
 - `{Summary}` - Video summary (if available)
 - `{PdfLink}` - Path to the PDF file (for Obsidian links)
+- `{SrtLink}` - Path to the SRT subtitle file (populated when SRT format is enabled in settings)
 - `{VideoId}` - YouTube video ID
 - `{LengthSeconds}` - Video duration in seconds
 - `{ViewCount}` - Number of views

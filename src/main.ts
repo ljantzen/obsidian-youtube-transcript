@@ -857,6 +857,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Create cover note for PDF if enabled
     if (fileFormat === "pdf" && !disablePdfCoverNote && this.settings.createPdfCoverNote) {
+      // Compute expected SRT file path if SRT format is enabled in settings
+      let srtFilePath: string | null = null;
+      if (this.settings.fileFormats?.includes("srt")) {
+        const srtDir = this.settings.srtLocation?.trim()
+          .replace(/^\/+|\/+$/g, "").replace(/\\/g, "/") || directory || "";
+        srtFilePath = srtDir
+          ? `${srtDir}/${baseSanitizedTitle}.srt`
+          : `${baseSanitizedTitle}.srt`;
+      }
+
       await this.createPdfCoverNote(
         newFilePath,
         videoTitle,
@@ -865,6 +875,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         channelName,
         tagWithChannelName,
         videoDetails,
+        srtFilePath,
       );
     }
 
@@ -936,6 +947,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     channelName: string | null,
     tagWithChannelName: boolean,
     videoDetails: VideoDetails | null,
+    srtFilePath: string | null = null,
   ) {
     // Calculate cover note directory
     let coverNoteDirectory = this.calculateCoverNoteDirectory(
@@ -969,6 +981,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Use absolute path from vault root for the PDF link (Obsidian supports this)
     // Remove leading slash if present, as Obsidian paths are relative to vault root
     const pdfLinkPath = pdfFilePath.startsWith("/") ? pdfFilePath.substring(1) : pdfFilePath;
+
+    // Compute SRT link path similarly
+    const srtLinkPath = srtFilePath
+      ? (srtFilePath.startsWith("/") ? srtFilePath.substring(1) : srtFilePath)
+      : null;
 
     // Build cover note content - use template if specified, otherwise use default
     let coverNoteContent: string;
@@ -1004,7 +1021,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           
           // Replace {PdfLink}
           processedContent = processedContent.replace(/{PdfLink}/g, pdfLinkPath);
-          
+
+          // Replace {SrtLink}
+          processedContent = processedContent.replace(/{SrtLink}/g, srtLinkPath ?? "");
+
           // Replace videoDetails variables
           if (videoDetails) {
             processedContent = this.replaceVideoDetailsVariables(processedContent, videoDetails);
@@ -1021,6 +1041,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             channelName,
             tagWithChannelName,
             pdfLinkPath,
+            srtLinkPath,
           );
         }
       } catch (error) {
@@ -1034,6 +1055,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           channelName,
           tagWithChannelName,
           pdfLinkPath,
+          srtLinkPath,
         );
       }
     } else {
@@ -1045,6 +1067,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         channelName,
         tagWithChannelName,
         pdfLinkPath,
+        srtLinkPath,
       );
     }
 
@@ -1098,6 +1121,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     channelName: string | null,
     tagWithChannelName: boolean,
     pdfLinkPath: string,
+    srtLinkPath: string | null = null,
   ): string {
     const coverNoteParts: string[] = [];
 
@@ -1114,6 +1138,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Add link to PDF (using absolute path from vault root)
     coverNoteParts.push(`[[${pdfLinkPath}|View PDF Transcript]]`);
+
+    // Add link to SRT if available
+    if (srtLinkPath) {
+      coverNoteParts.push(`[[${srtLinkPath}|View SRT Transcript]]`);
+    }
 
     // Add summary if available
     if (summary) {

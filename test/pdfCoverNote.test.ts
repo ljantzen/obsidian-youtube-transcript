@@ -132,6 +132,26 @@ describe("PDF Cover Note Template Variables", () => {
     expect(result).not.toContain("{PdfLink}");
   });
 
+  it("should replace {SrtLink} variable", () => {
+    const template = "SRT: [[{SrtLink}|View SRT]]";
+    const srtLinkPath = "Subtitles/Test Video.srt";
+
+    const result = template.replace(/{SrtLink}/g, srtLinkPath);
+
+    expect(result).toBe("SRT: [[Subtitles/Test Video.srt|View SRT]]");
+    expect(result).not.toContain("{SrtLink}");
+  });
+
+  it("should replace {SrtLink} with empty string when null", () => {
+    const template = "SRT: [[{SrtLink}|View SRT]]";
+    const srtLinkPath: string | null = null;
+
+    const result = template.replace(/{SrtLink}/g, srtLinkPath ?? "");
+
+    expect(result).toBe("SRT: [[|View SRT]]");
+    expect(result).not.toContain("{SrtLink}");
+  });
+
   it("should replace multiple template variables in one template", () => {
     const template = "Channel: {ChannelName}\nVideo: {VideoName}\nURL: {VideoUrl}\nSummary: {Summary}\nPDF: [[{PdfLink}|View PDF]]";
     const channelName = "Test Channel";
@@ -402,6 +422,56 @@ describe("PDF Cover Note Default Content", () => {
     const content = parts.join("\n\n");
 
     expect(content).toBe(`![Test Video](https://www.youtube.com/watch?v=test)\n\n[[Transcripts/Test Video.pdf|View PDF Transcript]]`);
+  });
+
+  it("should include SRT link in default cover note when srtLinkPath is provided", () => {
+    const videoTitle = "Test Video";
+    const videoUrl = "https://www.youtube.com/watch?v=test";
+    const summary: string | null = "Test summary";
+    const pdfLinkPath = "Transcripts/Test Video.pdf";
+    const srtLinkPath = "Subtitles/Test Video.srt";
+
+    const parts: string[] = [];
+
+    parts.push(`![${videoTitle}](${videoUrl})`);
+    parts.push(`[[${pdfLinkPath}|View PDF Transcript]]`);
+
+    if (srtLinkPath) {
+      parts.push(`[[${srtLinkPath}|View SRT Transcript]]`);
+    }
+
+    if (summary) {
+      parts.push(`## Summary\n\n${summary}`);
+    }
+
+    const content = parts.join("\n\n");
+
+    expect(content).toContain(`![${videoTitle}](${videoUrl})`);
+    expect(content).toContain(`[[${pdfLinkPath}|View PDF Transcript]]`);
+    expect(content).toContain(`[[${srtLinkPath}|View SRT Transcript]]`);
+    expect(content).toContain("## Summary");
+  });
+
+  it("should omit SRT link in default cover note when srtLinkPath is null", () => {
+    const videoTitle = "Test Video";
+    const videoUrl = "https://www.youtube.com/watch?v=test";
+    const pdfLinkPath = "Transcripts/Test Video.pdf";
+    const srtLinkPath: string | null = null;
+
+    const parts: string[] = [];
+
+    parts.push(`![${videoTitle}](${videoUrl})`);
+    parts.push(`[[${pdfLinkPath}|View PDF Transcript]]`);
+
+    if (srtLinkPath) {
+      parts.push(`[[${srtLinkPath}|View SRT Transcript]]`);
+    }
+
+    const content = parts.join("\n\n");
+
+    expect(content).toContain(`![${videoTitle}](${videoUrl})`);
+    expect(content).toContain(`[[${pdfLinkPath}|View PDF Transcript]]`);
+    expect(content).not.toContain("View SRT Transcript");
   });
 });
 
