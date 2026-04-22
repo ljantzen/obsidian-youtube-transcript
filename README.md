@@ -65,9 +65,11 @@ The plugin includes a command that automatically fetches transcripts from your c
 
 1. Copy a YouTube URL to your clipboard
 2. Use the command "Fetch YouTube transcript from clipboard" (can be assigned a keyboard shortcut in Settings → Hotkeys)
-3. The transcript will be fetched and processed using your default settings
-4. If you have a default directory set, the file will be created there (even if no document is open)
+3. The transcript will be fetched and **all configured file formats will be generated** (e.g., Markdown, PDF, and SRT together)
+4. If you have a default directory set, files will be created there (even if no document is open)
 5. If no default directory is set and no document is open, you'll get an error message
+
+**Multiple formats**: The clipboard command generates all file formats that are enabled in your settings. If you have Markdown, PDF, and SRT enabled, all three will be created from a single clipboard command.
 
 **Requirements for clipboard command without an open document:**
 - A default directory must be set in settings

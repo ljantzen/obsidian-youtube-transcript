@@ -84,15 +84,28 @@ describe('Clipboard Command', () => {
       expect(tagWithChannelName).toBe(false);
     });
 
-    it('should use default fileFormats setting', () => {
+    it('should use all configured fileFormats', () => {
       const settings = {
-        fileFormats: ['pdf'] as ('markdown' | 'pdf' | 'srt')[],
+        fileFormats: ['markdown', 'pdf', 'srt'] as ('markdown' | 'pdf' | 'srt')[],
       };
 
-      const fileFormat = (settings.fileFormats && settings.fileFormats.length > 0)
-        ? settings.fileFormats[0]
-        : 'markdown';
-      expect(fileFormat).toBe('pdf');
+      const fileFormats = (settings.fileFormats && settings.fileFormats.length > 0)
+        ? settings.fileFormats
+        : ['markdown'];
+      expect(fileFormats).toContain('markdown');
+      expect(fileFormats).toContain('pdf');
+      expect(fileFormats).toContain('srt');
+    });
+
+    it('should default to markdown array for backward compatibility', () => {
+      const settings = {
+        fileFormats: undefined as ('markdown' | 'pdf' | 'srt')[] | undefined,
+      };
+
+      const fileFormats = (settings.fileFormats && settings.fileFormats.length > 0)
+        ? settings.fileFormats
+        : ['markdown'];
+      expect(fileFormats).toEqual(['markdown']);
     });
 
     it('should use default directory when set', () => {
@@ -165,7 +178,7 @@ describe('Clipboard Command', () => {
     it('should handle clipboard access denied error', () => {
       const error = new Error('Clipboard access denied');
       error.name = 'NotAllowedError';
-      
+
       const isNotAllowedError = error instanceof Error && error.name === 'NotAllowedError';
       expect(isNotAllowedError).toBe(true);
     });
@@ -173,7 +186,7 @@ describe('Clipboard Command', () => {
     it('should handle clipboard not found error', () => {
       const error = new Error('Clipboard not found');
       error.name = 'NotFoundError';
-      
+
       const isNotFoundError = error instanceof Error && error.name === 'NotFoundError';
       expect(isNotFoundError).toBe(true);
     });
@@ -181,8 +194,89 @@ describe('Clipboard Command', () => {
     it('should handle generic clipboard errors', () => {
       const error = new Error('Unknown clipboard error');
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+
       expect(errorMessage).toBe('Unknown clipboard error');
+    });
+  });
+
+  describe('Multiple format processing', () => {
+    it('should process multiple formats from clipboard', () => {
+      const settings = {
+        fileFormats: ['markdown', 'pdf', 'srt'] as ('markdown' | 'pdf' | 'srt')[],
+      };
+
+      const fileFormats = (settings.fileFormats && settings.fileFormats.length > 0)
+        ? settings.fileFormats
+        : ['markdown'];
+
+      // Should process all formats
+      expect(fileFormats.length).toBe(3);
+      fileFormats.forEach((format) => {
+        expect(['markdown', 'pdf', 'srt']).toContain(format);
+      });
+    });
+
+    it('should auto-enable createNewFile when PDF or SRT selected', () => {
+      const fileFormats = ['markdown', 'pdf', 'srt'] as ('markdown' | 'pdf' | 'srt')[];
+      const createNewFile = false;
+
+      const hasPdfOrSrt = fileFormats.includes('pdf') || fileFormats.includes('srt');
+      const finalCreateNewFile = hasPdfOrSrt ? true : createNewFile;
+
+      expect(finalCreateNewFile).toBe(true);
+    });
+
+    it('should not require createNewFile when only markdown selected', () => {
+      const fileFormats = ['markdown'] as ('markdown' | 'pdf' | 'srt')[];
+      const createNewFile = false;
+
+      const hasPdfOrSrt = fileFormats.includes('pdf') || fileFormats.includes('srt');
+      const finalCreateNewFile = hasPdfOrSrt ? true : createNewFile;
+
+      expect(finalCreateNewFile).toBe(false);
+    });
+  });
+
+  describe('PDF and Markdown cover note conflict', () => {
+    it('should detect markdown and PDF together', () => {
+      const fileFormats = ['markdown', 'pdf'] as ('markdown' | 'pdf' | 'srt')[];
+
+      const hasBothMarkdownAndPdf = fileFormats.includes('markdown') && fileFormats.includes('pdf');
+      expect(hasBothMarkdownAndPdf).toBe(true);
+    });
+
+    it('should detect when only PDF selected', () => {
+      const fileFormats = ['pdf'] as ('markdown' | 'pdf' | 'srt')[];
+
+      const hasBothMarkdownAndPdf = fileFormats.includes('markdown') && fileFormats.includes('pdf');
+      expect(hasBothMarkdownAndPdf).toBe(false);
+    });
+
+    it('should detect when only markdown selected', () => {
+      const fileFormats = ['markdown'] as ('markdown' | 'pdf' | 'srt')[];
+
+      const hasBothMarkdownAndPdf = fileFormats.includes('markdown') && fileFormats.includes('pdf');
+      expect(hasBothMarkdownAndPdf).toBe(false);
+    });
+
+    it('should disable cover notes when both markdown and PDF present with setting enabled', () => {
+      const fileFormats = ['markdown', 'pdf'] as ('markdown' | 'pdf' | 'srt')[];
+      const createPdfCoverNote = true;
+
+      const hasBothMarkdownAndPdf = fileFormats.includes('markdown') && fileFormats.includes('pdf');
+      const disablePdfCoverNote = hasBothMarkdownAndPdf && createPdfCoverNote;
+
+      expect(disablePdfCoverNote).toBe(true);
+    });
+
+    it('should allow cover notes when only PDF selected', () => {
+      const fileFormats = ['pdf'] as ('markdown' | 'pdf' | 'srt')[];
+      const createPdfCoverNote = true;
+
+      const hasBothMarkdownAndPdf = fileFormats.includes('markdown') && fileFormats.includes('pdf');
+      const disablePdfCoverNote = hasBothMarkdownAndPdf && createPdfCoverNote;
+
+      expect(disablePdfCoverNote).toBe(false);
     });
   });
 });
