@@ -98,8 +98,8 @@ The plugin allows you to generate **one or more file formats** in a single reque
 
 **Example:** Select PDF, Markdown, and SRT to create:
 - `My Video.md` - Searchable markdown transcript
-- `My Video/My Video.pdf` - PDF with optional cover note
-- `My Video.srt` - SRT subtitle file
+- `My Video/Attachments/My Video.pdf` - PDF with optional cover note (if cover notes enabled)
+- `My Video/Attachments/My Video.srt` - SRT subtitle file with optional cover note (if cover notes enabled)
 
 **Format Details:**
 - **Markdown (.md)**: Full transcript with timestamps as clickable links. Opens automatically after creation.
@@ -174,7 +174,7 @@ If you previously used the plugin with `useAttachmentFolderForPdf` and `pdfAttac
 
 **Custom Templates:**
 - Create a markdown template file with any of the template variables above
-- Set the template path in Settings → YouTube Transcript Settings → PDF → PDF cover note template
+- Set the template path in Settings → YouTube Transcript Settings → Cover Note Settings → Cover note template
 - The template will be processed with all available variables
 - If the template file is not found, the default template will be used
 
@@ -508,8 +508,8 @@ Test coverage includes:
 - Create new file setting
 - Clipboard command with default settings and multiple format processing
 - Single line transcript formatting
-- PDF cover note functionality
-- PDF nesting under cover notes (when cover notes are enabled)
+- Cover note functionality for PDF and SRT files
+- Nesting PDF and SRT files under cover notes
 - VideoDetails extraction and template variables
 - Frontmatter generation
 - Language selection and fallback logic
@@ -517,7 +517,7 @@ Test coverage includes:
 - SRT subtitle format generation (time formatting, cue structure, segment filtering, end-time calculation)
 - Duplicate note prevention (video URL matching, frontmatter property extraction)
 - Custom LLM provider key validation
-- PDF cover note directory guard logic (no open file required when location is configured)
+- Cover note directory guard logic (no open file required when location is configured)
 
 See [test/README.md](test/README.md) for more details.
 

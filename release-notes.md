@@ -1,5 +1,37 @@
 # Release Notes
 
+## 2.0.0 (2026-04-23)
+
+### Major Changes
+
+**Breaking Changes:**
+- **Generalized cover notes**: Cover notes are no longer PDF-specific and now work for both PDF and SRT files. All PDF-specific settings have been renamed to generic equivalents:
+  - `createPdfCoverNote` → `createCoverNote`
+  - `pdfCoverNoteLocation` → `coverNoteLocation`
+  - `pdfAttachmentFolder` → `attachmentFolder`
+  - `pdfCoverNoteTemplate` → `coverNoteTemplate`
+  - Removed: `srtLocation`, `defaultCoverNoteName`, `useAttachmentFolderForPdf`, `pdfAttachmentFolderName`
+
+### New Features
+- **Unified cover notes for PDF and SRT**: A single cover note per video can now link to both PDF and SRT files when both formats are created
+- **Consistent file nesting**: Both PDF and SRT files use the same nesting structure under `{coverNoteLocation}/{attachmentFolder}/`
+
+### Improvements
+- **Backward compatibility**: Old PDF-specific settings are automatically migrated to new generic settings on first load
+- **Simplified configuration**: Single set of cover note settings works for all attachment types (PDF, SRT, future formats)
+- **Cleaner directory structure**: Consistent organization of attachments regardless of file format
+- **Documentation updates**: Updated README and all settings descriptions to reflect generic cover note functionality
+
+### Migration Guide
+If you previously used PDF cover notes:
+1. The plugin automatically migrates your settings on first load
+2. Your old `pdfCoverNoteLocation` becomes `coverNoteLocation`
+3. Your old `pdfAttachmentFolder` becomes `attachmentFolder`
+4. If you had `srtLocation` set separately, it's no longer used (cover notes now handle both)
+5. All functionality remains the same, but now works for PDF and SRT together
+
+---
+
 ## 1.0.43 (2026-04-22)
 
 ### Bug Fixes
