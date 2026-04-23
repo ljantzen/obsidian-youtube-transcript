@@ -178,7 +178,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Remove obsolete fields
-    for (const field of ["nestPdfUnderCoverNote", "useAttachmentFolderForPdf", "pdfAttachmentFolderName", "createPdfCoverNote", "pdfCoverNoteLocation", "pdfAttachmentFolder", "pdfCoverNoteTemplate", "srtLocation", "defaultCoverNoteName"]) {
+    for (const field of ["nestPdfUnderCoverNote", "useAttachmentFolderForPdf", "pdfAttachmentFolderName", "createPdfCoverNote", "pdfCoverNoteLocation", "pdfAttachmentFolder", "pdfCoverNoteTemplate", "srtLocation"]) {
       if ((this.settings as any)[field] !== undefined) {
         delete (this.settings as any)[field];
         changed = true;
