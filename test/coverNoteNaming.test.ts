@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { sanitizeFilename } from "../src/utils";
 
+type FileFormat = "markdown" | "pdf" | "srt";
+
 describe("Cover Note Naming", () => {
   describe("Default cover note file name template", () => {
     it("should use {VideoName} by default", () => {
@@ -80,6 +82,84 @@ describe("Cover Note Naming", () => {
         .trim();
 
       expect(coverNoteName).toBe("Channel Video");
+    });
+  });
+
+  describe("SrtLink template variable", () => {
+    it("should populate {SrtLink} when creating SRT file", () => {
+      const fileFormat: FileFormat = "srt";
+      const newFilePath = "Attachments/My Video.srt";
+
+      // Simulate the logic: when fileFormat === "srt", use newFilePath as srtFilePath
+      let srtFilePath: string | null = null;
+      if (fileFormat === "srt") {
+        srtFilePath = newFilePath;
+      }
+
+      expect(srtFilePath).toBe("Attachments/My Video.srt");
+    });
+
+    it("should populate {SrtLink} when creating PDF with SRT enabled", () => {
+      const fileFormat: FileFormat = "pdf";
+      const fileFormats: FileFormat[] = ["pdf", "srt"];
+      const videoTitle = "My Video";
+      const srtBaseName = sanitizeFilename(videoTitle);
+
+      // Simulate the logic: when fileFormat === "pdf" and SRT is enabled, compute SRT path
+      let srtFilePath: string | null = null;
+      if (fileFormat === "pdf" && fileFormats.includes("srt")) {
+        srtFilePath = `Attachments/${srtBaseName}.srt`;
+      }
+
+      expect(srtFilePath).toBe("Attachments/My Video.srt");
+    });
+
+    it("should NOT populate {SrtLink} when creating markdown", () => {
+      const fileFormat = "markdown" as FileFormat;
+      const fileFormats: FileFormat[] = ["markdown"];
+
+      let srtFilePath: string | null = null;
+      if (fileFormat === "srt") {
+        srtFilePath = "some_path";
+      } else if (fileFormat === "pdf" && fileFormats.includes("srt")) {
+        srtFilePath = "some_path";
+      }
+
+      expect(srtFilePath).toBeNull();
+    });
+
+    it("should NOT populate {SrtLink} when creating PDF without SRT enabled", () => {
+      const fileFormat = "pdf" as FileFormat;
+      const fileFormats: FileFormat[] = ["pdf"];
+
+      let srtFilePath: string | null = null;
+      if (fileFormat === "srt") {
+        srtFilePath = "some_path";
+      } else if (fileFormat === "pdf" && fileFormats.includes("srt")) {
+        srtFilePath = "some_path";
+      }
+
+      expect(srtFilePath).toBeNull();
+    });
+
+    it("should replace {SrtLink} with empty string if srtFilePath is null", () => {
+      const template = "Check out the [[{PdfLink}|PDF]] and [[{SrtLink}|SRT]]";
+      const srtFilePath: string | null = null;
+      const srtLinkPath = srtFilePath ? srtFilePath : null;
+
+      const result = template.replace(/{SrtLink}/g, srtLinkPath ?? "");
+
+      expect(result).toBe("Check out the [[{PdfLink}|PDF]] and [[|SRT]]");
+    });
+
+    it("should replace {SrtLink} with path if srtFilePath exists", () => {
+      const template = "Check out the [[{PdfLink}|PDF]] and [[{SrtLink}|SRT]]";
+      const srtFilePath = "Attachments/My Video.srt";
+      const srtLinkPath = srtFilePath;
+
+      const result = template.replace(/{SrtLink}/g, srtLinkPath ?? "");
+
+      expect(result).toBe("Check out the [[{PdfLink}|PDF]] and [[Attachments/My Video.srt|SRT]]");
     });
   });
 

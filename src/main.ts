@@ -655,10 +655,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Create cover note for PDF or SRT if enabled
     if ((fileFormat === "pdf" || fileFormat === "srt") && !disableCoverNote && this.settings.createCoverNote) {
-      // Compute expected SRT file path if SRT format is enabled in settings
+      // Determine SRT file path based on which format is being created
       let srtFilePath: string | null = null;
-      if (this.settings.fileFormats?.includes("srt") && fileFormat === "pdf") {
-        // When creating a PDF, compute where the SRT will be created
+      if (fileFormat === "srt") {
+        // When creating SRT, newFilePath IS the SRT file
+        srtFilePath = newFilePath;
+      } else if (fileFormat === "pdf" && this.settings.fileFormats?.includes("srt")) {
+        // When creating PDF, compute where the SRT will be created (if SRT is enabled)
         const srtNameTemplate = this.settings.defaultSrtFileName || "{VideoName}";
         let srtName = replaceTemplateVariables(srtNameTemplate, { videoTitle, channelName });
         srtName = srtName.replace(/\s+/g, " ").trim();
