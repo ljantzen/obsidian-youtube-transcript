@@ -14,6 +14,21 @@ export function extractVideoId(url: string): string | null {
   return null;
 }
 
+export function extractAllVideoUrls(text: string): string[] {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const token of text.split(/\s+/)) {
+    const trimmed = token.trim();
+    if (!trimmed) continue;
+    const videoId = extractVideoId(trimmed);
+    if (videoId && !seen.has(videoId)) {
+      seen.add(videoId);
+      urls.push(trimmed);
+    }
+  }
+  return urls;
+}
+
 export function sanitizeFilename(filename: string): string {
   // Remove or replace invalid filename characters
   return filename

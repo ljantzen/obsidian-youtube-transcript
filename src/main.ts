@@ -245,12 +245,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         return;
       }
 
-      // Validate YouTube URL
-      const trimmedUrl = clipboardText.trim();
-      const videoId = extractVideoId(trimmedUrl);
+      // Extract all YouTube URLs from clipboard
+      const { extractAllVideoUrls } = await import("./utils");
+      const urls = extractAllVideoUrls(clipboardText);
 
-      if (!videoId) {
-        new Notice("Invalid YouTube URL in clipboard. Please copy a valid YouTube URL or video ID.", 10000);
+      if (urls.length === 0) {
+        new Notice("No YouTube URLs found in clipboard. Please copy a valid YouTube URL or video ID.", 10000);
         return;
       }
 
@@ -288,15 +288,22 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         ? this.settings.preferredLanguage
         : null;
 
-      // Process each selected format
-      for (const fileFormat of fileFormats) {
-        await this.processTranscript({
-          url: trimmedUrl,
-          createNewFile, includeVideoUrl, generateSummary, useLLM,
-          llmProvider, selectedDirectory, tagWithChannelName,
-          fileFormat: fileFormat as FileFormat,
-          languageCode, disableCoverNote,
-        });
+      // Process each URL sequentially
+      for (let i = 0; i < urls.length; i++) {
+        // Show progress for multi-URL batch
+        if (urls.length > 1) {
+          new Notice(`Processing video ${i + 1} of ${urls.length}…`, 3000);
+        }
+        // Process each selected format for this URL
+        for (const fileFormat of fileFormats) {
+          await this.processTranscript({
+            url: urls[i],
+            createNewFile, includeVideoUrl, generateSummary, useLLM,
+            llmProvider, selectedDirectory, tagWithChannelName,
+            fileFormat: fileFormat as FileFormat,
+            languageCode, disableCoverNote,
+          });
+        }
       }
     } catch (error: unknown) {
       // Handle clipboard access errors

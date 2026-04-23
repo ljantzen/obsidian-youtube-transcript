@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractVideoId } from '../src/utils';
+import { extractVideoId, extractAllVideoUrls } from '../src/utils';
 
 describe('Clipboard Command', () => {
   describe('URL validation', () => {
@@ -277,6 +277,69 @@ describe('Clipboard Command', () => {
       const disablePdfCoverNote = hasBothMarkdownAndPdf && createPdfCoverNote;
 
       expect(disablePdfCoverNote).toBe(false);
+    });
+  });
+
+  describe('Multiple URL clipboard handling', () => {
+    it('should extract two URLs separated by newlines', () => {
+      const clipboardText = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ\nhttps://youtu.be/xvFZjo5PgG0';
+      const urls = extractAllVideoUrls(clipboardText);
+      expect(urls).toHaveLength(2);
+      expect(urls[0]).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      expect(urls[1]).toBe('https://youtu.be/xvFZjo5PgG0');
+    });
+
+    it('should extract two URLs separated by spaces', () => {
+      const clipboardText = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ https://youtu.be/xvFZjo5PgG0';
+      const urls = extractAllVideoUrls(clipboardText);
+      expect(urls).toHaveLength(2);
+    });
+
+    it('should deduplicate duplicate URL (long and short form)', () => {
+      const clipboardText = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ https://youtu.be/dQw4w9WgXcQ';
+      const urls = extractAllVideoUrls(clipboardText);
+      expect(urls).toHaveLength(1);
+    });
+
+    it('should handle mixed valid and invalid URLs, keeping only valid ones', () => {
+      const clipboardText = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ https://example.com/invalid https://youtu.be/xvFZjo5PgG0';
+      const urls = extractAllVideoUrls(clipboardText);
+      expect(urls).toHaveLength(2);
+      expect(urls).toContain('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      expect(urls).toContain('https://youtu.be/xvFZjo5PgG0');
+    });
+
+    it('should return empty array when clipboard has no valid YouTube URLs', () => {
+      const clipboardText = 'https://example.com https://vimeo.com/123456789';
+      const urls = extractAllVideoUrls(clipboardText);
+      expect(urls).toHaveLength(0);
+    });
+
+    it('should handle bare video IDs mixed with URLs', () => {
+      const clipboardText = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ dQw4w9WgXcQ xvFZjo5PgG0';
+      const urls = extractAllVideoUrls(clipboardText);
+      expect(urls).toHaveLength(2); // deduplicated the first two
+      expect(urls).toContain('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      expect(urls).toContain('xvFZjo5PgG0');
+    });
+
+    it('should process all extracted URLs with same file formats', () => {
+      const urls = ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://youtu.be/xvFZjo5PgG0'];
+      const fileFormats = ['markdown', 'pdf'] as ('markdown' | 'pdf' | 'srt')[];
+
+      // Simulate the processing loop
+      const processedUrls = [];
+      for (let i = 0; i < urls.length; i++) {
+        for (const fileFormat of fileFormats) {
+          processedUrls.push({ url: urls[i], format: fileFormat });
+        }
+      }
+
+      expect(processedUrls).toHaveLength(4); // 2 URLs × 2 formats
+      expect(processedUrls[0]).toEqual({ url: urls[0], format: 'markdown' });
+      expect(processedUrls[1]).toEqual({ url: urls[0], format: 'pdf' });
+      expect(processedUrls[2]).toEqual({ url: urls[1], format: 'markdown' });
+      expect(processedUrls[3]).toEqual({ url: urls[1], format: 'pdf' });
     });
   });
 });
