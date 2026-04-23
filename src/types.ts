@@ -41,17 +41,15 @@ export interface YouTubeTranscriptPluginSettings {
   defaultDirectory: string | null; // Default directory from savedDirectories to use when creating new files (null = use current file's directory)
   fileFormats: ("markdown" | "pdf" | "srt")[]; // Available file formats for saved transcripts
   createNewFile: boolean; // Whether to create a new file by default (can be overridden in the modal)
-  createPdfCoverNote: boolean; // When enabled, a cover note will be created for PDF files
-  pdfCoverNoteLocation: string; // Location/path for PDF cover notes
-  pdfAttachmentFolder: string; // Subfolder name for PDFs when cover notes are enabled (empty = use video title)
-  srtLocation: string; // Location/path where SRT files should be created
+  createCoverNote: boolean; // When enabled, a markdown cover note will be created for PDF and/or SRT files
+  coverNoteLocation: string; // Location/path where cover notes should be created (supports {ChannelName}, {VideoName})
+  attachmentFolder: string; // Subfolder name for PDF/SRT files nested under cover note location (empty = use video title)
   defaultSrtFileName: string; // Template for SRT file names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
-  pdfCoverNoteTemplate: string; // Path to template file for PDF cover notes (empty = use default template)
+  coverNoteTemplate: string; // Path to template file for cover notes (empty = use default template)
   singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks
   preferredLanguage: string; // Preferred transcript language code (e.g., "en", "es", "fr"). Empty = auto-select (prefers English)
   forceLLMLanguage: boolean; // When enabled, LLM output will be forced to match the transcript language
   defaultNoteName: string; // Template for note names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
-  defaultCoverNoteName: string; // Template for cover note names. Supports {VideoName}, {ChannelName}, {PdfDirectory}. Default: "{VideoName}"
   checkForDuplicates: boolean; // When enabled, prevents creating a new note if one already exists for the same video
   duplicateCheckProperty: string; // The frontmatter property to check for duplicate detection (e.g., "url")
 }
@@ -107,7 +105,8 @@ export interface ProcessTranscriptOptions {
   tagWithChannelName: boolean;
   fileFormat: FileFormat;
   languageCode: string | null;
-  disablePdfCoverNote?: boolean;
+  disableCoverNote?: boolean;
+  fileFormats?: FileFormat[];
 }
 
 export interface TranscriptFileOptions {
@@ -123,7 +122,8 @@ export interface TranscriptFileOptions {
   fileFormat: FileFormat;
   videoDetails: VideoDetails | null;
   segments?: TranscriptSegment[];
-  disablePdfCoverNote?: boolean;
+  disableCoverNote?: boolean;
+  fileFormats?: FileFormat[];
 }
 
 export interface LLMResponse {

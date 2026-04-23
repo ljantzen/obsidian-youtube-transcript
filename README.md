@@ -12,7 +12,7 @@ A plugin for Obsidian that allows you to fetch and embed YouTube video transcrip
 - **Insert or create new files** - Insert transcripts into current note or create a new file based on video title
 - **Multiple file formats** - Save transcripts as Markdown (.md), PDF, or SRT subtitle files. Generate multiple formats in one request!
 - **Prevent duplicate notes** - Optionally check whether a transcript for the same video already exists before fetching
-- **PDF cover notes** - Automatically create markdown cover notes for PDF transcripts with customizable templates
+- **Cover notes for attachments** - Automatically create markdown cover notes for PDF and/or SRT files with customizable templates
 - **Video metadata** - Automatically extract and include video metadata (upload date, view count, duration, etc.) in transcripts and cover notes
 - **Default directory** - Set a default directory for new files, enabling clipboard command without an open document
 - **Configurable timestamp frequency** - Control how often timestamps appear (every sentence or every N seconds)
@@ -111,38 +111,41 @@ The plugin allows you to generate **one or more file formats** in a single reque
 - Only enabled formats appear in the modal dropdown
 - At least one format must always be enabled
 
-### PDF Cover Notes
+### Cover Notes for PDF and SRT Files
 
-When creating PDF transcripts, you can automatically generate markdown cover notes that link to the PDF:
+When creating PDF or SRT files, you can automatically generate markdown cover notes that link to them:
 
-1. Enable "Create PDF cover note" in Settings → YouTube Transcript Settings → PDF
+1. Enable "Create cover note" in Settings → YouTube Transcript Settings
 2. Configure the cover note location (supports template variables: `{ChannelName}`, `{VideoName}`)
 3. Optionally specify a custom template file for cover notes
-4. When a PDF is created, a markdown cover note will be automatically generated and opened
+4. When a PDF or SRT file is created, a markdown cover note will be automatically generated and opened
 
-**No open file required**: If "PDF cover note location" is configured, you can create PDF transcripts even when no document is open (the cover note location acts as the target directory). This also works with the clipboard command.
+**No open file required**: If "Cover note location" is configured, you can create PDF/SRT transcripts even when no document is open (the cover note location acts as the target directory). This also works with the clipboard command.
 
-**Nesting PDFs Under Cover Notes:**
+**Nesting PDF and SRT Files Under Cover Notes:**
 
-When "Create PDF cover note" is enabled, PDFs are automatically nested in subfolders underneath the cover note location using the video title as the folder name:
+When "Create cover note" is enabled, PDF and SRT files are automatically nested in subfolders underneath the cover note location:
 
-1. Enable "Create PDF cover note" in Settings → YouTube Transcript Settings → PDF
-2. PDFs will be automatically nested under a folder with the video title
-3. PDFs will be created in: `{coverNoteLocation}/{videoTitle}/{videoTitle}.pdf`
-4. Cover notes will be created in: `{coverNoteLocation}/{videoTitle}.md` and will link to the nested PDF
+1. Enable "Create cover note" in Settings → YouTube Transcript Settings
+2. Set the "Attachment folder" name (e.g., "Attachments", "Subtitles", etc.)
+3. Files will be automatically nested under a folder with your specified name
+4. Files will be created in: `{coverNoteLocation}/{attachmentFolder}/{filename}`
+5. Cover notes will be created in: `{coverNoteLocation}/{videoTitle}.md` and will link to all created files
 
 **Example:**
-- Cover note location: `Notes/PDF Covers/{ChannelName}`
-- Result:
-  - Cover note: `Notes/PDF Covers/My Channel/My Video.md`
-  - PDF: `Notes/PDF Covers/My Channel/My Video/My Video.pdf`
+- Cover note location: `Attachments`
+- Attachment folder: `Attachments`
+- Creating both PDF and SRT:
+  - Cover note: `Attachments/My Video.md`
+  - PDF: `Attachments/Attachments/My Video.pdf`
+  - SRT: `Attachments/Attachments/My Video.srt`
 
 **Migration Note (Previous Behavior):**
 
 If you previously used the plugin with `useAttachmentFolderForPdf` and `pdfAttachmentFolderName` settings, these options have been removed for simplification. The new behavior:
 - PDFs are now nested under a folder with the video title when cover notes are enabled (no configuration needed)
 - Previous custom folder names set in `pdfAttachmentFolderName` are no longer used
-- To organize PDFs by channel or other criteria, use the `{ChannelName}` or `{VideoName}` template variables in the **PDF cover note location** setting instead
+- To organize files by channel or other criteria, use the `{ChannelName}` or `{VideoName}` template variables in the **Cover note location** setting instead
 - The `useAttachmentFolderForPdf` setting has also been removed; simply set your preferred directory in the saved directories list
 
 **Cover Note Template Variables:**
@@ -337,8 +340,8 @@ The plugin automatically extracts and includes video metadata:
 - Includes: title, url, videoId, channel, channelId, duration, views, published date, description, and more
 - Fully searchable and queryable in Obsidian
 
-**In PDF Cover Notes:**
-- All metadata is available as template variables (see PDF Cover Notes section above)
+**In Cover Notes:**
+- All metadata is available as template variables (see Cover Notes for PDF and SRT Files section above)
 - Use template variables to customize how metadata is displayed in cover notes
 
 ### Default Directory and Saved Directories
@@ -407,15 +410,11 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Prevent duplicate notes**: When enabled, checks whether a transcript for the same video already exists in your vault before fetching. Only applies when "Create new file" is enabled
 - **Duplicate check property**: The YAML frontmatter property name to check for duplicate detection (default: `url`). The plugin compares the video ID extracted from this property's value against the current video
 
-### PDF Settings
-- **Create PDF cover note**: When enabled, a markdown cover note will be automatically created for each PDF transcript. PDFs will also be automatically nested in subfolders for better organization.
-- **Default cover note name**: Template for cover note file names. Supports `{VideoName}`, `{ChannelName}`, and `{PdfDirectory}` variables. Default: `{VideoName}`
-- **PDF cover note location**: Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Uses the FolderSuggest and supports `{ChannelName}` and `{VideoName}` template variables
-- **PDF cover note template**: Path to a markdown template file for custom cover note formatting. Supports all template variables listed in the PDF Cover Notes section. Leave empty to use the default template.
-- **PDF attachment folder**: Subfolder name for PDFs when cover notes are enabled. Allows custom folder names (e.g., "attachments"). Leave empty to use the video title as the folder name.
-
-### SRT Settings
-- **SRT attachment folder**: Folder path where SRT subtitle files should be created. Leave empty to use the current file's directory or the default directory. The folder will be created automatically if it doesn't exist.
+### Cover Note Settings
+- **Create cover note**: When enabled, a markdown cover note will be automatically created for PDF and/or SRT files. Files will be automatically nested in subfolders for better organization.
+- **Cover note location**: Location/path where cover notes should be created. Leave empty to use the same location as the PDF/SRT files. Uses the FolderSuggest and supports `{ChannelName}` and `{VideoName}` template variables
+- **Attachment folder**: Subfolder name for PDF and SRT files when cover notes are enabled. Both PDF and SRT files will be nested under this folder. Leave empty to use the video title as the folder name.
+- **Cover note template**: Path to a markdown template file for custom cover note formatting. Supports all template variables listed in the Cover Notes section. Leave empty to use the default template.
 
 ### Content Options
 - **Preferred languages**: Comma-separated list of preferred transcript language codes in order of preference (e.g., "en,es,fr" for English, then Spanish, then French). Languages will be tried in order until one is available. Leave empty for auto-select (prefers English). You can override this in the modal when multiple languages are available.
@@ -568,7 +567,7 @@ npm run lint:fix
 - Check that the video title doesn't contain invalid filename characters (these are automatically sanitized)
 - Verify the default directory path is correct if using that option
 - **PDF generation**: PDF format requires Electron API access (desktop app only). If PDF generation fails, try using Markdown format instead. PDF generation may also fail if the transcript is too large or if there are formatting issues.
-- **PDF cover notes**: When "Create PDF cover note" is enabled, PDFs will be automatically nested in subfolders. You can customize the cover note location using template variables like `{ChannelName}` to organize PDFs by channel.
+- **Cover notes**: When "Create cover note" is enabled, PDF and SRT files will be automatically nested in subfolders. You can customize the cover note location using template variables like `{ChannelName}` to organize files by channel.
 
 ### Model selection issues
 - Click the refresh button next to the model dropdown to fetch latest models

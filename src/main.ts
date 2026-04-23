@@ -159,8 +159,26 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       changed = true;
     }
 
+    // Migrate PDF cover note settings to generic cover note settings
+    if ((loadedData as any)?.createPdfCoverNote !== undefined) {
+      this.settings.createCoverNote = (loadedData as any).createPdfCoverNote;
+      changed = true;
+    }
+    if ((loadedData as any)?.pdfCoverNoteLocation !== undefined) {
+      this.settings.coverNoteLocation = (loadedData as any).pdfCoverNoteLocation;
+      changed = true;
+    }
+    if ((loadedData as any)?.pdfAttachmentFolder !== undefined) {
+      this.settings.attachmentFolder = (loadedData as any).pdfAttachmentFolder;
+      changed = true;
+    }
+    if ((loadedData as any)?.pdfCoverNoteTemplate !== undefined) {
+      this.settings.coverNoteTemplate = (loadedData as any).pdfCoverNoteTemplate;
+      changed = true;
+    }
+
     // Remove obsolete fields
-    for (const field of ["nestPdfUnderCoverNote", "useAttachmentFolderForPdf", "pdfAttachmentFolderName"]) {
+    for (const field of ["nestPdfUnderCoverNote", "useAttachmentFolderForPdf", "pdfAttachmentFolderName", "createPdfCoverNote", "pdfCoverNoteLocation", "pdfAttachmentFolder", "pdfCoverNoteTemplate", "srtLocation", "defaultCoverNoteName"]) {
       if ((this.settings as any)[field] !== undefined) {
         delete (this.settings as any)[field];
         changed = true;
@@ -197,10 +215,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         fileFormats: ("markdown" | "pdf" | "srt")[],
         languageCode: string | null,
       ) => {
-        // Check for conflict: Markdown + PDF with cover notes enabled
-        const hasBothMarkdownAndPdf = fileFormats.includes("markdown") && fileFormats.includes("pdf");
-        const disablePdfCoverNote = hasBothMarkdownAndPdf && this.settings.createPdfCoverNote;
-        if (disablePdfCoverNote) {
+        // Check for conflict: Markdown + (PDF or SRT) with cover notes enabled
+        const hasMarkdown = fileFormats.includes("markdown");
+        const hasPdfOrSrt = fileFormats.includes("pdf") || fileFormats.includes("srt");
+        const disableCoverNote = hasMarkdown && hasPdfOrSrt && this.settings.createCoverNote;
+        if (disableCoverNote) {
           new MultipleFormatsWithCoverNoteModal(this.app).open();
         }
 
@@ -209,7 +228,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           await this.processTranscript({
             url, createNewFile, includeVideoUrl, generateSummary, useLLM,
             llmProvider, selectedDirectory, tagWithChannelName,
-            fileFormat, languageCode, disablePdfCoverNote,
+            fileFormat, languageCode, disableCoverNote, fileFormats,
           });
         }
       },
@@ -249,10 +268,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         createNewFile = true;
       }
 
-      // Check for conflict: Markdown + PDF with cover notes enabled
-      const hasBothMarkdownAndPdf = fileFormats.includes("markdown") && fileFormats.includes("pdf");
-      const disablePdfCoverNote = hasBothMarkdownAndPdf && this.settings.createPdfCoverNote;
-      if (disablePdfCoverNote) {
+      // Check for conflict: Markdown + (PDF or SRT) with cover notes enabled
+      const hasMarkdown = fileFormats.includes("markdown");
+      const hasPdfOrSrt = fileFormats.includes("pdf") || fileFormats.includes("srt");
+      const disableCoverNote = hasMarkdown && hasPdfOrSrt && this.settings.createCoverNote;
+      if (disableCoverNote) {
         new MultipleFormatsWithCoverNoteModal(this.app).open();
       }
 
@@ -275,7 +295,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           createNewFile, includeVideoUrl, generateSummary, useLLM,
           llmProvider, selectedDirectory, tagWithChannelName,
           fileFormat: fileFormat as FileFormat,
-          languageCode, disablePdfCoverNote,
+          languageCode, disableCoverNote,
         });
       }
     } catch (error: unknown) {
@@ -309,7 +329,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const {
       url, createNewFile, includeVideoUrl, generateSummary, useLLM,
       llmProvider, selectedDirectory, tagWithChannelName, fileFormat,
-      languageCode, disablePdfCoverNote = false,
+      languageCode, disableCoverNote = false, fileFormats = [],
     } = options;
     if (createNewFile && this.settings.checkForDuplicates) {
       const videoId = extractVideoId(url);
@@ -373,16 +393,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       if (createNewFile) {
         const activeFile = this.app.workspace.getActiveFile();
-        // Only require active file if no directory is selected and we can't derive one from format-specific location settings
-        const hasPdfCoverNoteDirectory =
-          fileFormat === "pdf" &&
-          !disablePdfCoverNote &&
-          this.settings.createPdfCoverNote &&
-          !!this.settings.pdfCoverNoteLocation?.trim();
-        const hasSrtDirectory =
-          fileFormat === "srt" &&
-          !!this.settings.srtLocation?.trim();
-        if (!activeFile && !selectedDirectory && !hasPdfCoverNoteDirectory && !hasSrtDirectory) {
+        // Only require active file if no directory is selected and we can't derive one from location settings
+        const hasCoverNoteDirectory =
+          (fileFormat === "pdf" || fileFormat === "srt") &&
+          !disableCoverNote &&
+          this.settings.createCoverNote &&
+          !!this.settings.coverNoteLocation?.trim();
+        if (!activeFile && !selectedDirectory && !hasCoverNoteDirectory) {
           throw new Error(
             "Please open a file first to determine the directory, or set a default directory in settings",
           );
@@ -401,7 +418,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           fileFormat,
           videoDetails,
           segments,
-          disablePdfCoverNote,
+          disableCoverNote,
         });
         const formatNotice = fileFormat === "pdf"
           ? `PDF file created successfully! (${transcript.length} characters)`
@@ -460,7 +477,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const {
       activeFile, videoTitle, transcript, videoUrl, summary, includeVideoUrl,
       selectedDirectory, channelName, tagWithChannelName, fileFormat,
-      videoDetails, segments = [], disablePdfCoverNote = false,
+      videoDetails, segments = [], disableCoverNote = false, fileFormats = [],
     } = options;
     // Apply file name template based on format
     let baseSanitizedTitle: string;
@@ -478,26 +495,33 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Determine which directory to use
-    // Format-specific locations take precedence over default/selected directory
-    // Resolve SRT location up-front so template-expansion-to-empty falls through correctly
-    const resolvedSrtLocation = (fileFormat === "srt" && this.settings.srtLocation?.trim())
-      ? normalizePath(
-          replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName })
-            .replace(/\/+/g, "/")
-            .replace(/^\/|\/$/g, ""),
-        )
-      : "";
-
     let directory: string;
-    if (resolvedSrtLocation) {
-      directory = resolvedSrtLocation;
-    } else if (
-      fileFormat === "pdf" &&
-      !disablePdfCoverNote &&
-      this.settings.createPdfCoverNote &&
-      this.settings.pdfCoverNoteLocation?.trim()
-    ) {
-      directory = ""; // Will be overwritten by the PDF cover note location logic below
+    const shouldNestUnderCoverNote = (fileFormat === "pdf" || fileFormat === "srt") &&
+      !disableCoverNote &&
+      this.settings.createCoverNote;
+
+    if (shouldNestUnderCoverNote) {
+      // Nest PDF and SRT files under cover note location
+      const baseDirectory = selectedDirectory !== null
+        ? selectedDirectory
+        : (activeFile ? activeFile.path.substring(0, activeFile.path.lastIndexOf("/")) : "");
+
+      let coverNoteDirectory = this.settings.coverNoteLocation || "";
+
+      if (coverNoteDirectory) {
+        coverNoteDirectory = replaceTemplateVariables(coverNoteDirectory, { videoTitle, channelName });
+        coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+      } else {
+        coverNoteDirectory = baseDirectory;
+      }
+
+      const attachmentFolder = this.settings.attachmentFolder?.trim()
+        .replace(/[/\\]+/g, "").trim() || baseSanitizedTitle;
+      if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
+        directory = `${coverNoteDirectory}/${attachmentFolder}`;
+      } else {
+        directory = attachmentFolder;
+      }
     } else if (selectedDirectory !== null) {
       directory = selectedDirectory;
     } else if (activeFile) {
@@ -514,37 +538,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     // Determine file extension based on format
     const handler = getFormatHandler(fileFormat);
     const fileExtension = handler.extension;
-
-    // Check if we should nest PDF under cover note (when cover notes are enabled)
-    if (
-      fileFormat === "pdf" &&
-      !disablePdfCoverNote &&
-      this.settings.createPdfCoverNote
-    ) {
-      // Determine cover note directory:
-      // - If pdfCoverNoteLocation is set, use it
-      // - Otherwise, use the selected/current directory
-      const baseDirectory = directory || ""; // The selected directory or current file directory
-      let coverNoteDirectory = this.settings.pdfCoverNoteLocation || "";
-      
-      // Replace template variables in cover note location
-      if (coverNoteDirectory) {
-        coverNoteDirectory = replaceTemplateVariables(coverNoteDirectory, { videoTitle, channelName });
-        coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-      } else {
-        // If no cover note location specified, use the base directory
-        coverNoteDirectory = baseDirectory;
-      }
-      
-      // Update directory to nest PDF under cover note
-      const attachmentFolder = this.settings.pdfAttachmentFolder?.trim()
-        .replace(/[/\\]+/g, "").trim() || baseSanitizedTitle;
-      if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
-        directory = `${coverNoteDirectory}/${attachmentFolder}`;
-      } else {
-        directory = attachmentFolder;
-      }
-    }
 
     // Ensure directory exists (create if it doesn't)
     // This is done AFTER determining the final directory (including nesting logic)
@@ -653,41 +646,43 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
-    // Create cover note for PDF if enabled
-    if (fileFormat === "pdf" && !disablePdfCoverNote && this.settings.createPdfCoverNote) {
+    // Create cover note for PDF or SRT if enabled
+    if ((fileFormat === "pdf" || fileFormat === "srt") && !disableCoverNote && this.settings.createCoverNote) {
       // Compute expected SRT file path if SRT format is enabled in settings
       let srtFilePath: string | null = null;
-      if (this.settings.fileFormats?.includes("srt")) {
-        // Use SRT-specific filename template (may differ from note/PDF name template)
+      if (this.settings.fileFormats?.includes("srt") && fileFormat === "pdf") {
+        // When creating a PDF, compute where the SRT will be created
         const srtNameTemplate = this.settings.defaultSrtFileName || "{VideoName}";
         let srtName = replaceTemplateVariables(srtNameTemplate, { videoTitle, channelName });
         srtName = srtName.replace(/\s+/g, " ").trim();
         const srtBaseName = sanitizeFilename(srtName || videoTitle);
 
-        // Use same directory logic as SRT createTranscriptFile to avoid path mismatch
-        // Resolve template vars first; if they expand to empty, fall through to next option
+        // Compute SRT directory using same nesting logic as createTranscriptFile
         let srtDir: string;
-        const resolvedSrtLoc = this.settings.srtLocation?.trim()
-          ? normalizePath(
-              replaceTemplateVariables(this.settings.srtLocation, { videoTitle, channelName })
-                .replace(/\/+/g, "/")
-                .replace(/^\/|\/$/g, ""),
-            )
-          : "";
-        if (resolvedSrtLoc) {
-          srtDir = resolvedSrtLoc;
-        } else if (selectedDirectory !== null) {
-          srtDir = selectedDirectory;
-        } else if (activeFile) {
-          const lastSlash = activeFile.path.lastIndexOf("/");
-          srtDir = lastSlash >= 0 ? activeFile.path.substring(0, lastSlash) : "";
+        const baseDirectory = selectedDirectory !== null
+          ? selectedDirectory
+          : (activeFile ? activeFile.path.substring(0, activeFile.path.lastIndexOf("/")) : "");
+
+        let coverNoteDirectory = this.settings.coverNoteLocation || "";
+        if (coverNoteDirectory) {
+          coverNoteDirectory = replaceTemplateVariables(coverNoteDirectory, { videoTitle, channelName });
+          coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
         } else {
-          srtDir = "";
+          coverNoteDirectory = baseDirectory;
         }
+
+        const attachmentFolder = this.settings.attachmentFolder?.trim()
+          .replace(/[/\\]+/g, "").trim() || sanitizeFilename(videoTitle);
+        if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
+          srtDir = `${coverNoteDirectory}/${attachmentFolder}`;
+        } else {
+          srtDir = attachmentFolder;
+        }
+
         srtFilePath = srtDir ? `${srtDir}/${srtBaseName}.srt` : `${srtBaseName}.srt`;
       }
 
-      await this.createPdfCoverNote(
+      await this.createCoverNote(
         newFilePath,
         videoTitle,
         videoUrl,
@@ -705,7 +700,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
   /**
    * Calculates the cover note directory based on settings and template variables
-   * @param pdfFilePath The path to the PDF file (used as fallback if location is empty)
+   * @param attachmentFilePath The path to the attachment file (PDF or SRT, used as fallback if location is empty)
    * @param videoTitle The video title (for {VideoName} template variable)
    * @param channelName The channel name (for {ChannelName} template variable, can be null)
    * @returns The calculated cover note directory path
@@ -716,8 +711,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     channelName: string | null,
   ): string {
     // Process template variables in cover note location
-    let coverNoteLocation = this.settings.pdfCoverNoteLocation || "";
-    
+    let coverNoteLocation = this.settings.coverNoteLocation || "";
+
     // Replace template variables
     coverNoteLocation = replaceTemplateVariables(coverNoteLocation, { videoTitle, channelName });
 
@@ -729,24 +724,24 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // Use the specified cover note location
       return coverNoteLocation;
     } else {
-      // When cover note location is empty, use the PDF's directory
-      // If PDF nesting is enabled (createPdfCoverNote), the PDF is in a nested subfolder,
+      // When cover note location is empty, use the attachment file's directory
+      // If nesting is enabled (createCoverNote), the file is in a nested subfolder,
       // so we need the parent directory for the cover note
-      const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
+      const attachmentDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
 
-      if (this.settings.createPdfCoverNote) {
-        // PDF is nested - use parent directory for cover note
+      if (this.settings.createCoverNote) {
+        // File is nested - use parent directory for cover note
         // e.g., PDF at "Attachments/VideoTitle/video.pdf" -> cover note dir is "Attachments"
-        const parentDir = pdfDir.substring(0, pdfDir.lastIndexOf("/"));
-        return parentDir || ""; // Return empty string if PDF is in root (no parent)
+        const parentDir = attachmentDir.substring(0, attachmentDir.lastIndexOf("/"));
+        return parentDir || ""; // Return empty string if file is in root (no parent)
       } else {
-        // PDF is not nested - use PDF's directory directly
-        return pdfDir || "";
+        // File is not nested - use its directory directly
+        return attachmentDir || "";
       }
     }
   }
 
-  async createPdfCoverNote(
+  async createCoverNote(
     pdfFilePath: string,
     videoTitle: string,
     videoUrl: string,
@@ -781,10 +776,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
-    // Get PDF filename without extension for the cover note title
-    const pdfFileName = pdfFilePath.substring(pdfFilePath.lastIndexOf("/") + 1);
-    const pdfFileNameWithoutExt = pdfFileName.replace(/\.pdf$/, "");
-    
+    // Get attachment filename without extension for reference
+    const attachmentFileName = pdfFilePath.substring(pdfFilePath.lastIndexOf("/") + 1);
+
     // Use absolute path from vault root for links (Obsidian supports this)
     const pdfLinkPath = normalizeVaultPath(pdfFilePath);
 
@@ -793,11 +787,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Build cover note content - use template if specified, otherwise use default
     let coverNoteContent: string;
-    
-    if (this.settings.pdfCoverNoteTemplate && this.settings.pdfCoverNoteTemplate.trim() !== "") {
+
+    if (this.settings.coverNoteTemplate && this.settings.coverNoteTemplate.trim() !== "") {
       // Use template file
       try {
-        const templateFile = this.app.vault.getAbstractFileByPath(this.settings.pdfCoverNoteTemplate);
+        const templateFile = this.app.vault.getAbstractFileByPath(this.settings.coverNoteTemplate);
         if (templateFile && templateFile instanceof TFile) {
           const templateContent = await this.app.vault.read(templateFile);
           
@@ -842,7 +836,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           coverNoteContent = processedContent;
         } else {
           // Template file not found, use default
-          console.warn(`Template file not found: ${this.settings.pdfCoverNoteTemplate}, using default template`);
+          console.warn(`Template file not found: ${this.settings.coverNoteTemplate}, using default template`);
           coverNoteContent = this.buildDefaultCoverNoteContent(
             videoTitle,
             videoUrl,
@@ -880,16 +874,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       );
     }
 
-    // Create cover note file - apply cover note name template
-    // Full path of the PDF's directory (excluding filename), used for {PdfDirectory}
-    const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-    const pdfDirectory = pdfDirPath || "";
-    
-    const coverNoteTemplate = this.settings.defaultCoverNoteName || "{VideoName}";
-    let coverNoteName = replaceTemplateVariables(coverNoteTemplate, { videoTitle, channelName, pdfDirectory });
-    // Clean up any empty segments from missing channel name
-    coverNoteName = coverNoteName.replace(/\s+/g, " ").trim();
-    const sanitizedCoverNoteName = sanitizeFilename(coverNoteName || videoTitle);
+    // Create cover note file - use video title as cover note name
+    const sanitizedCoverNoteName = sanitizeFilename(videoTitle);
     
     const coverNoteFileName = `${sanitizedCoverNoteName}.md`;
     const coverNotePath = coverNoteDirectory

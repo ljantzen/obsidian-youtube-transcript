@@ -458,85 +458,49 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("PDF").setHeading();
 
     new Setting(containerEl)
-      .setName("Create PDF cover note")
-      .setDesc("When enabled, a cover note will be created for PDF files")
+      .setName("Create cover note")
+      .setDesc("When enabled, a cover note will be created for PDF and/or SRT files")
       .addToggle((toggle) => {
         toggle
-          .setValue(this.settings.createPdfCoverNote ?? false)
+          .setValue(this.settings.createCoverNote ?? false)
           .onChange(async (value) => {
-            this.settings.createPdfCoverNote = value;
+            this.settings.createCoverNote = value;
             await this.saveSettings();
           });
       });
 
-
     new Setting(containerEl)
-      .setName("Default cover note name")
+      .setName("Cover note location")
       .setDesc(
-        "Template for cover note file names (when PDF cover notes are enabled). Supports {VideoName}, {ChannelName}, and {PdfDirectory} variables.",
+        "Location/path where cover notes should be created. Leave empty to use the same location as the PDF/SRT files. Supports '{ChannelName}' and '{VideoName}' template variables",
       )
       .addText((text) => {
         text
-          .setPlaceholder("{VideoName}")
-          .setValue(this.settings.defaultCoverNoteName || "{VideoName}")
-          .onChange(async (value) => {
-            this.settings.defaultCoverNoteName = value || "{VideoName}";
-            await this.saveSettings();
-          });
-      });
-
-
-    new Setting(containerEl)
-      .setName("PDF cover note location")
-      .setDesc(
-        "Location/path where PDF cover notes should be created. Leave empty to use the same location as the PDF file. Uses the FolderSuggest and supports '{ChannelName}' and '{VideoName}' template variables",
-      )
-      .addText((text) => {
-        text
-          .setPlaceholder("Notes/PDF Covers or Notes/{ChannelName}")
-          .setValue(this.settings.pdfCoverNoteLocation || "")
+          .setPlaceholder("Notes/Transcripts or Notes/{ChannelName}")
+          .setValue(this.settings.coverNoteLocation || "")
           .onChange(async (value) => {
             // Normalize path: remove leading/trailing slashes, ensure forward slashes
             const normalizedPath = value
               .trim()
               .replace(/^\/+|\/+$/g, "")
               .replace(/\\/g, "/");
-            this.settings.pdfCoverNoteLocation = normalizedPath;
+            this.settings.coverNoteLocation = normalizedPath;
             await this.saveSettings();
           });
         new FolderSuggest(this.app, text.inputEl);
       });
 
     new Setting(containerEl)
-      .setName("PDF attachment folder")
+      .setName("Attachment folder")
       .setDesc(
-        "Folder name used to nest PDF files under the cover note location. Leave empty to use the video title as the folder name.",
+        "Folder name used to nest PDF and SRT files under the cover note location. Leave empty to use the video title as the folder name.",
       )
       .addText((text) => {
         text
           .setPlaceholder("attachments")
-          .setValue(this.settings.pdfAttachmentFolder || "")
+          .setValue(this.settings.attachmentFolder || "")
           .onChange(async (value) => {
-            this.settings.pdfAttachmentFolder = value.trim().replace(/[/\\]+/g, "").trim();
-            await this.saveSettings();
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("SRT attachment folder")
-      .setDesc(
-        "Folder path where SRT files should be created. The folder will be created automatically if it doesn't exist. Leave empty to use the current file's directory or the default directory.",
-      )
-      .addText((text) => {
-        text
-          .setPlaceholder("Subtitles")
-          .setValue(this.settings.srtLocation || "")
-          .onChange(async (value) => {
-            const normalizedPath = value
-              .trim()
-              .replace(/^\/+|\/+$/g, "")
-              .replace(/\\/g, "/");
-            this.settings.srtLocation = normalizedPath;
+            this.settings.attachmentFolder = value.trim().replace(/[/\\]+/g, "").trim();
             await this.saveSettings();
           });
       });
@@ -557,21 +521,21 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("PDF cover note template")
+      .setName("Cover note template")
       .setDesc(
-        "Path to a markdown template file for PDF cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {SrtLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",
+        "Path to a markdown template file for cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {SrtLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",
       )
       .addText((text) => {
         text
-          .setPlaceholder("Templates/PDF Cover Note.md")
-          .setValue(this.settings.pdfCoverNoteTemplate || "")
+          .setPlaceholder("Templates/Cover Note.md")
+          .setValue(this.settings.coverNoteTemplate || "")
           .onChange(async (value) => {
             // Normalize path: remove leading/trailing slashes, ensure forward slashes
             const normalizedPath = value
               .trim()
               .replace(/^\/+|\/+$/g, "")
               .replace(/\\/g, "/");
-            this.settings.pdfCoverNoteTemplate = normalizedPath;
+            this.settings.coverNoteTemplate = normalizedPath;
             await this.saveSettings();
           });
         new FileSuggest(this.app, text.inputEl);
