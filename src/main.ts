@@ -881,30 +881,35 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       );
     }
 
-    // Create cover note file - use video title as cover note name
-    const sanitizedCoverNoteName = sanitizeFilename(videoTitle);
-    
+    // Create cover note file - use template if specified, otherwise use video title
+    const coverNoteNameTemplate = this.settings.defaultCoverNoteName || "{VideoName}";
+    let coverNoteName = replaceTemplateVariables(coverNoteNameTemplate, { videoTitle, channelName });
+    coverNoteName = coverNoteName.replace(/\s+/g, " ").trim();
+    const sanitizedCoverNoteName = sanitizeFilename(coverNoteName || videoTitle);
+
     const coverNoteFileName = `${sanitizedCoverNoteName}.md`;
     const coverNotePath = coverNoteDirectory
       ? `${coverNoteDirectory}/${coverNoteFileName}`
       : coverNoteFileName;
 
-    // Check if cover note already exists and handle naming conflicts
+    // Check if cover note already exists - if so, update it (avoid duplicates)
     let finalCoverNotePath = coverNotePath;
-    let coverNoteCounter = 1;
-    while (this.app.vault.getAbstractFileByPath(finalCoverNotePath)) {
-      const baseName = coverNoteDirectory
-        ? `${coverNoteDirectory}/${sanitizedCoverNoteName}`
-        : sanitizedCoverNoteName;
-      finalCoverNotePath = `${baseName} (${coverNoteCounter}).md`;
-      coverNoteCounter++;
-    }
+    const existingCoverNote = this.app.vault.getAbstractFileByPath(coverNotePath);
 
     try {
-      await this.app.vault.create(finalCoverNotePath, coverNoteContent);
-      new Notice(`Cover note created: ${finalCoverNotePath}`);
-      // Open the cover note
-      await this.app.workspace.openLinkText(finalCoverNotePath, "", false);
+      if (existingCoverNote && existingCoverNote instanceof TFile) {
+        // Cover note already exists - update it with the new content (which includes paths to all formats)
+        await this.app.vault.modify(existingCoverNote, coverNoteContent);
+        new Notice(`Cover note updated: ${coverNotePath}`);
+        // Open the updated cover note
+        await this.app.workspace.openLinkText(coverNotePath, "", false);
+      } else {
+        // Cover note doesn't exist - create it
+        await this.app.vault.create(finalCoverNotePath, coverNoteContent);
+        new Notice(`Cover note created: ${finalCoverNotePath}`);
+        // Open the cover note
+        await this.app.workspace.openLinkText(finalCoverNotePath, "", false);
+      }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";

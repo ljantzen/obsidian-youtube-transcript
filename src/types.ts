@@ -46,6 +46,7 @@ export interface YouTubeTranscriptPluginSettings {
   attachmentFolder: string; // Subfolder name for PDF/SRT files nested under cover note location (empty = use video title)
   defaultSrtFileName: string; // Template for SRT file names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
   coverNoteTemplate: string; // Path to template file for cover notes (empty = use default template)
+  defaultCoverNoteName: string; // Template for cover note file names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
   singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks
   preferredLanguage: string; // Preferred transcript language code (e.g., "en", "es", "fr"). Empty = auto-select (prefers English)
   forceLLMLanguage: boolean; // When enabled, LLM output will be forced to match the transcript language

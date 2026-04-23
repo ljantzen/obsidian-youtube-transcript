@@ -541,6 +541,21 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         new FileSuggest(this.app, text.inputEl);
       });
 
+    new Setting(containerEl)
+      .setName("Cover note file name")
+      .setDesc(
+        "Template for cover note file names. Supports {VideoName} and {ChannelName}. Default: {VideoName}",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("{VideoName}")
+          .setValue(this.settings.defaultCoverNoteName || "")
+          .onChange(async (value) => {
+            this.settings.defaultCoverNoteName = value.trim();
+            await this.saveSettings();
+          });
+      });
+
     // LLM section
     new Setting(containerEl).setName("LLM").setHeading();
 

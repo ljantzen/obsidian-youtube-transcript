@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   attachmentFolder: "", // Default to empty string - use video title as subfolder name
   defaultSrtFileName: "{VideoName}", // Default to video title
   coverNoteTemplate: "", // Default to empty string - use default template
+  defaultCoverNoteName: "{VideoName}", // Default to video title
   singleLineTranscript: false, // Default to false - use line breaks for readability
   preferredLanguage: "", // Default to empty string - auto-select (prefers English)
   forceLLMLanguage: false, // Default to false - LLM can output in any language
