@@ -653,8 +653,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
-    // Create cover note for PDF or SRT if enabled
-    if ((fileFormat === "pdf" || fileFormat === "srt") && !disableCoverNote && this.settings.createCoverNote) {
+    // Create cover note for PDF or SRT if enabled.
+    // Skip SRT cover note when PDF is also being generated — the PDF's cover note already
+    // includes a computed {SrtLink}, and the SRT run would overwrite it with {PdfLink} empty.
+    const shouldCreateCoverNote =
+      (fileFormat === "pdf" || (fileFormat === "srt" && !fileFormats.includes("pdf"))) &&
+      !disableCoverNote &&
+      this.settings.createCoverNote;
+    if (shouldCreateCoverNote) {
       // Determine which file paths to pass based on format being created
       let attachmentFilePath = newFilePath;
       let srtFilePath: string | null = null;

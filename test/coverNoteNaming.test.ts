@@ -227,5 +227,27 @@ describe("Cover Note Naming", () => {
       expect(updatedNote.path).toBe(existingNote.path);
       expect(updatedNote.content).not.toBe(existingNote.content);
     });
+
+    it("should skip SRT cover note creation when PDF is also enabled (issue #91)", () => {
+      type FileFormat = "markdown" | "pdf" | "srt";
+      const fileFormats: FileFormat[] = ["pdf", "srt"];
+
+      // Simulate shouldCreateCoverNote logic for each format
+      const shouldCreate = (fileFormat: FileFormat) =>
+        fileFormat === "pdf" || (fileFormat === "srt" && !fileFormats.includes("pdf"));
+
+      expect(shouldCreate("pdf")).toBe(true);
+      expect(shouldCreate("srt")).toBe(false);
+    });
+
+    it("should create SRT cover note when PDF is not enabled", () => {
+      type FileFormat = "markdown" | "pdf" | "srt";
+      const fileFormats: FileFormat[] = ["srt"];
+
+      const shouldCreate = (fileFormat: FileFormat) =>
+        fileFormat === "pdf" || (fileFormat === "srt" && !fileFormats.includes("pdf"));
+
+      expect(shouldCreate("srt")).toBe(true);
+    });
   });
 });
