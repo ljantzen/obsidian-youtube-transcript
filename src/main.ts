@@ -655,11 +655,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Create cover note for PDF or SRT if enabled
     if ((fileFormat === "pdf" || fileFormat === "srt") && !disableCoverNote && this.settings.createCoverNote) {
-      // Determine SRT file path based on which format is being created
+      // Determine which file paths to pass based on format being created
+      let attachmentFilePath = newFilePath;
       let srtFilePath: string | null = null;
+
       if (fileFormat === "srt") {
-        // When creating SRT, newFilePath IS the SRT file
-        srtFilePath = newFilePath;
+        // When creating SRT: attachmentFilePath is the SRT file, don't pass srtFilePath separately
+        attachmentFilePath = newFilePath;
+        srtFilePath = null;
       } else if (fileFormat === "pdf" && this.settings.fileFormats?.includes("srt")) {
         // When creating PDF, compute where the SRT will be created (if SRT is enabled)
         const srtNameTemplate = this.settings.defaultSrtFileName || "{VideoName}";
@@ -693,7 +696,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       await this.createCoverNote(
-        newFilePath,
+        attachmentFilePath,
         videoTitle,
         videoUrl,
         summary,
@@ -752,7 +755,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   }
 
   async createCoverNote(
-    pdfFilePath: string,
+    attachmentFilePath: string | null,
     videoTitle: string,
     videoUrl: string,
     summary: string | null,
@@ -761,9 +764,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     videoDetails: VideoDetails | null,
     srtFilePath: string | null = null,
   ) {
-    // Calculate cover note directory
+    // Calculate cover note directory using the attachment file path for fallback
+    const pdfFilePath = attachmentFilePath?.endsWith(".srt") ? undefined : attachmentFilePath;
     let coverNoteDirectory = this.calculateCoverNoteDirectory(
-      pdfFilePath,
+      attachmentFilePath || "",
       videoTitle,
       channelName,
     );
@@ -775,25 +779,29 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         try {
           await this.app.vault.createFolder(coverNoteDirectory);
         } catch (error) {
-          // If folder creation fails, fall back to PDF's directory
-          const pdfDir = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
-          coverNoteDirectory = pdfDir || "";
+          // If folder creation fails, fall back to attachment file's directory
+          const attachmentDir = attachmentFilePath?.substring(0, attachmentFilePath.lastIndexOf("/"));
+          coverNoteDirectory = attachmentDir || "";
           console.warn(
-            `Failed to create cover note directory, using PDF directory:`,
+            `Failed to create cover note directory, using attachment directory:`,
             error,
           );
         }
       }
     }
 
-    // Get attachment filename without extension for reference
-    const attachmentFileName = pdfFilePath.substring(pdfFilePath.lastIndexOf("/") + 1);
-
     // Use absolute path from vault root for links (Obsidian supports this)
-    const pdfLinkPath = normalizeVaultPath(pdfFilePath);
+    // Only set pdfLinkPath if the attachment file is actually a PDF
+    const pdfLinkPath = pdfFilePath ? normalizeVaultPath(pdfFilePath) : "";
 
-    // Compute SRT link path similarly
-    const srtLinkPath = srtFilePath ? normalizeVaultPath(srtFilePath) : null;
+    // Compute SRT link path: use either the explicit srtFilePath or the attachment file if it's an SRT
+    let srtLinkPath: string | null = null;
+    if (srtFilePath) {
+      srtLinkPath = normalizeVaultPath(srtFilePath);
+    } else if (attachmentFilePath?.endsWith(".srt")) {
+      // If no explicit srtFilePath but attachment is an SRT file, use it as the SRT link
+      srtLinkPath = normalizeVaultPath(attachmentFilePath);
+    }
 
     // Build cover note content - use template if specified, otherwise use default
     let coverNoteContent: string;
@@ -834,7 +842,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           processedContent = processedContent.replace(/{SrtLink}/g, srtLinkPath ?? "");
 
           // Replace {PdfDirectory} with full path of PDF's directory (excluding filename)
-          const pdfDirPath = pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/"));
+          const pdfDirPath = pdfFilePath ? pdfFilePath.substring(0, pdfFilePath.lastIndexOf("/")) : "";
           const pdfDirectory = pdfDirPath || "";
           processedContent = processedContent.replace(/{PdfDirectory}/g, pdfDirectory);
 

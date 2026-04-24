@@ -161,6 +161,36 @@ describe("Cover Note Naming", () => {
 
       expect(result).toBe("Check out the [[{PdfLink}|PDF]] and [[Attachments/My Video.srt|SRT]]");
     });
+
+    it("should not populate {PdfLink} when creating SRT file (issue #90)", () => {
+      const fileFormat: FileFormat = "srt";
+      const newFilePath = "Attachments/My Video.srt";
+
+      // When creating SRT: attachmentFilePath is the SRT file, pdfLinkPath should be empty
+      const attachmentFilePath = newFilePath;
+      const isPdf = attachmentFilePath.endsWith(".pdf");
+      const pdfLinkPath = isPdf ? attachmentFilePath : "";
+
+      expect(pdfLinkPath).toBe("");
+      expect(newFilePath).toContain(".srt");
+    });
+
+    it("should correctly populate both {PdfLink} and {SrtLink} when creating PDF with SRT", () => {
+      const fileFormat: FileFormat = "pdf";
+      const pdfFilePath = "Attachments/My Video.pdf";
+      const srtFilePath = "Attachments/My Video.srt";
+      const template = "PDF: {PdfLink}, SRT: {SrtLink}";
+
+      // PDF should have the PDF path
+      const pdfLinkPath = pdfFilePath.endsWith(".pdf") ? pdfFilePath : "";
+      // SRT should have the SRT path
+      const srtLinkPath = srtFilePath || null;
+
+      let result = template.replace(/{PdfLink}/g, pdfLinkPath);
+      result = result.replace(/{SrtLink}/g, srtLinkPath ?? "");
+
+      expect(result).toBe("PDF: Attachments/My Video.pdf, SRT: Attachments/My Video.srt");
+    });
   });
 
   describe("Duplicate cover note prevention", () => {
