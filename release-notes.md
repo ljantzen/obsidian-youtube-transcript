@@ -1,5 +1,33 @@
 # Release Notes
 
+## 2.0.4 (2026-04-24)
+
+### Bug Fixes
+- **`{PdfLink}` placeholder producing `{SrtLink}` value (#90)**: When creating SRT files, the `{PdfLink}` placeholder in cover notes was incorrectly being replaced with the SRT link value instead of the PDF link.
+
+---
+
+## 2.0.3 (2026-04-23)
+
+### Bug Fixes
+- **Cover note file name setting erased on every load (#89)**: The cover note file name template setting was being reset to its default value every time the plugin loaded. Settings are now properly persisted.
+
+---
+
+## 2.0.2 (2026-04-23)
+
+### Bug Fixes
+- **`{SrtLink}` template variable not populated when creating SRT files**: The `{SrtLink}` placeholder in cover note templates was not being replaced when SRT files were created, leaving the placeholder literal in the output.
+
+---
+
+## 2.0.1 (2026-04-23)
+
+### Bug Fixes
+- **Restore cover note naming feature and prevent duplicate cover notes (#86)**: Fixed a regression where the cover note naming feature was not working correctly and could create duplicate cover notes. Cover note generation now respects file naming settings and deduplication logic.
+
+---
+
 ## 2.0.0 (2026-04-23)
 
 ### Major Changes
