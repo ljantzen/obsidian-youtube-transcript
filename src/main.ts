@@ -426,6 +426,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           videoDetails,
           segments,
           disableCoverNote,
+          fileFormats,
         });
         const formatNotice = fileFormat === "pdf"
           ? `PDF file created successfully! (${transcript.length} characters)`

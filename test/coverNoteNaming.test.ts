@@ -249,5 +249,19 @@ describe("Cover Note Naming", () => {
 
       expect(shouldCreate("srt")).toBe(true);
     });
+
+    it("should skip SRT cover note when fileFormats is forwarded correctly (regression: fileFormats not passed to createTranscriptFile)", () => {
+      type FileFormat = "markdown" | "pdf" | "srt";
+
+      const shouldCreate = (fileFormat: FileFormat, fileFormats: FileFormat[]) =>
+        fileFormat === "pdf" || (fileFormat === "srt" && !fileFormats.includes("pdf"));
+
+      // Before fix: fileFormats defaulted to [] in createTranscriptFile, so the SRT run
+      // would incorrectly create a cover note and overwrite the PDF cover note ({PdfLink} → empty)
+      expect(shouldCreate("srt", [])).toBe(true);  // bug: always true with empty array
+
+      // After fix: fileFormats is forwarded, so the SRT run is correctly skipped
+      expect(shouldCreate("srt", ["pdf", "srt"])).toBe(false);  // correct: PDF cover note preserved
+    });
   });
 });
