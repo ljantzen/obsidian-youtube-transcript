@@ -666,52 +666,73 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       let attachmentFilePath = newFilePath;
       let srtFilePath: string | null = null;
 
-      if (fileFormat === "srt") {
-        // When creating SRT: attachmentFilePath is the SRT file, don't pass srtFilePath separately
+      // When both PDF and SRT are generated, the PDF iteration already creates the
+      // cover note with correct {PdfLink} and {SrtLink}. Skip the SRT iteration to
+      // avoid overwriting that cover note with an empty {PdfLink}.
+      const pdfAlsoInFormats =
+        fileFormats.includes("pdf") || this.settings.fileFormats?.includes("pdf");
+
+      if (fileFormat === "srt" && pdfAlsoInFormats) {
+        // PDF cover note already handles both links — nothing to do here
+      } else if (fileFormat === "srt") {
+        // SRT-only: attachmentFilePath is the SRT file, don't pass srtFilePath separately
         attachmentFilePath = newFilePath;
         srtFilePath = null;
-      } else if (fileFormat === "pdf" && this.settings.fileFormats?.includes("srt")) {
-        // When creating PDF, compute where the SRT will be created (if SRT is enabled)
-        const srtNameTemplate = this.settings.defaultSrtFileName || "{VideoName}";
-        let srtName = replaceTemplateVariables(srtNameTemplate, { videoTitle, channelName });
-        srtName = srtName.replace(/\s+/g, " ").trim();
-        const srtBaseName = sanitizeFilename(srtName || videoTitle);
 
-        // Compute SRT directory using same nesting logic as createTranscriptFile
-        let srtDir: string;
-        const baseDirectory = selectedDirectory !== null
-          ? selectedDirectory
-          : (activeFile ? activeFile.path.substring(0, activeFile.path.lastIndexOf("/")) : "");
+        await this.createCoverNote(
+          attachmentFilePath,
+          videoTitle,
+          videoUrl,
+          summary,
+          channelName,
+          tagWithChannelName,
+          videoDetails,
+          srtFilePath,
+        );
+      } else if (fileFormat === "pdf") {
+        if (fileFormats.includes("srt") || this.settings.fileFormats?.includes("srt")) {
+          // When creating PDF, compute where the SRT will be created (if SRT is enabled)
+          const srtNameTemplate = this.settings.defaultSrtFileName || "{VideoName}";
+          let srtName = replaceTemplateVariables(srtNameTemplate, { videoTitle, channelName });
+          srtName = srtName.replace(/\s+/g, " ").trim();
+          const srtBaseName = sanitizeFilename(srtName || videoTitle);
 
-        let coverNoteDirectory = this.settings.coverNoteLocation || "";
-        if (coverNoteDirectory) {
-          coverNoteDirectory = replaceTemplateVariables(coverNoteDirectory, { videoTitle, channelName });
-          coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-        } else {
-          coverNoteDirectory = baseDirectory;
+          // Compute SRT directory using same nesting logic as createTranscriptFile
+          let srtDir: string;
+          const baseDirectory = selectedDirectory !== null
+            ? selectedDirectory
+            : (activeFile ? activeFile.path.substring(0, activeFile.path.lastIndexOf("/")) : "");
+
+          let coverNoteDirectory = this.settings.coverNoteLocation || "";
+          if (coverNoteDirectory) {
+            coverNoteDirectory = replaceTemplateVariables(coverNoteDirectory, { videoTitle, channelName });
+            coverNoteDirectory = coverNoteDirectory.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+          } else {
+            coverNoteDirectory = baseDirectory;
+          }
+
+          const attachmentFolder = this.settings.attachmentFolder?.trim()
+            .replace(/[/\\]+/g, "").trim() || sanitizeFilename(videoTitle);
+          if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
+            srtDir = `${coverNoteDirectory}/${attachmentFolder}`;
+          } else {
+            srtDir = attachmentFolder;
+          }
+
+          srtFilePath = srtDir ? `${srtDir}/${srtBaseName}.srt` : `${srtBaseName}.srt`;
         }
 
-        const attachmentFolder = this.settings.attachmentFolder?.trim()
-          .replace(/[/\\]+/g, "").trim() || sanitizeFilename(videoTitle);
-        if (coverNoteDirectory && coverNoteDirectory.trim() !== "") {
-          srtDir = `${coverNoteDirectory}/${attachmentFolder}`;
-        } else {
-          srtDir = attachmentFolder;
-        }
-
-        srtFilePath = srtDir ? `${srtDir}/${srtBaseName}.srt` : `${srtBaseName}.srt`;
+        await this.createCoverNote(
+          attachmentFilePath,
+          videoTitle,
+          videoUrl,
+          summary,
+          channelName,
+          tagWithChannelName,
+          videoDetails,
+          srtFilePath,
+        );
       }
-
-      await this.createCoverNote(
-        attachmentFilePath,
-        videoTitle,
-        videoUrl,
-        summary,
-        channelName,
-        tagWithChannelName,
-        videoDetails,
-        srtFilePath,
-      );
     }
 
     // Open the file (only for markdown files, PDFs will open in system viewer)

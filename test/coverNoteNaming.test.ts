@@ -193,6 +193,83 @@ describe("Cover Note Naming", () => {
     });
   });
 
+  describe("{PdfLink} not overwritten when generating PDF+SRT together (issue #92)", () => {
+    type FileFormat = "markdown" | "pdf" | "srt";
+
+    // Mirrors the skip logic added to createTranscriptFile
+    function shouldSkipCoverNote(
+      fileFormat: FileFormat,
+      fileFormats: FileFormat[],
+      settingsFileFormats: FileFormat[],
+    ): boolean {
+      const pdfAlsoInFormats =
+        fileFormats.includes("pdf") || settingsFileFormats.includes("pdf");
+      return fileFormat === "srt" && pdfAlsoInFormats;
+    }
+
+    it("should skip cover note creation for SRT when PDF is also in fileFormats", () => {
+      expect(shouldSkipCoverNote("srt", ["pdf", "srt"], [])).toBe(true);
+    });
+
+    it("should skip cover note creation for SRT when PDF is in settings fileFormats", () => {
+      expect(shouldSkipCoverNote("srt", [], ["pdf", "srt"])).toBe(true);
+    });
+
+    it("should NOT skip cover note creation for SRT-only workflow", () => {
+      expect(shouldSkipCoverNote("srt", ["srt"], [])).toBe(false);
+      expect(shouldSkipCoverNote("srt", [], ["srt"])).toBe(false);
+      expect(shouldSkipCoverNote("srt", [], [])).toBe(false);
+    });
+
+    it("should NOT skip cover note creation for PDF format", () => {
+      expect(shouldSkipCoverNote("pdf", ["pdf", "srt"], [])).toBe(false);
+      expect(shouldSkipCoverNote("pdf", ["pdf"], [])).toBe(false);
+    });
+
+    it("should preserve {PdfLink} when PDF cover note is created before SRT iteration", () => {
+      const pdfFilePath = "Folder/VideoTitle/VideoTitle.pdf";
+      const srtFilePath = "Folder/VideoTitle/VideoTitle.srt";
+      const template = "PDF: {PdfLink}\nSRT: {SrtLink}";
+
+      // Simulate PDF iteration — creates cover note with both links
+      const attachmentFilePath = pdfFilePath;
+      const pdfLinkPath = !attachmentFilePath.endsWith(".srt") ? attachmentFilePath : "";
+      const computedSrtLinkPath = srtFilePath;
+
+      let coverNoteContent = template
+        .replace(/{PdfLink}/g, pdfLinkPath)
+        .replace(/{SrtLink}/g, computedSrtLinkPath);
+
+      expect(coverNoteContent).toBe(
+        "PDF: Folder/VideoTitle/VideoTitle.pdf\nSRT: Folder/VideoTitle/VideoTitle.srt",
+      );
+
+      // Simulate SRT iteration — with the fix, it should be skipped entirely.
+      // Without the fix it would overwrite:
+      const srtAttachmentFilePath = srtFilePath;
+      const srtPdfLinkPath = !srtAttachmentFilePath.endsWith(".srt")
+        ? srtAttachmentFilePath
+        : "";
+
+      const overwrittenContent = template
+        .replace(/{PdfLink}/g, srtPdfLinkPath)
+        .replace(/{SrtLink}/g, srtFilePath);
+
+      // The broken (pre-fix) overwrite would produce an empty {PdfLink}
+      expect(overwrittenContent).toBe("PDF: \nSRT: Folder/VideoTitle/VideoTitle.srt");
+
+      // With the fix, the SRT iteration is skipped, so the PDF cover note content is preserved
+      const fileFormats: FileFormat[] = ["pdf", "srt"];
+      const fileFormat: FileFormat = "srt";
+      const skipped = shouldSkipCoverNote(fileFormat, fileFormats, []);
+      expect(skipped).toBe(true);
+
+      // Final cover note content is unchanged from the PDF iteration
+      expect(coverNoteContent).toContain("PDF: Folder/VideoTitle/VideoTitle.pdf");
+      expect(coverNoteContent).toContain("SRT: Folder/VideoTitle/VideoTitle.srt");
+    });
+  });
+
   describe("Duplicate cover note prevention", () => {
     it("should detect if cover note file already exists", () => {
       const coverNotePath = "Videos/My Video.md";
