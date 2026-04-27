@@ -18,7 +18,7 @@
 	"author": "",
 	"license": "MIT",
 	"devDependencies": {
-		"@eslint/compat": "^2.0.3",
+		"@eslint/compat": "^2.0.5",
 		"@types/node": "^25.3.5",
 		"@vitest/coverage-v8": "^4.1.5",
 		"builtin-modules": "5.1.0",
