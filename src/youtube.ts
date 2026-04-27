@@ -828,6 +828,8 @@ async function parseTranscript(
       const textParts = transcriptSegments.map((s) => s.text);
       rawTranscript = textParts.join(" ");
     }
+    // Collapse any internal newlines/tabs from segment text so output is truly one line
+    rawTranscript = rawTranscript.replace(/\s+/g, " ").trim();
   } else {
     // Multi-line mode (original behavior)
     if (includeTimestamps) {
