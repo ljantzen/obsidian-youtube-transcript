@@ -276,7 +276,7 @@ async function fetchPlayerDataWithAndroidClient(
       throw new Error("This video requires login to view");
     }
     if (ps?.status === "ERROR") {
-      const reason = (ps.reason || "Video unavailable") as string;
+      const reason = ps.reason || "Video unavailable";
       throw new Error(reason);
     }
     return htmlPlayerData;
@@ -645,7 +645,7 @@ async function parseTranscript(
     }
     if (gaps.length > 0) {
       const sorted = [...gaps].sort((x, y) => x - y);
-      const medianGap = sorted[Math.floor(sorted.length / 2)] as number;
+      const medianGap = sorted[Math.floor(sorted.length / 2)]!
       // Sentence-to-sentence gaps are typically 1–60 seconds. If median gap > 5 min, unit is likely wrong.
       if (medianGap > 300) {
         const gapsAsMs = gaps.map((g) => g / 1000);
