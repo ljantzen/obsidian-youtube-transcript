@@ -150,12 +150,7 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
   } catch (error) {
     // Fallback: try using current webContents with a data URL approach
     try {
-      const getWebContents = remote.getCurrentWebContents;
-      if (!getWebContents) {
-        throw new Error("Cannot access web contents");
-      }
-
-      const webContents = getWebContents();
+      const webContents = remote.getCurrentWebContents?.();
       const hasMethod = webContents && (webContents as unknown as {printToPDF?: unknown}).printToPDF;
       if (!webContents || !hasMethod) {
         throw new Error("Current web contents does not support PDF generation");
