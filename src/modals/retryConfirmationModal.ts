@@ -45,7 +45,7 @@ export class RetryConfirmationModal extends Modal {
     const retryButton = buttonContainer.createEl("button", {
       text: "Retry",
     });
-    retryButton.setCssProps({ "margin-left": "0.5em" });
+    retryButton.addClass("youtube-transcript-button-secondary");
     retryButton.onclick = () => {
       this.result = true;
       if (this.resolvePromise) {

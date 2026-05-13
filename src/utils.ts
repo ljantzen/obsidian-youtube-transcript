@@ -64,7 +64,7 @@ export function sanitizeTagName(tagName: string): string {
   // Remove or replace invalid tag characters to create valid Obsidian tags
   return tagName
     .replace(/\s+/g, "-") // Replace spaces with hyphens
-    .replace(/[^\w\-]/g, "") // Remove non-alphanumeric characters except hyphens and underscores
+    .replace(/[^\w-]/g, "") // Remove non-alphanumeric characters except hyphens and underscores
     .replace(/-+/g, "-") // Collapse multiple hyphens
     .replace(/^-+|-+$/g, "") // Remove leading/trailing hyphens
     .toLowerCase()
@@ -94,7 +94,7 @@ export function formatTimestamp(
   if (localVideoDirectory && localVideoDirectory.trim() !== "") {
     // Use local file URL if directory is configured
     // Normalize directory path (remove trailing slashes, ensure forward slashes, remove leading slash)
-    let normalizedDir = localVideoDirectory
+    const normalizedDir = localVideoDirectory
       .trim()
       .replace(/\\/g, "/")
       .replace(/\/+$/, "")

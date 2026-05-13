@@ -69,33 +69,35 @@ export function createModelRefreshButton(
   refreshButton.addClass("mod-cta");
   refreshButton.style.marginLeft = "10px";
 
-  refreshButton.addEventListener("click", async () => {
-    if (!apiKey || apiKey.trim() === "") {
-      new Notice(
-        `Please enter your ${providerName} API key first before refreshing models.`,
-      );
-      return;
-    }
+  refreshButton.addEventListener("click", () => {
+    void (async () => {
+      if (!apiKey || apiKey.trim() === "") {
+        new Notice(
+          `Please enter your ${providerName} API key first before refreshing models.`,
+        );
+        return;
+      }
 
-    refreshButton.disabled = true;
-    refreshButton.textContent = "Loading...";
+      refreshButton.disabled = true;
+      refreshButton.textContent = "Loading...";
 
-    try {
-      const models = await fetchFunction(apiKey);
-      onModelsFetched(models);
-      populateModelDropdown(selectEl, models, getCurrentValue());
-      new Notice(
-        `Successfully fetched ${models.length} ${providerName} model${models.length !== 1 ? "s" : ""}`,
-      );
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      new Notice(`Failed to fetch ${providerName} models: ${errorMessage}`);
-      console.error(`Failed to fetch ${providerName} models:`, error);
-    } finally {
-      refreshButton.disabled = false;
-      refreshButton.textContent = "Refresh models";
-    }
+      try {
+        const models = await fetchFunction(apiKey);
+        onModelsFetched(models);
+        populateModelDropdown(selectEl, models, getCurrentValue());
+        new Notice(
+          `Successfully fetched ${models.length} ${providerName} model${models.length !== 1 ? "s" : ""}`,
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        new Notice(`Failed to fetch ${providerName} models: ${errorMessage}`);
+        console.error(`Failed to fetch ${providerName} models:`, error);
+      } finally {
+        refreshButton.disabled = false;
+        refreshButton.textContent = "Refresh models";
+      }
+    })();
   });
 
   return refreshButton;

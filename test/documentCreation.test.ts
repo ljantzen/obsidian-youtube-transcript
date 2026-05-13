@@ -109,14 +109,14 @@ describe('createTranscriptFile', () => {
 			}
 			return candidatePath;
 		}) as MockGetAvailablePath;
-		mockCreate = vi.fn().mockImplementation(async (path: string, content: string) => {
+		mockCreate = vi.fn().mockImplementation(async (path: string, _content: string) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
 			}
 			fileMap.add(path);
 			return createMockTFile(path);
 		}) as MockCreate;
-		mockCreateBinary = vi.fn().mockImplementation(async (path: string, content: ArrayBuffer) => {
+		mockCreateBinary = vi.fn().mockImplementation(async (path: string, _content: ArrayBuffer) => {
 			if (fileMap.has(path)) {
 				throw new Error(`File already exists: ${path}`);
 			}

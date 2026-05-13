@@ -1,4 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
+
+interface ApiErrorBody { error?: { message?: string } }
+interface ClaudeResponseBody { content?: Array<{ text?: string }> }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -51,7 +54,7 @@ export async function processWithClaude(
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(
+      activeWindow.setTimeout(
         () =>
           reject(
             new Error(
@@ -96,7 +99,7 @@ export async function processWithClaude(
     const response = await Promise.race([requestPromise, timeoutPromise]);
 
     if (response.status < 200 || response.status >= 300) {
-      const errorData = response.json || {};
+      const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
 
       if (response.status === 429) {
         if (statusCallback) statusCallback(null); // Hide notice
@@ -137,14 +140,15 @@ export async function processWithClaude(
       throw new Error(errorMsg);
     }
 
-    const data = response.json;
-    const responseContent = data.content?.[0]?.text;
+    const data: ClaudeResponseBody = response.json as ClaudeResponseBody;
+    const rawContent = data.content?.[0]?.text;
 
-    if (!responseContent) {
+    if (!rawContent) {
       if (statusCallback) statusCallback(null); // Hide notice
       throw new Error("No response from Claude");
     }
 
+    const responseContent: string = rawContent;
     return parseLLMResponse(responseContent.trim(), generateSummary);
   };
 
@@ -217,7 +221,7 @@ export async function processWithClaude(
           statusCallback(
             "Waiting before retrying Claude processing (rate limit)...",
           );
-        await new Promise((resolve) => setTimeout(resolve, 60000));
+        await new Promise((resolve) => activeWindow.setTimeout(resolve, 60000));
         if (statusCallback) statusCallback("Retrying Claude processing...");
         try {
           return await makeRequest();

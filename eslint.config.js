@@ -1,27 +1,27 @@
 // eslint.config.js
 import tseslint from "typescript-eslint";
 
-export default [
+export default tseslint.config(
   {
     ignores: ["coverage/"],
   },
   {
     files: ["**/*.ts"],
+    extends: tseslint.configs.recommended,
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", {
+        argsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+        destructuredArrayIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+      }],
+    },
     languageOptions: {
-      parser: tseslint.parser,
       parserOptions: {
         project: "./tsconfig.json",
         ecmaVersion: 2018,
         sourceType: "module",
       },
     },
-    plugins: {
-      "@typescript-eslint": tseslint.plugin,
-    },
-    rules: {
-      // TypeScript ESLint recommended rules
-      ...tseslint.configs.recommended.rules,
-      // Add custom rules here
-    },
   },
-];
+);

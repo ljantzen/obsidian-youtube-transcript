@@ -1,5 +1,11 @@
 import { requestUrl } from "obsidian";
 
+interface ApiErrorBody { error?: { message?: string } }
+interface OpenAIModelEntry { id?: string; displayName?: string }
+interface OpenAIModelsBody { data?: OpenAIModelEntry[] }
+interface GeminiModelEntry { name?: string; displayName?: string; supportedGenerationMethods?: string[] }
+interface GeminiModelsBody { models?: GeminiModelEntry[]; error?: { message?: string } }
+
 export interface ModelInfo {
   id: string;
   displayName?: string;
@@ -35,7 +41,7 @@ export async function fetchOpenAIModels(
       );
     }
 
-    const data = response.json;
+    const data: OpenAIModelsBody = response.json as OpenAIModelsBody;
     const models: ModelInfo[] = [];
     const seenModelIds = new Set<string>();
 
@@ -43,7 +49,8 @@ export async function fetchOpenAIModels(
       for (const model of data.data) {
         if (model.id && typeof model.id === "string") {
           // Trim whitespace to prevent duplicates
-          const modelId = model.id.trim();
+          const id: string = model.id;
+          const modelId: string = id.trim();
           // Filter to only chat completion models (gpt-* models)
           if (
             modelId &&
@@ -113,13 +120,13 @@ export async function fetchGeminiModels(
       if (response.status === 401 || response.status === 403) {
         throw new Error("Invalid Gemini API key");
       }
-      const errorData = response.json || {};
+      const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
       throw new Error(
         `Gemini API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
       );
     }
 
-    const data = response.json;
+    const data: GeminiModelsBody = response.json as GeminiModelsBody;
     const models: ModelInfo[] = [];
     const seenModelIds = new Set<string>();
 
@@ -128,12 +135,15 @@ export async function fetchGeminiModels(
         if (model.name && typeof model.name === "string") {
           // Extract model ID from name (format: "models/gemini-2.0-flash")
           // Trim whitespace to prevent duplicates
-          const modelId = model.name.replace("models/", "").trim();
+          const name: string = model.name;
+          const modelId: string = name.replace("models/", "").trim();
           // Only include models that support generateContent and haven't been seen
+          const methods = model.supportedGenerationMethods;
           if (
             modelId &&
-            model.supportedGenerationMethods &&
-            model.supportedGenerationMethods.includes("generateContent") &&
+            methods &&
+            Array.isArray(methods) &&
+            methods.includes("generateContent") &&
             !seenModelIds.has(modelId)
           ) {
             seenModelIds.add(modelId);

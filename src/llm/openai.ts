@@ -1,4 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
+
+interface ApiErrorBody { error?: { message?: string } }
+interface ChatResponseBody { choices?: Array<{ message?: { content?: string } }> }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -64,7 +67,7 @@ export async function processWithOpenAI(
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(
+      activeWindow.setTimeout(
         () =>
           reject(
             new TimeoutError(
@@ -97,7 +100,7 @@ export async function processWithOpenAI(
     const response = await Promise.race([requestPromise, timeoutPromise]);
 
     if (response.status < 200 || response.status >= 300) {
-      const errorData = response.json || {};
+      const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
 
       // Handle rate limiting (429) specifically
       if (response.status === 429) {
@@ -130,14 +133,15 @@ export async function processWithOpenAI(
       throw new Error(errorMsg);
     }
 
-    const data = response.json;
-    const responseContent = data.choices?.[0]?.message?.content;
+    const data: ChatResponseBody = response.json as ChatResponseBody;
+    const rawContent = data.choices?.[0]?.message?.content;
 
-    if (!responseContent) {
+    if (!rawContent) {
       if (statusCallback) statusCallback(null); // Hide notice
       throw new Error("No response from OpenAI");
     }
 
+    const responseContent: string = rawContent;
     return parseLLMResponse(responseContent.trim(), generateSummary);
   };
 
@@ -202,7 +206,7 @@ export async function processWithOpenAI(
           statusCallback(
             "Waiting before retrying OpenAI processing (rate limit)...",
           );
-        await new Promise((resolve) => setTimeout(resolve, 60000));
+        await new Promise((resolve) => activeWindow.setTimeout(resolve, 60000));
         if (statusCallback) statusCallback("Retrying OpenAI processing...");
         try {
           return await makeRequest();

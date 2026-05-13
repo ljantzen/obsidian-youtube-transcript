@@ -35,7 +35,7 @@ export class DuplicateNoteErrorModal extends Modal {
     });
     link.addEventListener("click", (e) => {
       e.preventDefault();
-      this.app.workspace.openLinkText(this.noteName, "", false);
+      void this.app.workspace.openLinkText(this.noteName, "", false);
       this.close();
     });
 

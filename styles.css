@@ -25,3 +25,32 @@
 	color: var(--text-muted);
 	line-height: 1.6;
 }
+
+.youtube-transcript-button-secondary {
+	margin-left: 0.5em;
+}
+
+.youtube-transcript-full-width {
+	width: 100%;
+}
+
+.youtube-transcript-url-input {
+	margin-bottom: 1em;
+}
+
+.youtube-transcript-pdf-render-container {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 800px;
+	opacity: 0;
+	pointer-events: none;
+	z-index: -1000;
+}
+
+.youtube-transcript-pdf-iframe {
+	position: fixed;
+	left: -9999px;
+	width: 1200px;
+	height: 1600px;
+}

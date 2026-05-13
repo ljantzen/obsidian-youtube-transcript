@@ -54,8 +54,8 @@ export class YouTubeUrlModal extends Modal {
 
     const textComponent = new TextComponent(contentEl);
     textComponent.setPlaceholder("https://www.youtube.com/watch?v=... or video ID");
-    textComponent.inputEl.style.width = "100%";
-    textComponent.inputEl.style.marginBottom = "1em";
+    textComponent.inputEl.addClass("youtube-transcript-full-width");
+    textComponent.inputEl.addClass("youtube-transcript-url-input");
     const input = textComponent.inputEl;
 
     // Add language selector
@@ -116,7 +116,7 @@ export class YouTubeUrlModal extends Modal {
         if (watchPageResponse.status >= 200 && watchPageResponse.status < 300) {
           const pageHtml = watchPageResponse.text;
           const apiKeyMatch = pageHtml.match(
-            /\"INNERTUBE_API_KEY\":\s*\"([a-zA-Z0-9_-]+)\"/,
+            /"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"/,
           );
 
           if (apiKeyMatch && apiKeyMatch[1]) {
@@ -229,12 +229,12 @@ export class YouTubeUrlModal extends Modal {
     };
 
     // Fetch languages when URL changes (debounced)
-    let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+    let fetchTimeout: number | null = null;
     input.addEventListener("input", () => {
       if (fetchTimeout) {
-        clearTimeout(fetchTimeout);
+        activeWindow.clearTimeout(fetchTimeout);
       }
-      fetchTimeout = setTimeout(() => {
+      fetchTimeout = activeWindow.setTimeout(() => {
         fetchLanguages().catch((error) => {
           // Error is already handled in fetchLanguages, but we need to catch
           // to prevent unhandled promise rejection
@@ -278,7 +278,7 @@ export class YouTubeUrlModal extends Modal {
     // Fetch languages if URL was prefilled from clipboard
     // Use a small delay to ensure the modal is fully rendered
     if (prefilledUrl) {
-      setTimeout(() => {
+      activeWindow.setTimeout(() => {
         fetchLanguages().catch((error) => {
           // Error is already handled in fetchLanguages, but we need to catch
           // to prevent unhandled promise rejection
@@ -387,13 +387,13 @@ export class YouTubeUrlModal extends Modal {
       const checkbox = checkboxContainer.createEl("input", {
         type: "checkbox",
         attr: { id: `format-${format}` },
-      }) as HTMLInputElement;
+      });
 
       // Check first format by default
       checkbox.checked = format === enabledFormats[0];
       formatCheckboxes[format] = checkbox;
 
-      const label = checkboxContainer.createEl("label", {
+      void checkboxContainer.createEl("label", {
         text: formatOptions[format],
         attr: {
           for: `format-${format}`,
@@ -487,7 +487,7 @@ export class YouTubeUrlModal extends Modal {
         attr: {
           id: "use-llm-checkbox",
         },
-      }) as HTMLInputElement;
+      });
       useLLMContainer.createEl("label", {
         text: "Use LLM processing",
         attr: {
@@ -514,7 +514,7 @@ export class YouTubeUrlModal extends Modal {
           id: "llm-provider-dropdown",
           style: "flex: 1;",
         },
-      }) as HTMLSelectElement;
+      });
 
       // Only add providers that have configured API keys
       if (this.callbacks.hasProviderKey("openai")) {
@@ -553,7 +553,7 @@ export class YouTubeUrlModal extends Modal {
         attr: {
           id: "generate-summary-checkbox",
         },
-      }) as HTMLInputElement;
+      });
       if (this.settings.generateSummary) {
         generateSummaryCheckbox.checked = true;
       }
@@ -597,7 +597,7 @@ export class YouTubeUrlModal extends Modal {
     const submitButton = buttonContainer.createEl("button", {
       text: "Fetch transcript",
     });
-    submitButton.setCssProps({ "margin-left": "0.5em" });
+    submitButton.addClass("youtube-transcript-button-secondary");
     submitButton.addEventListener("click", () => {
       try {
         const url = input.value.trim();
@@ -626,7 +626,7 @@ export class YouTubeUrlModal extends Modal {
           : false;
         // Get selected provider (default to settings if not available)
         const llmProvider = providerDropdown
-          ? (providerDropdown.value as LLMProvider)
+          ? (providerDropdown.value)
           : this.settings.llmProvider;
         const tagWithChannelName = tagChannelCheckbox.checked;
         // Get selected directory from dropdown
@@ -697,7 +697,7 @@ export class YouTubeUrlModal extends Modal {
             : false;
           // Get selected provider (default to settings if not available)
           const llmProvider = providerDropdown
-            ? (providerDropdown.value as LLMProvider)
+            ? (providerDropdown.value)
             : this.settings.llmProvider;
           const tagWithChannelName = tagChannelCheckbox.checked;
           // Get selected directory from dropdown

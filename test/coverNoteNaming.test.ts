@@ -37,7 +37,6 @@ describe("Cover Note Naming", () => {
     });
 
     it("should sanitize the result", () => {
-      const defaultCoverNoteName = "{VideoName}";
       const videoTitle = 'Video <with> "invalid" chars';
       const coverNoteName = sanitizeFilename(videoTitle);
 
@@ -163,7 +162,6 @@ describe("Cover Note Naming", () => {
     });
 
     it("should not populate {PdfLink} when creating SRT file (issue #90)", () => {
-      const fileFormat: FileFormat = "srt";
       const newFilePath = "Attachments/My Video.srt";
 
       // When creating SRT: attachmentFilePath is the SRT file, pdfLinkPath should be empty
@@ -176,7 +174,6 @@ describe("Cover Note Naming", () => {
     });
 
     it("should correctly populate both {PdfLink} and {SrtLink} when creating PDF with SRT", () => {
-      const fileFormat: FileFormat = "pdf";
       const pdfFilePath = "Attachments/My Video.pdf";
       const srtFilePath = "Attachments/My Video.srt";
       const template = "PDF: {PdfLink}, SRT: {SrtLink}";
@@ -236,7 +233,7 @@ describe("Cover Note Naming", () => {
       const pdfLinkPath = !attachmentFilePath.endsWith(".srt") ? attachmentFilePath : "";
       const computedSrtLinkPath = srtFilePath;
 
-      let coverNoteContent = template
+      const coverNoteContent = template
         .replace(/{PdfLink}/g, pdfLinkPath)
         .replace(/{SrtLink}/g, computedSrtLinkPath);
 
@@ -285,7 +282,7 @@ describe("Cover Note Naming", () => {
 
       // Simulate the logic: collect cover note names for all formats
       const coverNoteNames = new Set<string>();
-      for (const format of formats) {
+      for (const _format of formats) {
         const coverNoteName = sanitizeFilename(videoTitle);
         coverNoteNames.add(coverNoteName);
       }

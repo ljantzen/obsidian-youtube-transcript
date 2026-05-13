@@ -84,12 +84,12 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       const checkbox = checkboxContainer.createEl("input", {
         type: "checkbox",
         attr: { id: `format-${format}` },
-      }) as HTMLInputElement;
+      });
 
       checkbox.checked =
         this.settings.fileFormats && this.settings.fileFormats.includes(format);
 
-      checkbox.addEventListener("change", async () => {
+      checkbox.addEventListener("change", () => {
         const selectedFormats = formats.filter((f) => {
           const cb = formatCheckboxes[f];
           return cb && cb.checked;
@@ -102,7 +102,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         }
 
         this.settings.fileFormats = selectedFormats;
-        await this.saveSettings();
+        void this.saveSettings();
       });
 
       formatCheckboxes[format] = checkbox;
@@ -174,13 +174,13 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
                 "display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.5em;",
             },
           });
-          dirItem.createEl("span", {
+          dirItem.createSpan({
             text: dir,
             attr: { style: "flex: 1; font-family: monospace;" },
           });
           // Show default indicator
           if (defaultDir === dir) {
-            dirItem.createEl("span", {
+            dirItem.createSpan({
               text: "(Default)",
               attr: {
                 style:
@@ -930,7 +930,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           text: provider.name,
           attr: { style: "display: block;" },
         });
-        infoDiv.createEl("span", {
+        infoDiv.createSpan({
           text: provider.endpoint,
           attr: {
             style:
@@ -965,11 +965,11 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     }
   }
 
-  private showAddCustomProviderModal(containerEl: HTMLElement): void {
+  private showAddCustomProviderModal(_containerEl: HTMLElement): void {
     const modal = new CustomProviderModal(
       this.app,
       null,
-      async (provider) => {
+      (provider) => {
         // Generate unique ID
         const existingIds = this.settings.customProviders.map((p) => p.id);
         let id = 1;
@@ -979,21 +979,20 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         provider.id = `custom-${id}`;
 
         this.settings.customProviders.push(provider);
-        await this.saveSettings();
-        this.display();
+        void this.saveSettings().then(() => this.display());
       },
     );
     modal.open();
   }
 
   private showEditCustomProviderModal(
-    containerEl: HTMLElement,
+    _containerEl: HTMLElement,
     provider: CustomLLMProvider,
   ): void {
     const modal = new CustomProviderModal(
       this.app,
       provider,
-      async (updatedProvider) => {
+      (updatedProvider) => {
         const index = this.settings.customProviders.findIndex(
           (p) => p.id === provider.id,
         );
@@ -1002,8 +1001,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             ...updatedProvider,
             id: provider.id, // Keep the same ID
           };
-          await this.saveSettings();
-          this.display();
+          void this.saveSettings().then(() => this.display());
         }
       },
     );
@@ -1079,7 +1077,7 @@ class CustomProviderModal extends Modal {
           .onChange((value) => {
             this.formData.endpoint = value;
           });
-        text.inputEl.style.width = "100%";
+        text.inputEl.addClass("youtube-transcript-full-width");
       });
 
     // API Key
@@ -1094,7 +1092,7 @@ class CustomProviderModal extends Modal {
           .onChange((value) => {
             this.formData.apiKey = value;
           });
-        text.inputEl.style.width = "100%";
+        text.inputEl.addClass("youtube-transcript-full-width");
       });
 
     // Model
@@ -1108,7 +1106,7 @@ class CustomProviderModal extends Modal {
           .onChange((value) => {
             this.formData.model = value;
           });
-        text.inputEl.style.width = "100%";
+        text.inputEl.addClass("youtube-transcript-full-width");
       });
 
     // Timeout

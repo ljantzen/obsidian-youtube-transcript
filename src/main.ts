@@ -8,7 +8,6 @@ import {
 import type {
   YouTubeTranscriptPluginSettings,
   LLMProvider,
-  TranscriptSegment,
   VideoDetails,
   FileFormat,
   ProcessTranscriptOptions,
@@ -18,7 +17,7 @@ import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
 import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
 import { replaceTemplateVariables } from "./utils/templateVariables";
-import { normalizePath, normalizeVaultPath } from "./utils/pathUtils";
+import { normalizeVaultPath } from "./utils/pathUtils";
 import { getYouTubeTranscript } from "./youtube";
 import { getFormatHandler } from "./fileFormatHandlers";
 import {
@@ -66,7 +65,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       id: "fetch-youtube-transcript-from-clipboard",
       name: "Fetch YouTube transcript from clipboard",
       callback: () => {
-        this.fetchTranscriptFromClipboard();
+        void this.fetchTranscriptFromClipboard();
       },
     });
   }
@@ -76,7 +75,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   }
 
   async loadSettings() {
-    const loadedData = await this.loadData();
+    const loadedData: Record<string, unknown> | null = (await this.loadData()) as Record<string, unknown> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
     await this.runSettingsMigrations(loadedData);
   }
@@ -137,9 +136,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // fileFormat (string) → fileFormats (array)
-    if ((this.settings as any).fileFormat !== undefined) {
-      const oldFormat = (this.settings as any).fileFormat;
-      delete (this.settings as any).fileFormat;
+    const settingsRecord = this.settings as unknown as Record<string, unknown>;
+    if ("fileFormat" in settingsRecord && settingsRecord.fileFormat !== undefined) {
+      const oldFormat = (settingsRecord.fileFormat as unknown) as "markdown" | "pdf" | "srt";
+      delete settingsRecord.fileFormat;
       this.settings.fileFormats = [oldFormat];
       changed = true;
     }
@@ -160,27 +160,28 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     }
 
     // Migrate PDF cover note settings to generic cover note settings
-    if ((loadedData as any)?.createPdfCoverNote !== undefined) {
-      this.settings.createCoverNote = (loadedData as any).createPdfCoverNote;
+    if (loadedData && "createPdfCoverNote" in loadedData) {
+      this.settings.createCoverNote = loadedData.createPdfCoverNote as boolean;
       changed = true;
     }
-    if ((loadedData as any)?.pdfCoverNoteLocation !== undefined) {
-      this.settings.coverNoteLocation = (loadedData as any).pdfCoverNoteLocation;
+    if (loadedData && "pdfCoverNoteLocation" in loadedData) {
+      this.settings.coverNoteLocation = loadedData.pdfCoverNoteLocation as string;
       changed = true;
     }
-    if ((loadedData as any)?.pdfAttachmentFolder !== undefined) {
-      this.settings.attachmentFolder = (loadedData as any).pdfAttachmentFolder;
+    if (loadedData && "pdfAttachmentFolder" in loadedData) {
+      this.settings.attachmentFolder = loadedData.pdfAttachmentFolder as string;
       changed = true;
     }
-    if ((loadedData as any)?.pdfCoverNoteTemplate !== undefined) {
-      this.settings.coverNoteTemplate = (loadedData as any).pdfCoverNoteTemplate;
+    if (loadedData && "pdfCoverNoteTemplate" in loadedData) {
+      this.settings.coverNoteTemplate = loadedData.pdfCoverNoteTemplate as string;
       changed = true;
     }
 
     // Remove obsolete fields
-    for (const field of ["nestPdfUnderCoverNote", "useAttachmentFolderForPdf", "pdfAttachmentFolderName", "createPdfCoverNote", "pdfCoverNoteLocation", "pdfAttachmentFolder", "pdfCoverNoteTemplate", "srtLocation"]) {
-      if ((this.settings as any)[field] !== undefined) {
-        delete (this.settings as any)[field];
+    const obsoleteFields = ["nestPdfUnderCoverNote", "useAttachmentFolderForPdf", "pdfAttachmentFolderName", "createPdfCoverNote", "pdfCoverNoteLocation", "pdfAttachmentFolder", "pdfCoverNoteTemplate", "srtLocation"] as const;
+    for (const field of obsoleteFields) {
+      if (field in settingsRecord) {
+        delete settingsRecord[field as string];
         changed = true;
       }
     }
@@ -324,7 +325,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const property = this.settings.duplicateCheckProperty || "url";
     for (const file of this.app.vault.getMarkdownFiles()) {
       const cache = this.app.metadataCache.getFileCache(file);
-      const propValue = cache?.frontmatter?.[property];
+      const propValue: unknown = cache?.frontmatter?.[property];
       if (typeof propValue === "string" && extractVideoId(propValue) === videoId) {
         return file;
       }
@@ -606,11 +607,16 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       const frontmatterLines = ["---"];
       for (const [key, value] of Object.entries(frontmatter)) {
         if (value !== null && value !== undefined) {
-          const stringValue = typeof value === "string" && value.includes("\n")
-            ? `"${value.replace(/"/g, '\\"')}"`
-            : typeof value === "string"
-            ? `"${value}"`
-            : String(value);
+          let stringValue: string;
+          if (typeof value === "string") {
+            stringValue = value.includes("\n")
+              ? `"${value.replace(/"/g, '\\"')}"`
+              : `"${value}"`;
+          } else if (typeof value === "object") {
+            stringValue = JSON.stringify(value);
+          } else {
+            stringValue = String(value);
+          }
           frontmatterLines.push(`${key}: ${stringValue}`);
         }
       }
@@ -932,7 +938,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       : coverNoteFileName;
 
     // Check if cover note already exists - if so, update it (avoid duplicates)
-    let finalCoverNotePath = coverNotePath;
+    const finalCoverNotePath = coverNotePath;
     const existingCoverNote = this.app.vault.getAbstractFileByPath(coverNotePath);
 
     try {
@@ -1028,9 +1034,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const videoDetailsRegex = /\{VideoDetails\.([^}]+)\}/g;
     processedContent = processedContent.replace(
       videoDetailsRegex,
-      (match, fieldPath) => {
-        const value = this.getNestedValue(videoDetails, fieldPath);
-        return value !== undefined && value !== null ? String(value) : "";
+      (_match, fieldPath) => {
+        const value = this.getNestedValue(videoDetails, fieldPath as string);
+        if (value === undefined || value === null) return "";
+        if (typeof value === "object") {
+          return JSON.stringify(value);
+        }
+        return String(value);
       },
     );
 
@@ -1062,7 +1072,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     transcript: string,
     videoTitle: string,
     videoUrl: string,
-    summary: string | null,
+    _summary: string | null,
     includeVideoUrl: boolean,
     channelName: string | null,
     tagWithChannelName: boolean,

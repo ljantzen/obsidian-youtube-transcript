@@ -15,8 +15,20 @@ import { getProviderName, hasProviderKey } from "./providerUtils";
 
 const INNERTUBE_PLAYER_URL = "https://www.youtube.com/youtubei/v1/player";
 
+interface PlayerData {
+  playabilityStatus?: { status?: string; reason?: string };
+  videoDetails?: VideoDetails;
+  captions?: {
+    playerCaptionsTracklistRenderer?: {
+      captionTracks?: CaptionTrack[];
+      audioTracks?: unknown[];
+      translationLanguages?: unknown[];
+    };
+  };
+}
+
 interface InnerTubeClientConfig {
-  context: object;
+  context: { client: { clientName: string; [key: string]: unknown }; [key: string]: unknown };
   userAgent: string;
   extraHeaders?: Record<string, string>;
 }
@@ -117,7 +129,7 @@ function makeClientConfigs(
  * Extracts a JSON object from HTML by key (e.g. "ytInitialPlayerResponse").
  * Handles deeply nested objects without regex size limits.
  */
-function extractJsonFromHtml(html: string, key: string): any | null {
+function extractJsonFromHtml(html: string, key: string): PlayerData | null {
   const keyIdx = html.indexOf(key);
   if (keyIdx === -1) return null;
 
@@ -139,7 +151,7 @@ function extractJsonFromHtml(html: string, key: string): any | null {
       depth--;
       if (depth === 0) {
         try {
-          return JSON.parse(html.substring(startIdx, i + 1));
+          return JSON.parse(html.substring(startIdx, i + 1)) as PlayerData;
         } catch {
           return null;
         }
@@ -151,7 +163,7 @@ function extractJsonFromHtml(html: string, key: string): any | null {
 
 interface WatchPageData {
   visitorData: string | null;
-  playerData: any | null;
+  playerData: PlayerData | null;
 }
 
 /**
@@ -203,7 +215,7 @@ async function fetchPlayerDataWithAndroidClient(
   videoId: string,
   lang?: string,
   country?: string,
-): Promise<any> {
+): Promise<PlayerData> {
   // Fetch watch page first — we need visitorData for ANDROID_VR to work
   const { visitorData, playerData: htmlPlayerData } = await fetchWatchPageData(videoId);
 
@@ -211,7 +223,7 @@ async function fetchPlayerDataWithAndroidClient(
   const errors: string[] = [];
 
   for (const client of clients) {
-    const clientName = (client.context as any).client.clientName as string;
+    const clientName = (client.context as unknown as {client: {clientName: string}}).client.clientName;
     let response;
     try {
       response = await requestUrl({
@@ -227,7 +239,7 @@ async function fetchPlayerDataWithAndroidClient(
           videoId: videoId,
         }),
       });
-    } catch (err) {
+    } catch (_err) {
       errors.push(`${clientName}: request error`);
       continue;
     }
@@ -237,8 +249,8 @@ async function fetchPlayerDataWithAndroidClient(
       continue;
     }
 
-    const data = response.json;
-    const ps = data?.playabilityStatus;
+    const data: PlayerData = response.json as PlayerData;
+    const ps = data?.playabilityStatus as unknown as {status?: string; reason?: string} | undefined;
     if (ps) {
       if (ps.status === "LOGIN_REQUIRED") {
         // Video requires authentication — no point trying other clients
@@ -246,7 +258,8 @@ async function fetchPlayerDataWithAndroidClient(
       }
       if (ps.status === "ERROR" || ps.status === "UNPLAYABLE") {
         // May be a client-level rejection — try the next client
-        errors.push(`${clientName}: ${ps.status} — ${ps.reason || "unknown reason"}`);
+        const reason = (ps.reason || "unknown reason") as string;
+        errors.push(`${clientName}: ${ps.status} — ${reason}`);
         continue;
       }
     }
@@ -258,16 +271,14 @@ async function fetchPlayerDataWithAndroidClient(
   // a last resort. This gives us caption URLs but they may still be blocked
   // (see transcript fetch fallbacks below).
   if (htmlPlayerData) {
-    const ps = htmlPlayerData?.playabilityStatus;
+    const ps = htmlPlayerData.playabilityStatus as unknown as {status?: string; reason?: string} | undefined;
     if (ps?.status === "LOGIN_REQUIRED") {
       throw new Error("This video requires login to view");
     }
     if (ps?.status === "ERROR") {
-      throw new Error(ps.reason || "Video unavailable");
+      const reason = (ps.reason || "Video unavailable") as string;
+      throw new Error(reason);
     }
-    console.warn(
-      `All InnerTube clients failed (${errors.join("; ")}). Using watch page HTML player data.`,
-    );
     return htmlPlayerData;
   }
 
@@ -314,7 +325,7 @@ export async function getYouTubeTranscript(
   // Use ANDROID client to fetch video data - more reliable for caption access
   if (statusCallback) statusCallback("Fetching video information...");
 
-  let videoData: any;
+  let videoData: PlayerData;
   try {
     videoData = await fetchPlayerDataWithAndroidClient(videoId);
   } catch (error) {
@@ -324,48 +335,19 @@ export async function getYouTubeTranscript(
   }
 
   // Extract video metadata
-  const videoTitle = videoData?.videoDetails?.title || "YouTube Transcript";
-  const channelName = videoData?.videoDetails?.author || null;
-  const videoDetails: VideoDetails | null = videoData?.videoDetails
-    ? (videoData.videoDetails as VideoDetails)
-    : null;
+  const vd = videoData.videoDetails as unknown as VideoDetails | undefined;
+  const videoTitle = vd?.title || "YouTube Transcript";
+  const channelName = vd?.author || null;
+  const videoDetails: VideoDetails | null = vd || null;
 
   // Extract caption tracks
+  const captions = videoData.captions as unknown as {playerCaptionsTracklistRenderer?: {captionTracks?: CaptionTrack[]}} | undefined;
   const captionTracks: CaptionTrack[] =
-    videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
 
   if (!captionTracks || captionTracks.length === 0) {
-    // Log detailed information for debugging
-    const captionsRenderer =
-      videoData?.captions?.playerCaptionsTracklistRenderer;
-    console.error("No captions available for video:", videoId);
-    console.error("Video data structure:", {
-      hasCaptions: !!videoData?.captions,
-      captionsKeys: videoData?.captions ? Object.keys(videoData.captions) : [],
-      hasPlayerCaptionsTracklistRenderer: !!captionsRenderer,
-      tracklistRendererKeys: captionsRenderer
-        ? Object.keys(captionsRenderer)
-        : [],
-      hasAudioTracks: !!captionsRenderer?.audioTracks,
-      audioTracksLength: captionsRenderer?.audioTracks?.length || 0,
-      hasTranslationLanguages: !!captionsRenderer?.translationLanguages,
-      translationLanguagesLength:
-        captionsRenderer?.translationLanguages?.length || 0,
-    });
     throw new Error("No captions available for this video");
   }
-
-  // Log available caption tracks
-  console.log("Found caption tracks:", captionTracks.length);
-  captionTracks.forEach((track, index) => {
-    console.log(`  Track ${index + 1}:`, {
-      languageCode: track.languageCode,
-      baseUrl:
-        track.baseUrl?.substring(0, 100) +
-        (track.baseUrl?.length > 100 ? "..." : ""),
-      baseUrlLength: track.baseUrl?.length,
-    });
-  });
 
   // Select caption track based on preferred language(s)
   let captionTrack: CaptionTrack | undefined;
@@ -421,25 +403,12 @@ export async function getYouTubeTranscript(
 
   // Ensure we have a caption track (should never happen, but TypeScript needs this)
   if (!captionTrack) {
-    console.error(
-      "No caption track selected from available tracks:",
-      captionTracks,
-    );
     throw new Error("No caption track available");
   }
 
-  // Log selected caption track details
-  console.log("Selected caption track:", {
-    languageCode: captionTrack.languageCode,
-    baseUrl: captionTrack.baseUrl,
-    baseUrlLength: captionTrack.baseUrl?.length,
-    preferredLanguageCode: preferredLanguageCode || "auto",
-  });
-
   // Step 4: Fetch the transcript XML using the baseUrl
   if (statusCallback) statusCallback("Fetching transcript data...");
-  let transcriptUrl = captionTrack.baseUrl;
-  console.log("Fetching transcript from URL:", transcriptUrl);
+  const transcriptUrl = captionTrack.baseUrl;
 
   // Add necessary headers for YouTube transcript requests
   // YouTube may require Referer and proper User-Agent to serve transcripts
@@ -459,47 +428,20 @@ export async function getYouTubeTranscript(
       headers: transcriptHeaders,
     });
   } catch (fetchError) {
-    console.error("Error fetching transcript URL:", fetchError);
-    console.error("Transcript URL was:", transcriptUrl);
     throw new Error(
       `Failed to fetch transcript: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}`,
     );
   }
 
-  console.log("Transcript response:", {
-    status: transcriptResponse.status,
-    headers: transcriptResponse.headers,
-    contentType: transcriptResponse.headers?.["content-type"],
-    contentLength: transcriptResponse.text?.length || 0,
-    first200Chars: transcriptResponse.text?.substring(0, 200) || "(empty)",
-  });
-
   if (transcriptResponse.status < 200 || transcriptResponse.status >= 300) {
-    console.error(
-      "Transcript fetch failed with status:",
-      transcriptResponse.status,
-    );
-    console.error("Response text:", transcriptResponse.text?.substring(0, 500));
     throw new Error(
       `Failed to fetch transcript: ${transcriptResponse.status} ${transcriptResponse.text?.substring(0, 200) || "Unknown error"}`,
     );
   }
 
   const transcriptXml = transcriptResponse.text;
-  console.log("Transcript XML received:", {
-    isNull: transcriptXml === null,
-    isUndefined: transcriptXml === undefined,
-    isEmpty: !transcriptXml,
-    isEmptyAfterTrim: !transcriptXml?.trim(),
-    length: transcriptXml?.length || 0,
-    first500Chars: transcriptXml?.substring(0, 500) || "(empty)",
-  });
 
   if (!transcriptXml || !transcriptXml.trim()) {
-    // Try fallback: construct fresh transcript URLs without expiration parameters
-    console.warn(
-      "Transcript URL returned empty response, trying fallback URL construction...",
-    );
     // Check if this is an auto-generated caption (kind=asr)
     const isAutoGenerated =
       transcriptUrl.includes("kind=asr") || transcriptUrl.includes("caps=asr");
@@ -520,19 +462,10 @@ export async function getYouTubeTranscript(
     ];
 
     for (const fallbackUrl of fallbackUrls) {
-      console.error("Trying fallback URL:", fallbackUrl);
-
       try {
         const fallbackResponse = await requestUrl({
           url: fallbackUrl,
           headers: transcriptHeaders,
-        });
-
-        console.error("Fallback response for", fallbackUrl, ":", {
-          status: fallbackResponse.status,
-          contentLength: fallbackResponse.text?.length || 0,
-          contentType: fallbackResponse.headers?.["content-type"],
-          first200Chars: fallbackResponse.text?.substring(0, 200) || "(empty)",
         });
 
         if (
@@ -541,7 +474,6 @@ export async function getYouTubeTranscript(
           fallbackResponse.text &&
           fallbackResponse.text.trim()
         ) {
-          console.error("Fallback URL succeeded:", fallbackUrl);
           // Use the fallback response
           const parsedResult = await parseTranscript(
             app,
@@ -564,57 +496,13 @@ export async function getYouTubeTranscript(
             videoDetails: videoDetails,
             segments: parsedResult.segments,
           };
-        } else {
-          console.warn(
-            "Fallback URL returned empty or error:",
-            fallbackUrl,
-            "Status:",
-            fallbackResponse.status,
-            "Length:",
-            fallbackResponse.text?.length || 0,
-          );
         }
-      } catch (fallbackError) {
-        console.error(
-          "Fallback URL failed:",
-          fallbackUrl,
-          "Error:",
-          fallbackError,
-        );
+      } catch (_fallbackError) {
+        // Continue trying next fallback URL
       }
     }
 
-    // If all fallbacks failed, this likely means YouTube is blocking requests
-    // This can happen if YouTube requires authentication/cookies that Obsidian can't provide
-    // or if there are rate limits/bot detection in place
-    const errorDetails = {
-      videoId: videoId,
-      transcriptUrl: transcriptUrl,
-      fallbackUrlsAttempted: fallbackUrls,
-      responseStatus: transcriptResponse.status,
-      responseHeaders: transcriptResponse.headers,
-      responseTextLength: transcriptResponse.text?.length || 0,
-      responseTextPreview:
-        transcriptResponse.text?.substring(0, 500) || "(empty)",
-      selectedCaptionTrack: captionTrack,
-      allCaptionTracks: captionTracks,
-      note: "YouTube is returning empty responses (200 status, 0 content-length). This may indicate that authentication/cookies are required, or YouTube is blocking automated requests.",
-    };
-    console.error("All transcript URL attempts returned empty response");
-    console.error("Details:", JSON.stringify(errorDetails, null, 2));
-    console.error(
-      "Selected caption track:",
-      JSON.stringify(captionTrack, null, 2),
-    );
-    console.error(
-      "All caption tracks:",
-      JSON.stringify(captionTracks, null, 2),
-    );
-    console.error("Response text (full):", transcriptResponse.text);
-    console.error(
-      "Response headers:",
-      JSON.stringify(transcriptResponse.headers, null, 2),
-    );
+    // If all fallbacks failed, YouTube is likely blocking requests or requiring authentication
     throw new Error(
       `YouTube returned an empty transcript for video ${videoId}. YouTube now requires authentication for transcript access and is blocking unauthenticated requests. This affects all videos — it is a YouTube-side change, not specific to this video or channel.`,
     );
@@ -662,8 +550,6 @@ async function parseTranscript(
   // Check for XML parsing errors
   const parserError = xmlDoc.querySelector("parsererror");
   if (parserError) {
-    console.error("XML parsing error:", parserError.textContent);
-    console.error("Transcript XML content:", transcriptXml.substring(0, 1000));
     throw new Error(
       "Failed to parse transcript XML. The transcript format may have changed.",
     );
@@ -742,7 +628,6 @@ async function parseTranscript(
   }
 
   if (transcriptSegments.length === 0) {
-    console.error("Transcript XML structure:", transcriptXml.substring(0, 500));
     throw new Error(
       "No transcript content found. The video may not have captions, or the format is unsupported.",
     );
@@ -929,9 +814,6 @@ async function parseTranscript(
   // If summary was requested but no LLM provider/key, return raw transcript
   if (generateSummary) {
     const providerName = llmProvider ? getProviderName(llmProvider) : "LLM";
-    console.warn(
-      `Summary generation requested but ${providerName} API key is not configured`,
-    );
     new Notice(
       `Summary generation requested but ${providerName} API key is not configured. Using raw transcript instead.`,
       10000,
@@ -952,9 +834,6 @@ async function processWithLLM(
 ): Promise<LLMResponse> {
   if (!hasProviderKey(provider, settings)) {
     const providerName = getProviderName(provider);
-    console.debug(
-      `processWithLLM: No ${providerName} key, returning transcript without summary`,
-    );
     new Notice(
       `${providerName} processing requested but API key is not configured. Using raw transcript instead.`,
       10000,

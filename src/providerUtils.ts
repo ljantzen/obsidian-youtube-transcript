@@ -1,7 +1,7 @@
 import type { LLMProvider, CustomLLMProvider } from "./types";
 
 export function hasProviderKey(
-  provider: LLMProvider | string,
+  provider: LLMProvider,
   settings: {
     openaiKey: string;
     geminiKey: string;

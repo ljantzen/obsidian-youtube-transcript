@@ -1,4 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
+
+interface ApiErrorBody { error?: { message?: string } }
+interface GeminiResponseBody { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -50,7 +53,7 @@ export async function processWithGemini(
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(
+      activeWindow.setTimeout(
         () =>
           reject(
             new Error(
@@ -93,7 +96,7 @@ export async function processWithGemini(
     const response = await Promise.race([requestPromise, timeoutPromise]);
 
     if (response.status < 200 || response.status >= 300) {
-      const errorData = response.json || {};
+      const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
 
       if (response.status === 429) {
         if (statusCallback) statusCallback(null); // Hide notice
@@ -134,14 +137,15 @@ export async function processWithGemini(
       throw new Error(errorMsg);
     }
 
-    const data = response.json;
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const data: GeminiResponseBody = response.json as GeminiResponseBody;
+    const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!responseContent) {
+    if (!rawContent) {
       if (statusCallback) statusCallback(null); // Hide notice
       throw new Error("No response from Gemini");
     }
 
+    const responseContent: string = rawContent;
     return parseLLMResponse(responseContent.trim(), generateSummary);
   };
 
@@ -219,7 +223,7 @@ export async function processWithGemini(
           statusCallback(
             "Waiting before retrying Gemini processing (rate limit)...",
           );
-        await new Promise((resolve) => setTimeout(resolve, 60000));
+        await new Promise((resolve) => activeWindow.setTimeout(resolve, 60000));
         if (statusCallback) statusCallback("Retrying Gemini processing...");
         try {
           return await makeRequest();
