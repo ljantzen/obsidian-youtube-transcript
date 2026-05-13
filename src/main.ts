@@ -614,8 +614,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
               : `"${value}"`;
           } else if (typeof value === "object") {
             stringValue = JSON.stringify(value);
-          } else {
+          } else if (typeof value === "number" || typeof value === "boolean") {
             stringValue = String(value);
+          } else {
+            stringValue = JSON.stringify(value);
           }
           frontmatterLines.push(`${key}: ${stringValue}`);
         }
@@ -1040,7 +1042,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         if (typeof value === "object") {
           return JSON.stringify(value);
         }
-        return String(value);
+        if (typeof value === "number" || typeof value === "boolean") {
+          return String(value);
+        }
+        return JSON.stringify(value);
       },
     );
 

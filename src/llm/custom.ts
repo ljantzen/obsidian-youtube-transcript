@@ -55,7 +55,7 @@ export async function processWithCustomProvider(
     const timeoutMinutes = provider.timeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      activeWindow.setTimeout(
+      window.setTimeout(
         () =>
           reject(
             new TimeoutError(
@@ -202,7 +202,7 @@ export async function processWithCustomProvider(
           statusCallback(
             `Waiting before retrying ${provider.name} processing (rate limit)...`,
           );
-        await new Promise((resolve) => activeWindow.setTimeout(resolve, 60000));
+        await new Promise((resolve) => window.setTimeout(resolve, 60000));
         if (statusCallback)
           statusCallback(`Retrying ${provider.name} processing...`);
         try {

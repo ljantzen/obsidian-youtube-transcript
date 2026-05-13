@@ -67,7 +67,7 @@ export function createModelRefreshButton(
     attr: { type: "button" },
   });
   refreshButton.addClass("mod-cta");
-  refreshButton.style.marginLeft = "10px";
+  refreshButton.addClass("youtube-transcript-refresh-button");
 
   refreshButton.addEventListener("click", () => {
     void (async () => {
@@ -92,7 +92,6 @@ export function createModelRefreshButton(
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         new Notice(`Failed to fetch ${providerName} models: ${errorMessage}`);
-        console.error(`Failed to fetch ${providerName} models:`, error);
       } finally {
         refreshButton.disabled = false;
         refreshButton.textContent = "Refresh models";

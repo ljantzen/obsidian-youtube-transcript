@@ -47,7 +47,7 @@ async function markdownToHtml(
     );
 
     // Wait a bit for rendering to complete (images, embeds, etc.)
-    await new Promise((resolve) => activeWindow.setTimeout(resolve, 100));
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
 
     // Get the HTML content
     const html = container.innerHTML;
@@ -79,7 +79,7 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
     const requireFn = win.require;
     if (requireFn) {
       const result = requireFn("electron");
-      electron = (result as unknown) as ElectronModule;
+      electron = result as ElectronModule;
     }
   } catch {
     // require not available
@@ -91,7 +91,7 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
     );
   }
 
-  const remote = (electron as ElectronModule).remote as ElectronRemote;
+  const remote = electron.remote as ElectronRemote;
   if (!remote) {
     throw new Error("Electron remote API not available");
   }
@@ -110,14 +110,14 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
       show: false,
       width: 1200,
       height: 1600,
-    }) as BrowserWindowInstance;
+    });
 
     try {
       // Set up load listener before loading URL
       const loadPromise = new Promise<void>((resolve) => {
         printWindow.webContents.once("did-finish-load", () => {
           // Wait for rendering to complete
-          activeWindow.setTimeout(() => resolve(), 1000);
+          window.setTimeout(() => resolve(), 1000);
         });
       });
 
@@ -138,11 +138,11 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
       // Close the window
       printWindow.close();
 
-      const arrayBuffer = (pdfData as unknown as Uint8Array).buffer.slice(
-        (pdfData as unknown as Uint8Array).byteOffset,
-        (pdfData as unknown as Uint8Array).byteOffset + (pdfData as unknown as Uint8Array).byteLength,
+      const pdfBytes = pdfData as unknown as Uint8Array;
+      return pdfBytes.buffer.slice(
+        pdfBytes.byteOffset,
+        pdfBytes.byteOffset + pdfBytes.byteLength,
       ) as ArrayBuffer;
-      return arrayBuffer;
     } catch (error) {
       printWindow.close();
       throw error;
@@ -150,7 +150,7 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
   } catch (error) {
     // Fallback: try using current webContents with a data URL approach
     try {
-      const getWebContents = (remote as ElectronRemote).getCurrentWebContents;
+      const getWebContents = remote.getCurrentWebContents;
       if (!getWebContents) {
         throw new Error("Cannot access web contents");
       }
@@ -171,17 +171,17 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
 
       // Wait for iframe to load
       await new Promise<void>((resolve, reject) => {
-        const timeout: number = activeWindow.setTimeout(() => {
+        const timeout: number = window.setTimeout(() => {
           activeDocument.body.removeChild(iframe);
           reject(new Error("PDF generation timed out"));
         }, 10000);
 
         iframe.onload = () => {
-          activeWindow.clearTimeout(timeout);
-          activeWindow.setTimeout(resolve, 500);
+          window.clearTimeout(timeout);
+          window.setTimeout(resolve, 500);
         };
         iframe.onerror = () => {
-          activeWindow.clearTimeout(timeout);
+          window.clearTimeout(timeout);
           activeDocument.body.removeChild(iframe);
           reject(new Error("Failed to load content"));
         };
@@ -198,11 +198,11 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
       // Clean up
       activeDocument.body.removeChild(iframe);
 
-      const arrayBuffer = (pdfData as unknown as Uint8Array).buffer.slice(
-        (pdfData as unknown as Uint8Array).byteOffset,
-        (pdfData as unknown as Uint8Array).byteOffset + (pdfData as unknown as Uint8Array).byteLength,
+      const pdfBytes = pdfData as unknown as Uint8Array;
+      return pdfBytes.buffer.slice(
+        pdfBytes.byteOffset,
+        pdfBytes.byteOffset + pdfBytes.byteLength,
       ) as ArrayBuffer;
-      return arrayBuffer;
     } catch {
       // If fallback also fails, throw original error
     }

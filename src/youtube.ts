@@ -239,7 +239,7 @@ async function fetchPlayerDataWithAndroidClient(
           videoId: videoId,
         }),
       });
-    } catch (_err) {
+    } catch {
       errors.push(`${clientName}: request error`);
       continue;
     }
@@ -258,7 +258,7 @@ async function fetchPlayerDataWithAndroidClient(
       }
       if (ps.status === "ERROR" || ps.status === "UNPLAYABLE") {
         // May be a client-level rejection — try the next client
-        const reason = (ps.reason || "unknown reason") as string;
+        const reason = ps.reason || "unknown reason";
         errors.push(`${clientName}: ${ps.status} — ${reason}`);
         continue;
       }
@@ -497,7 +497,7 @@ export async function getYouTubeTranscript(
             segments: parsedResult.segments,
           };
         }
-      } catch (_fallbackError) {
+      } catch {
         // Continue trying next fallback URL
       }
     }
@@ -645,7 +645,7 @@ async function parseTranscript(
     }
     if (gaps.length > 0) {
       const sorted = [...gaps].sort((x, y) => x - y);
-      const medianGap = sorted[Math.floor(sorted.length / 2)]!;
+      const medianGap = sorted[Math.floor(sorted.length / 2)] as number;
       // Sentence-to-sentence gaps are typically 1–60 seconds. If median gap > 5 min, unit is likely wrong.
       if (medianGap > 300) {
         const gapsAsMs = gaps.map((g) => g / 1000);

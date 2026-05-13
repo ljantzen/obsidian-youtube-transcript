@@ -67,7 +67,7 @@ export async function processWithOpenAI(
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      activeWindow.setTimeout(
+      window.setTimeout(
         () =>
           reject(
             new TimeoutError(
@@ -206,7 +206,7 @@ export async function processWithOpenAI(
           statusCallback(
             "Waiting before retrying OpenAI processing (rate limit)...",
           );
-        await new Promise((resolve) => activeWindow.setTimeout(resolve, 60000));
+        await new Promise((resolve) => window.setTimeout(resolve, 60000));
         if (statusCallback) statusCallback("Retrying OpenAI processing...");
         try {
           return await makeRequest();

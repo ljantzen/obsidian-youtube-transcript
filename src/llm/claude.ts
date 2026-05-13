@@ -54,7 +54,7 @@ export async function processWithClaude(
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      activeWindow.setTimeout(
+      window.setTimeout(
         () =>
           reject(
             new Error(
@@ -221,7 +221,7 @@ export async function processWithClaude(
           statusCallback(
             "Waiting before retrying Claude processing (rate limit)...",
           );
-        await new Promise((resolve) => activeWindow.setTimeout(resolve, 60000));
+        await new Promise((resolve) => window.setTimeout(resolve, 60000));
         if (statusCallback) statusCallback("Retrying Claude processing...");
         try {
           return await makeRequest();

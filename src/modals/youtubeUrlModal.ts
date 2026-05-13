@@ -232,9 +232,9 @@ export class YouTubeUrlModal extends Modal {
     let fetchTimeout: number | null = null;
     input.addEventListener("input", () => {
       if (fetchTimeout) {
-        activeWindow.clearTimeout(fetchTimeout);
+        window.clearTimeout(fetchTimeout);
       }
-      fetchTimeout = activeWindow.setTimeout(() => {
+      fetchTimeout = window.setTimeout(() => {
         fetchLanguages().catch((error) => {
           // Error is already handled in fetchLanguages, but we need to catch
           // to prevent unhandled promise rejection
@@ -278,7 +278,7 @@ export class YouTubeUrlModal extends Modal {
     // Fetch languages if URL was prefilled from clipboard
     // Use a small delay to ensure the modal is fully rendered
     if (prefilledUrl) {
-      activeWindow.setTimeout(() => {
+      window.setTimeout(() => {
         fetchLanguages().catch((error) => {
           // Error is already handled in fetchLanguages, but we need to catch
           // to prevent unhandled promise rejection

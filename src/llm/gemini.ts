@@ -53,7 +53,7 @@ export async function processWithGemini(
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      activeWindow.setTimeout(
+      window.setTimeout(
         () =>
           reject(
             new Error(
@@ -223,7 +223,7 @@ export async function processWithGemini(
           statusCallback(
             "Waiting before retrying Gemini processing (rate limit)...",
           );
-        await new Promise((resolve) => activeWindow.setTimeout(resolve, 60000));
+        await new Promise((resolve) => window.setTimeout(resolve, 60000));
         if (statusCallback) statusCallback("Retrying Gemini processing...");
         try {
           return await makeRequest();

@@ -1,6 +1,7 @@
 import type { TFile } from "obsidian";
 
-export type LLMProvider = "openai" | "gemini" | "claude" | string;
+// LLM provider identifier: built-in providers ("openai", "gemini", "claude") or custom provider ID
+export type LLMProvider = string;
 
 export interface TranscriptSegment {
   text: string;
