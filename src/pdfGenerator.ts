@@ -138,10 +138,9 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
       // Close the window
       printWindow.close();
 
-      const pdfBytes = pdfData as unknown as Uint8Array<ArrayBuffer>;
-      return pdfBytes.buffer.slice(
-        pdfBytes.byteOffset,
-        pdfBytes.byteOffset + pdfBytes.byteLength,
+      return (pdfData.buffer as ArrayBuffer).slice(
+        pdfData.byteOffset,
+        pdfData.byteOffset + pdfData.byteLength,
       );
     } catch (error) {
       printWindow.close();
@@ -193,10 +192,9 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
       // Clean up
       activeDocument.body.removeChild(iframe);
 
-      const pdfBytes = pdfData as unknown as Uint8Array<ArrayBuffer>;
-      return pdfBytes.buffer.slice(
-        pdfBytes.byteOffset,
-        pdfBytes.byteOffset + pdfBytes.byteLength,
+      return (pdfData.buffer as ArrayBuffer).slice(
+        pdfData.byteOffset,
+        pdfData.byteOffset + pdfData.byteLength,
       );
     } catch {
       // If fallback also fails, throw original error
