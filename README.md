@@ -1,4 +1,4 @@
-# YouTube Transcript Plugin for Obsidian
+# YouTube transcript fetcher
 
 A plugin for Obsidian that allows you to fetch and embed YouTube video transcripts directly in your notes with optional AI-powered processing and formatting.
 
