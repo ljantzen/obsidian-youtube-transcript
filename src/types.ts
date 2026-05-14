@@ -54,6 +54,7 @@ export interface YouTubeTranscriptPluginSettings {
   defaultNoteName: string; // Template for note names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
   checkForDuplicates: boolean; // When enabled, prevents creating a new note if one already exists for the same video
   duplicateCheckProperty: string; // The frontmatter property to check for duplicate detection (e.g., "url")
+  allowClipboardAccess: boolean; // When enabled, the plugin may read the clipboard to prefill the URL field and power the clipboard command
 }
 
 export interface CaptionTrack {

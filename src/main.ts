@@ -237,6 +237,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   }
 
   async fetchTranscriptFromClipboard() {
+    if (!(this.settings.allowClipboardAccess ?? true)) {
+      new Notice("Clipboard access is disabled. Enable it in Settings → YouTube Transcript Settings.", 10000);
+      return;
+    }
     try {
       // Read clipboard
       const clipboardText = await navigator.clipboard.readText();

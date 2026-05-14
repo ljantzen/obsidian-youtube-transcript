@@ -356,6 +356,20 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName("Allow clipboard access")
+      .setDesc(
+        'When enabled, the plugin reads the clipboard to prefill the URL field when the modal opens, and powers the "Fetch from clipboard" command. Disable if you prefer the plugin never accesses the clipboard.',
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.settings.allowClipboardAccess ?? true)
+          .onChange(async (value) => {
+            this.settings.allowClipboardAccess = value;
+            await this.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
       .setName("Prevent duplicate notes")
       .setDesc(
         "When enabled, creating a transcript will be blocked if a note already exists with a matching value in the frontmatter property below",

@@ -258,8 +258,8 @@ export class YouTubeUrlModal extends Modal {
       }
     }
 
-    // If no selection, try clipboard
-    if (!prefilledUrl) {
+    // If no selection, try clipboard (only when clipboard access is permitted)
+    if (!prefilledUrl && (this.settings.allowClipboardAccess ?? true)) {
       try {
         const clipboardText = await navigator.clipboard.readText();
         if (clipboardText && extractVideoId(clipboardText.trim())) {

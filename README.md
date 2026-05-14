@@ -407,6 +407,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Default directory**: Select one of your saved directories as the default (only shown when you have saved directories). When set, new files will be created in this directory by default, and you can use the clipboard command even when no document is open
 - **Saved directories**: List of frequently used directories for quick selection in the modal. Add directories here, then optionally select one as the default
 - **Available file formats**: Select which file formats should be available in the transcript creation modal. Check the boxes for formats you want to use (Markdown, PDF, SRT). Only enabled formats appear in the modal. At least one format must always be enabled.
+- **Allow clipboard access**: When enabled, the plugin reads the clipboard to prefill the URL field when the modal opens, and powers the "Fetch from clipboard" command. Disable if you prefer the plugin never touches the clipboard (default: enabled)
 - **Prevent duplicate notes**: When enabled, checks whether a transcript for the same video already exists in your vault before fetching. Only applies when "Create new file" is enabled
 - **Duplicate check property**: The YAML frontmatter property name to check for duplicate detection (default: `url`). The plugin compares the video ID extracted from this property's value against the current video
 
@@ -545,7 +546,7 @@ npm run lint:fix
 | Permission | Why it's needed |
 |---|---|
 | **Vault Enumeration** (`vault.getFiles`, `getMarkdownFiles`) | Used by the duplicate-note check to scan frontmatter across all markdown files and find an existing transcript for the same video before fetching a new one. Only active when "Prevent duplicate notes" is enabled. |
-| **Clipboard Access** | Reads the clipboard to prefill the YouTube URL field when you open the modal, and powers the "Fetch from clipboard" command. The clipboard is only read on demand — never in the background. |
+| **Clipboard Access** | Reads the clipboard to prefill the YouTube URL field when you open the modal, and powers the "Fetch from clipboard" command. The clipboard is only read on demand — never in the background. Can be disabled via **Allow clipboard access** in settings. |
 | **Vault Read** (`vault.read`, `vault.cachedRead`) | Reads cover-note template files you have configured, and reads existing notes when checking for duplicates. No files are read outside of these two flows. |
 | **Vault Write** (`vault.modify`, `vault.create`) | Creates and writes transcript files (Markdown, PDF, SRT) and cover notes to your vault. Nothing is written without an explicit user action. |
 

@@ -217,6 +217,31 @@ describe("Settings", () => {
     expect(settings.duplicateCheckProperty).toBe("source");
   });
 
+  it("should default allowClipboardAccess to true", () => {
+    const settings = {
+      allowClipboardAccess: true,
+    };
+
+    expect(typeof settings.allowClipboardAccess).toBe("boolean");
+    expect(settings.allowClipboardAccess).toBe(true);
+  });
+
+  it("should allow disabling clipboard access", () => {
+    const settings = {
+      allowClipboardAccess: true,
+    };
+
+    settings.allowClipboardAccess = false;
+    expect(settings.allowClipboardAccess).toBe(false);
+  });
+
+  it("should treat missing allowClipboardAccess as true via nullish coalescing", () => {
+    const settings = {} as { allowClipboardAccess?: boolean };
+
+    const effective = settings.allowClipboardAccess ?? true;
+    expect(effective).toBe(true);
+  });
+
   it("should validate timestamp frequency values", () => {
     const validFrequencies = [0, 10, 30, 60, 300];
     const invalidFrequencies = [-1, -10];

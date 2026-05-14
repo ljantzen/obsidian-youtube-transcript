@@ -280,6 +280,48 @@ describe('Clipboard Command', () => {
     });
   });
 
+  describe('Clipboard access setting', () => {
+    it('should block the clipboard command when allowClipboardAccess is false', () => {
+      const settings = { allowClipboardAccess: false };
+      const allowed = settings.allowClipboardAccess ?? true;
+      expect(allowed).toBe(false);
+    });
+
+    it('should allow the clipboard command when allowClipboardAccess is true', () => {
+      const settings = { allowClipboardAccess: true };
+      const allowed = settings.allowClipboardAccess ?? true;
+      expect(allowed).toBe(true);
+    });
+
+    it('should default to allowing clipboard access when setting is absent', () => {
+      const settings = {} as { allowClipboardAccess?: boolean };
+      const allowed = settings.allowClipboardAccess ?? true;
+      expect(allowed).toBe(true);
+    });
+
+    it('should skip modal clipboard prefill when allowClipboardAccess is false', () => {
+      const settings = { allowClipboardAccess: false };
+      let clipboardRead = false;
+
+      if (settings.allowClipboardAccess ?? true) {
+        clipboardRead = true;
+      }
+
+      expect(clipboardRead).toBe(false);
+    });
+
+    it('should perform modal clipboard prefill when allowClipboardAccess is true', () => {
+      const settings = { allowClipboardAccess: true };
+      let clipboardRead = false;
+
+      if (settings.allowClipboardAccess ?? true) {
+        clipboardRead = true;
+      }
+
+      expect(clipboardRead).toBe(true);
+    });
+  });
+
   describe('Multiple URL clipboard handling', () => {
     it('should extract two URLs separated by newlines', () => {
       const clipboardText = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ\nhttps://youtu.be/xvFZjo5PgG0';

@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   defaultNoteName: "{VideoName}", // Default to video title
   checkForDuplicates: false, // Default to false - do not prevent duplicate transcripts
   duplicateCheckProperty: "url", // Default to "url" - the property the plugin writes by default
+  allowClipboardAccess: true, // Default to true - enable clipboard prefill and clipboard command
 };
 
 /**
