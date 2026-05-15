@@ -60,6 +60,19 @@ export function normalizeUrl(url: string): string {
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
 }
 
+/**
+ * Escapes fenced code block delimiters in external content (transcripts, video
+ * descriptions) before writing to a markdown note. Without this, a malicious
+ * YouTube caption/description containing ```dataviewjs blocks would be executed
+ * by code-execution plugins (Dataview, Templater, etc.) when the note is opened.
+ *
+ * Replaces leading backtick runs of 3+ with backslash-escaped equivalents so
+ * the text renders visually identical but is never parsed as a code fence.
+ */
+export function sanitizeExternalMarkdown(text: string): string {
+  return text.replace(/^(`{3,})/gm, (match) => match.replace(/`/g, "\\`"));
+}
+
 export function sanitizeTagName(tagName: string): string {
   // Remove or replace invalid tag characters to create valid Obsidian tags
   return tagName

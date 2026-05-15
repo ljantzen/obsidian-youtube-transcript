@@ -14,7 +14,7 @@ import type {
   TranscriptFileOptions,
 } from "./types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
-import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName } from "./utils";
+import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName, sanitizeExternalMarkdown } from "./utils";
 import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
 import { replaceTemplateVariables } from "./utils/templateVariables";
 import { normalizeVaultPath } from "./utils/pathUtils";
@@ -642,7 +642,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       parts.push(`![${videoTitle}](${videoUrl})`);
     }
 
-    parts.push(transcript);
+    parts.push(sanitizeExternalMarkdown(transcript));
 
     const markdownContent = parts.join("\n\n");
 
@@ -1023,7 +1023,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       LengthSeconds: videoDetails.lengthSeconds || "",
       ViewCount: videoDetails.viewCount || "",
       PublishDate: videoDetails.publishDate || "",
-      Description: videoDetails.description || videoDetails.shortDescription || "",
+      Description: sanitizeExternalMarkdown(videoDetails.description || videoDetails.shortDescription || ""),
       ChannelId: videoDetails.channelId || "",
       IsLive: videoDetails.isLiveContent ? "true" : "false",
       IsPrivate: videoDetails.isPrivate ? "true" : "false",
