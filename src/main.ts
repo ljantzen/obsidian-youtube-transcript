@@ -33,6 +33,7 @@ import { UserCancelledError } from "./llm/openai";
 
 export default class YouTubeTranscriptPlugin extends Plugin {
   settings: YouTubeTranscriptPluginSettings;
+  private processingVideoIds = new Set<string>();
 
   async onload() {
     await this.loadSettings();
@@ -399,6 +400,11 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
     }
 
+    // Mark this video as being processed
+    if (videoId) {
+      this.processingVideoIds.add(videoId);
+    }
+
     const fetchingNotice = new Notice(
       "Fetching transcript from YouTube...",
       0,
@@ -440,7 +446,6 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       }
 
       // Normalize the URL to watch format
-      const videoId = extractVideoId(url);
       const normalizedUrl = videoId
         ? `https://www.youtube.com/watch?v=${videoId}`
         : url;
@@ -525,6 +530,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       console.error("Transcript fetch error:", error);
     } finally {
       fetchingNotice.hide();
+      // Remove this video from processing set when done (success or error)
+      if (videoId) {
+        this.processingVideoIds.delete(videoId);
+      }
     }
   }
 
