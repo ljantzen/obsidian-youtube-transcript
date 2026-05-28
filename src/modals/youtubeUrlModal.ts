@@ -389,8 +389,8 @@ export class YouTubeUrlModal extends Modal {
         attr: { id: `format-${format}` },
       });
 
-      // Check first format by default
-      checkbox.checked = format === enabledFormats[0];
+      // Pre-check all formats the user has enabled in settings
+      checkbox.checked = true;
       formatCheckboxes[format] = checkbox;
 
       void checkboxContainer.createEl("label", {

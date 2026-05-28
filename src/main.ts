@@ -224,12 +224,27 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           new MultipleFormatsWithCoverNoteModal(this.app).open();
         }
 
+        // Duplicate check once before the format loop — cover note created in the
+        // first iteration would otherwise trigger a false positive in subsequent ones
+        if (createNewFile && this.settings.checkForDuplicates) {
+          const videoId = extractVideoId(url);
+          const existingNote = videoId ? this.findDuplicateNote(videoId) : null;
+          if (existingNote) {
+            new DuplicateNoteErrorModal(
+              this.app,
+              existingNote.path.replace(/\.md$/, ""),
+            ).open();
+            return;
+          }
+        }
+
         // Process each selected format
         for (const fileFormat of fileFormats) {
           await this.processTranscript({
             url, createNewFile, includeVideoUrl, generateSummary, useLLM,
             llmProvider, selectedDirectory, tagWithChannelName,
             fileFormat, languageCode, disableCoverNote, fileFormats,
+            skipDuplicateCheck: true,
           });
         }
       },
@@ -299,6 +314,23 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         if (urls.length > 1) {
           new Notice(`Processing video ${i + 1} of ${urls.length}…`, 3000);
         }
+
+        // Duplicate check once per URL before the format loop — cover note created in
+        // the first format iteration would otherwise trigger a false positive in later ones
+        if (createNewFile && this.settings.checkForDuplicates) {
+          const videoId = extractVideoId(urls[i]);
+          if (videoId) {
+            const existingNote = this.findDuplicateNote(videoId);
+            if (existingNote) {
+              new DuplicateNoteErrorModal(
+                this.app,
+                existingNote.path.replace(/\.md$/, ""),
+              ).open();
+              continue;
+            }
+          }
+        }
+
         // Process each selected format for this URL
         for (const fileFormat of fileFormats) {
           await this.processTranscript({
@@ -307,6 +339,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             llmProvider, selectedDirectory, tagWithChannelName,
             fileFormat: fileFormat as FileFormat,
             languageCode, disableCoverNote,
+            skipDuplicateCheck: true,
           });
         }
       }
@@ -342,8 +375,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       url, createNewFile, includeVideoUrl, generateSummary, useLLM,
       llmProvider, selectedDirectory, tagWithChannelName, fileFormat,
       languageCode, disableCoverNote = false, fileFormats = [],
+      skipDuplicateCheck = false,
     } = options;
-    if (createNewFile && this.settings.checkForDuplicates) {
+    if (!skipDuplicateCheck && createNewFile && this.settings.checkForDuplicates) {
       const videoId = extractVideoId(url);
       if (videoId) {
         const existingNote = this.findDuplicateNote(videoId);

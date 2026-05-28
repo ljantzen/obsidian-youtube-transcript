@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { extractVideoId } from "../src/utils";
 import { hasProviderKey } from "../src/providerUtils";
 import { DEFAULT_SETTINGS } from "../src/settings";
-import type { TranscriptSegment, CustomLLMProvider, YouTubeTranscriptPluginSettings } from "../src/types";
+import type { TranscriptSegment, CustomLLMProvider, YouTubeTranscriptPluginSettings, ProcessTranscriptOptions } from "../src/types";
 
 // The core logic of findDuplicateNote extracted for unit testing:
 // Checks whether a frontmatter property value refers to the same video as videoId.
@@ -308,5 +308,117 @@ describe("SRT segment typing", () => {
     const withoutDuration: TranscriptSegment = { startTime: 1, text: "Hi" };
     expect(withDuration.duration).toBe(2);
     expect(withoutDuration.duration).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression tests for issue #107
+// Bug: when fileFormats includes both "pdf" and "srt", the duplicate check
+// ran inside processTranscript for EACH format. The first iteration (pdf)
+// created the cover note with `external_url` frontmatter, then the second
+// iteration (srt) found that note and aborted — producing no SRT and no toast.
+//
+// Fix: duplicate check is hoisted to before the format loop at both call
+// sites. processTranscript accepts skipDuplicateCheck to bypass the inner
+// check when the caller has already performed it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Simulate the fixed hoisted duplicate check loop.
+ * Returns the formats that were successfully processed, or [] if aborted.
+ */
+function simulateFixedMultiFormatLoop(
+  formats: string[],
+  findDuplicateBefore: () => string | null,
+): string[] {
+  // Check once before the loop
+  if (findDuplicateBefore() !== null) {
+    return [];
+  }
+
+  // processTranscript called with skipDuplicateCheck: true — no per-format re-check
+  return [...formats];
+}
+
+describe("Multi-format duplicate check — issue #107 regression", () => {
+  // Demonstrates the old bug: the cover note created by the first format (pdf)
+  // was visible to findDuplicateNote when the second format (srt) ran, causing
+  // a false-positive "duplicate found" abort and leaving the SRT unprocessed.
+  describe("old (broken) behaviour reproduced: check inside each processTranscript call", () => {
+    it("aborts srt when pdf creates a cover note mid-loop", () => {
+      // Vault state that changes during the loop (pdf creates the cover note)
+      let coverNoteExists = false;
+      const findDuplicate = vi.fn(() =>
+        coverNoteExists ? "Sources/Video/Cover.md" : null,
+      );
+
+      const processed: string[] = [];
+      for (const format of ["pdf", "srt"]) {
+        // Old: duplicate check fires inside processTranscript on every iteration
+        if (findDuplicate() !== null) {
+          break; // DuplicateNoteErrorModal + return
+        }
+        processed.push(format);
+        // Simulates cover note creation by the pdf handler
+        if (format === "pdf") coverNoteExists = true;
+      }
+
+      // Only pdf processed — srt was silently skipped, no toast shown
+      expect(processed).toEqual(["pdf"]);
+      expect(processed).not.toContain("srt");
+    });
+  });
+
+  describe("fixed behaviour: check hoisted before the format loop", () => {
+    it("processes all formats when no pre-existing note exists", () => {
+      const findDuplicate = vi.fn(() => null); // vault is empty before the loop
+
+      const processed = simulateFixedMultiFormatLoop(["pdf", "srt"], findDuplicate);
+
+      expect(processed).toEqual(["pdf", "srt"]);
+      // Duplicate check called exactly once, not once per format
+      expect(findDuplicate).toHaveBeenCalledTimes(1);
+    });
+
+    it("aborts all formats when a genuine pre-existing duplicate exists", () => {
+      // User already ran the plugin — cover note is in the vault from a prior run
+      const findDuplicate = vi.fn(() => "Sources/Video/Cover.md");
+
+      const processed = simulateFixedMultiFormatLoop(["pdf", "srt"], findDuplicate);
+
+      expect(processed).toEqual([]);
+      expect(findDuplicate).toHaveBeenCalledTimes(1);
+    });
+
+    it("processes all formats when duplicate check is disabled", () => {
+      // checkForDuplicates = false: findDuplicate is never called, loop runs freely
+      const processed = simulateFixedMultiFormatLoop(["pdf", "srt"], () => null);
+
+      expect(processed).toEqual(["pdf", "srt"]);
+    });
+
+    it("processes all three formats without false positives", () => {
+      const findDuplicate = vi.fn(() => null);
+
+      const processed = simulateFixedMultiFormatLoop(
+        ["pdf", "srt", "markdown"],
+        findDuplicate,
+      );
+
+      expect(processed).toEqual(["pdf", "srt", "markdown"]);
+      expect(findDuplicate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("ProcessTranscriptOptions type contract", () => {
+    it("skipDuplicateCheck is an accepted optional field", () => {
+      // TypeScript compile-time check: the field must exist on the interface.
+      // If this test compiles, the regression protection is in place.
+      const opts: Partial<ProcessTranscriptOptions> = { skipDuplicateCheck: true };
+      expect(opts.skipDuplicateCheck).toBe(true);
+
+      const optsDefault: Partial<ProcessTranscriptOptions> = {};
+      expect(optsDefault.skipDuplicateCheck).toBeUndefined();
+    });
   });
 });

@@ -110,6 +110,7 @@ export interface ProcessTranscriptOptions {
   languageCode: string | null;
   disableCoverNote?: boolean;
   fileFormats?: FileFormat[];
+  skipDuplicateCheck?: boolean;
 }
 
 export interface TranscriptFileOptions {

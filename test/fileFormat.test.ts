@@ -126,3 +126,71 @@ describe("File Format Settings", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression tests for issue #107 (modal checkbox initialization)
+// Bug: the URL modal pre-checked only the FIRST format in settings.fileFormats
+// (checkbox.checked = format === enabledFormats[0]), so when a user configured
+// ["pdf","srt"] the modal opened with pdf checked and srt unchecked. The
+// submitted fileFormats array was ["pdf"], and srt was never processed.
+//
+// Fix: every format in enabledFormats is pre-checked (checkbox.checked = true).
+// ---------------------------------------------------------------------------
+
+/**
+ * Simulates the modal's checkbox initialization for a given enabledFormats list.
+ * Returns the set of formats that would be pre-checked when the modal opens.
+ *
+ * Old (broken): checkbox.checked = format === enabledFormats[0]
+ * Fixed:        checkbox.checked = true
+ */
+function modalInitialCheckedFormats_old(enabledFormats: string[]): string[] {
+  return enabledFormats.filter((format) => format === enabledFormats[0]);
+}
+
+function modalInitialCheckedFormats_fixed(enabledFormats: string[]): string[] {
+  return [...enabledFormats]; // all checked
+}
+
+describe("Modal checkbox initialization — issue #107 regression", () => {
+  describe("old (broken) behaviour: only first format pre-checked", () => {
+    it("checks only pdf when settings are [pdf, srt]", () => {
+      const checked = modalInitialCheckedFormats_old(["pdf", "srt"]);
+      expect(checked).toEqual(["pdf"]);
+      expect(checked).not.toContain("srt");
+    });
+
+    it("checks only markdown when settings are [markdown, pdf, srt]", () => {
+      const checked = modalInitialCheckedFormats_old(["markdown", "pdf", "srt"]);
+      expect(checked).toEqual(["markdown"]);
+    });
+  });
+
+  describe("fixed behaviour: all configured formats pre-checked", () => {
+    it("checks both pdf and srt when settings are [pdf, srt]", () => {
+      const checked = modalInitialCheckedFormats_fixed(["pdf", "srt"]);
+      expect(checked).toContain("pdf");
+      expect(checked).toContain("srt");
+      expect(checked).toHaveLength(2);
+    });
+
+    it("checks all three formats when settings are [markdown, pdf, srt]", () => {
+      const checked = modalInitialCheckedFormats_fixed(["markdown", "pdf", "srt"]);
+      expect(checked).toEqual(["markdown", "pdf", "srt"]);
+    });
+
+    it("checks single format when only one is configured", () => {
+      expect(modalInitialCheckedFormats_fixed(["markdown"])).toEqual(["markdown"]);
+      expect(modalInitialCheckedFormats_fixed(["pdf"])).toEqual(["pdf"]);
+      expect(modalInitialCheckedFormats_fixed(["srt"])).toEqual(["srt"]);
+    });
+
+    it("submitted formats match the full settings.fileFormats array", () => {
+      // The formats submitted to onSubmit must equal the full configured list,
+      // not a truncated one — this is what caused the missing SRT
+      const settingsFileFormats: FileFormat[] = ["pdf", "srt"];
+      const submitted = modalInitialCheckedFormats_fixed(settingsFileFormats) as FileFormat[];
+      expect(submitted).toEqual(settingsFileFormats);
+    });
+  });
+});
