@@ -20,7 +20,7 @@
 	"devDependencies": {
 		"@eslint/compat": "^2.0.3",
 		"@types/node": "^25.9.1",
-		"@vitest/coverage-v8": "^4.1.7",
+		"@vitest/coverage-v8": "^4.1.8",
 "esbuild": "^0.28.0",
 		"eslint": "^10.0.0",
 		"eslint-plugin-obsidianmd": "^0.3.0",
