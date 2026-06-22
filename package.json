@@ -28,7 +28,7 @@
 		"obsidian": "latest",
 		"tslib": "2.4.0",
 		"typescript": "^5.3.3",
-		"typescript-eslint": "^8.60.1",
+		"typescript-eslint": "^8.61.1",
 		"vitest": "^4.0.17"
 	}
 }
