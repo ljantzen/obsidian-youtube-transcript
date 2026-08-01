@@ -81,6 +81,7 @@ export async function processWithOpenAI(
     const requestPromise = requestUrl({
       url: "https://api.openai.com/v1/chat/completions",
       method: "POST",
+      throw: false,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${settings.openaiKey}`,

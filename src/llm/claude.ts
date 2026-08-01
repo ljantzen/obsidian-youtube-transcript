@@ -78,6 +78,7 @@ export async function processWithClaude(
     const requestPromise = requestUrl({
       url: "https://api.anthropic.com/v1/messages",
       method: "POST",
+      throw: false,
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
@@ -92,7 +93,6 @@ export async function processWithClaude(
             content: fullPrompt,
           },
         ],
-        temperature: 0.3,
       }),
     });
 
