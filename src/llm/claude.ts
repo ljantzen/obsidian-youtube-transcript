@@ -70,7 +70,7 @@ export async function processWithClaude(
 
     // Validate Claude model name format
     if (!validateClaudeModelName(model)) {
-      const errorMsg = `Invalid Claude model name: "${model}". Only Claude version 4 models are supported. Valid examples: claude-opus-4, claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5, claude-haiku-4-5-20251001. Please check your model selection in settings.`;
+      const errorMsg = `Invalid Claude model name: "${model}". Expected a Claude model ID in the form claude-<family>-<version>, e.g. claude-opus-5, claude-sonnet-5, claude-haiku-4-5, claude-opus-4-1-20250805. Please check your model selection in settings.`;
       new Notice(errorMsg);
       throw new Error(errorMsg);
     }

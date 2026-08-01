@@ -72,3 +72,13 @@ export const DEFAULT_GEMINI_MODELS: ModelInfo[] = [
   { id: "gemini-2.0-pro", displayName: "Gemini 2.0 Pro" },
   { id: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash" },
 ];
+
+/**
+ * Default Claude models shown in the dropdown before fetching from API
+ */
+export const DEFAULT_CLAUDE_MODELS: ModelInfo[] = [
+  { id: "claude-opus-5", displayName: "Claude Opus 5" },
+  { id: "claude-sonnet-5", displayName: "Claude Sonnet 5" },
+  { id: "claude-haiku-4-5", displayName: "Claude Haiku 4.5" },
+  { id: "claude-opus-4-8", displayName: "Claude Opus 4.8" },
+];

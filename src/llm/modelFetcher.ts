@@ -5,6 +5,8 @@ interface OpenAIModelEntry { id?: string; displayName?: string }
 interface OpenAIModelsBody { data?: OpenAIModelEntry[] }
 interface GeminiModelEntry { name?: string; displayName?: string; supportedGenerationMethods?: string[] }
 interface GeminiModelsBody { models?: GeminiModelEntry[]; error?: { message?: string } }
+interface ClaudeModelEntry { id?: string; display_name?: string }
+interface ClaudeModelsBody { data?: ClaudeModelEntry[]; has_more?: boolean; last_id?: string }
 
 export interface ModelInfo {
   id: string;
@@ -178,5 +180,93 @@ export async function fetchGeminiModels(
       throw error;
     }
     throw new Error("Failed to fetch Gemini models");
+  }
+}
+
+/**
+ * Fetches available models from the Anthropic Claude API
+ * @param apiKey Claude API key
+ * @returns Array of model IDs
+ */
+export async function fetchClaudeModels(
+  apiKey: string,
+): Promise<ModelInfo[]> {
+  if (!apiKey || apiKey.trim() === "") {
+    throw new Error("Claude API key is required");
+  }
+
+  try {
+    const models: ModelInfo[] = [];
+    const seenModelIds = new Set<string>();
+    let afterId: string | undefined;
+
+    // The Models API paginates (after_id/has_more); loop until every page is fetched
+    do {
+      const url = new URL("https://api.anthropic.com/v1/models");
+      url.searchParams.set("limit", "1000");
+      if (afterId) {
+        url.searchParams.set("after_id", afterId);
+      }
+
+      const response = await requestUrl({
+        url: url.toString(),
+        method: "GET",
+        headers: {
+          "x-api-key": apiKey.trim(),
+          "anthropic-version": "2023-06-01",
+        },
+      });
+
+      if (response.status < 200 || response.status >= 300) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error("Invalid Claude API key");
+        }
+        const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
+        throw new Error(
+          `Claude API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
+        );
+      }
+
+      const data: ClaudeModelsBody = response.json as ClaudeModelsBody;
+
+      if (data.data && Array.isArray(data.data)) {
+        for (const model of data.data) {
+          if (model.id && typeof model.id === "string") {
+            const modelId: string = model.id.trim();
+            if (modelId && !seenModelIds.has(modelId)) {
+              seenModelIds.add(modelId);
+              const displayName = model.display_name
+                ? model.display_name.trim()
+                : modelId;
+              models.push({
+                id: modelId,
+                displayName: displayName,
+              });
+            }
+          }
+        }
+      }
+
+      afterId = data.has_more ? data.last_id : undefined;
+    } while (afterId);
+
+    // Sort models by display name first, then by model ID
+    models.sort((a, b) => {
+      const aDisplay = a.displayName || a.id;
+      const bDisplay = b.displayName || b.id;
+      const displayCompare = aDisplay.localeCompare(bDisplay);
+      if (displayCompare !== 0) {
+        return displayCompare;
+      }
+      // If display names are the same, sort by ID
+      return a.id.localeCompare(b.id);
+    });
+
+    return models;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to fetch Claude models");
   }
 }
