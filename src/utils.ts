@@ -46,12 +46,16 @@ export function decodeHtmlEntities(text: string): string {
 }
 
 export function validateClaudeModelName(modelName: string): boolean {
-  // Support Claude version 4 models with optional minor versions and dates:
+  // Matches the general Claude model ID shape rather than pinning a major
+  // version, so newer generations (e.g. claude-opus-5) validate without a
+  // code change:
+  //   claude-<family>-<major>[-<minor>][-<date>]
   // - claude-opus-4, claude-opus-4-1, claude-opus-4-1-20250805
+  // - claude-opus-5, claude-sonnet-5
   // - claude-sonnet-4, claude-sonnet-4-20250514
   // - claude-haiku-4, claude-haiku-4-5, claude-haiku-4-5-20251001
-  // Minor version is 1-2 digits; date is exactly 8 digits.
-  const validPattern = /^claude-(opus|sonnet|haiku)-4(-[0-9]{1,2})?(-[0-9]{8})?$/;
+  // Major/minor version are 1-2 digits; date is exactly 8 digits.
+  const validPattern = /^claude-(opus|sonnet|haiku)-[0-9]{1,2}(-[0-9]{1,2})?(-[0-9]{8})?$/;
   return validPattern.test(modelName);
 }
 

@@ -5,11 +5,12 @@ import {
   DEFAULT_PROMPT,
   DEFAULT_OPENAI_MODELS,
   DEFAULT_GEMINI_MODELS,
+  DEFAULT_CLAUDE_MODELS,
 } from "./settings";
-import { validateClaudeModelName } from "./utils";
 import {
   fetchOpenAIModels,
   fetchGeminiModels,
+  fetchClaudeModels,
   type ModelInfo,
 } from "./llm/modelFetcher";
 import { FolderSuggest, FileSuggest } from "./suggester";
@@ -24,6 +25,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
   saveSettings: () => Promise<void>;
   cachedOpenAIModels: ModelInfo[] | null = null;
   cachedGeminiModels: ModelInfo[] | null = null;
+  cachedClaudeModels: ModelInfo[] | null = null;
 
   constructor(
     app: App,
@@ -677,31 +679,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
               });
           });
 
-        new Setting(containerEl)
-          .setName("Claude model")
-          .setDesc(
-            "Enter the Claude model ID to use for transcript processing. Examples: claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001, or simplified versions like claude-opus-4, claude-sonnet-4, claude-haiku-4-5. Only Claude version 4 models are supported.",
-          )
-          .addText((text) => {
-            text
-              .setPlaceholder("claude-sonnet-4-20250514")
-              .setValue(this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel)
-              .onChange(async (value) => {
-                const trimmedValue = value.trim();
-                if (trimmedValue === "") {
-                  // Allow empty to use default
-                  this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
-                  await this.saveSettings();
-                } else if (validateClaudeModelName(trimmedValue)) {
-                  this.settings.claudeModel = trimmedValue;
-                  await this.saveSettings();
-                } else {
-                  new Notice(
-                    `Invalid Claude model name: "${trimmedValue}". Must be a Claude version 4 model (e.g., claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001).`,
-                  );
-                }
-              });
-          });
+        this.createClaudeModelSetting(containerEl);
       }
 
       const promptSetting = new Setting(containerEl)
@@ -821,6 +799,26 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
         console.debug("Failed to auto-refresh Gemini models:", error);
       }
     }
+
+    // Refresh Claude models if API key is available
+    if (this.settings.claudeKey && this.settings.claudeKey.trim() !== "") {
+      try {
+        const models = await fetchClaudeModels(this.settings.claudeKey);
+        this.cachedClaudeModels = models;
+        // Validate selected model is available
+        const currentModel =
+          this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
+        const modelExists = models.some((m) => m.id === currentModel);
+        if (!modelExists) {
+          // Fallback to default if current model is not available
+          this.settings.claudeModel = DEFAULT_SETTINGS.claudeModel;
+          await this.saveSettings();
+        }
+      } catch (error) {
+        // Silently fail - user can manually refresh if needed
+        console.debug("Failed to auto-refresh Claude models:", error);
+      }
+    }
   }
 
   /**
@@ -915,6 +913,54 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           this.cachedGeminiModels = models;
         },
         () => this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel,
+      );
+    }
+  }
+
+  /**
+   * Creates the Claude model selection setting with refresh functionality
+   */
+  private createClaudeModelSetting(containerEl: HTMLElement): void {
+    const setting = new Setting(containerEl)
+      .setName("Claude model")
+      .setDesc("Select the Claude model to use for transcript processing");
+
+    const modelsToUse = this.cachedClaudeModels || DEFAULT_CLAUDE_MODELS;
+    let currentValue =
+      this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
+
+    // Ensure current model is available in the list
+    const modelExists = modelsToUse.some((m) => m.id === currentValue);
+    if (!modelExists) {
+      // Fallback to default if current model is not available
+      currentValue = DEFAULT_SETTINGS.claudeModel;
+      this.settings.claudeModel = currentValue;
+      void this.saveSettings();
+    }
+
+    setting.addDropdown((dropdown) => {
+      populateModelDropdown(dropdown.selectEl, modelsToUse, currentValue);
+      dropdown.onChange(async (value) => {
+        this.settings.claudeModel = value;
+        await this.saveSettings();
+      });
+    });
+
+    const selectEl = setting.controlEl.querySelector(
+      "select",
+    ) as HTMLSelectElement;
+
+    if (selectEl) {
+      createModelRefreshButton(
+        setting,
+        selectEl,
+        "Claude",
+        this.settings.claudeKey,
+        fetchClaudeModels,
+        (models) => {
+          this.cachedClaudeModels = models;
+        },
+        () => this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel,
       );
     }
   }
