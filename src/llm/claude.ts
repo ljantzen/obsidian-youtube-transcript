@@ -1,7 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
 
 interface ApiErrorBody { error?: { message?: string } }
-interface ClaudeResponseBody { content?: Array<{ text?: string }> }
+interface ClaudeResponseBody { content?: Array<{ type?: string; text?: string }> }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -141,7 +141,7 @@ export async function processWithClaude(
     }
 
     const data: ClaudeResponseBody = response.json as ClaudeResponseBody;
-    const rawContent = data.content?.[0]?.text;
+    const rawContent = data.content?.find((block) => block.type === "text")?.text;
 
     if (!rawContent) {
       if (statusCallback) statusCallback(null); // Hide notice
