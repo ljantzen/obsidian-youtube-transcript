@@ -74,6 +74,7 @@ export async function processWithGemini(
     const requestPromise = requestUrl({
       url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       method: "POST",
+      throw: false,
       headers: {
         "Content-Type": "application/json",
       },

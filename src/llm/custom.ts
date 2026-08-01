@@ -80,6 +80,7 @@ export async function processWithCustomProvider(
     const requestPromise = requestUrl({
       url: provider.endpoint,
       method: "POST",
+      throw: false,
       headers,
       body: JSON.stringify({
         model: provider.model,
