@@ -15,6 +15,11 @@ import {
 } from "./llm/modelFetcher";
 import { FolderSuggest, FileSuggest } from "./suggester";
 import {
+  FRONTMATTER_FIELD_ORDER,
+  FRONTMATTER_FIELD_LABELS,
+  DEFAULT_FRONTMATTER_FIELDS,
+} from "./utils/frontmatter";
+import {
   populateModelDropdown,
   createModelRefreshButton,
 } from "./settingsTabHelpers";
@@ -382,6 +387,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.settings.checkForDuplicates = value;
             await this.saveSettings();
+            this.warnIfDuplicateCheckPropertyMissing();
           });
       });
 
@@ -398,7 +404,45 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             this.settings.duplicateCheckProperty = value.trim() || "url";
             await this.saveSettings();
           });
+        text.inputEl.addEventListener("blur", () =>
+          this.warnIfDuplicateCheckPropertyMissing(),
+        );
       });
+
+    // Frontmatter section
+    new Setting(containerEl).setName("Frontmatter").setHeading();
+
+    new Setting(containerEl).setDesc(
+      "Choose which properties are written to each note's frontmatter, and optionally rename the property key used for each one. Disabled fields are omitted entirely.",
+    );
+
+    for (const id of FRONTMATTER_FIELD_ORDER) {
+      const defaultConfig = DEFAULT_FRONTMATTER_FIELDS[id];
+      const fieldConfig = this.settings.frontmatterFields[id] ?? defaultConfig;
+
+      new Setting(containerEl)
+        .setName(FRONTMATTER_FIELD_LABELS[id])
+        .addToggle((toggle) => {
+          toggle.setValue(fieldConfig.enabled).onChange(async (value) => {
+            this.settings.frontmatterFields[id].enabled = value;
+            await this.saveSettings();
+            this.warnIfDuplicateCheckPropertyMissing();
+          });
+        })
+        .addText((text) => {
+          text
+            .setPlaceholder(defaultConfig.key)
+            .setValue(fieldConfig.key)
+            .onChange(async (value) => {
+              this.settings.frontmatterFields[id].key =
+                value.trim() || defaultConfig.key;
+              await this.saveSettings();
+            });
+          text.inputEl.addEventListener("blur", () =>
+            this.warnIfDuplicateCheckPropertyMissing(),
+          );
+        });
+    }
 
     // Timestamp section
     new Setting(containerEl).setName("Timestamp").setHeading();
@@ -753,6 +797,28 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
     } // End of if (this.settings.useLLMProcessing)
+  }
+
+  /**
+   * Warns the user if duplicate detection is enabled but no enabled
+   * frontmatter field currently writes the configured duplicate check
+   * property (e.g. because it was renamed or disabled below).
+   */
+  private warnIfDuplicateCheckPropertyMissing(): void {
+    if (!this.settings.checkForDuplicates) return;
+
+    const property = (this.settings.duplicateCheckProperty || "url").trim();
+    const isWritten = FRONTMATTER_FIELD_ORDER.some((id) => {
+      const field = this.settings.frontmatterFields[id];
+      return field?.enabled && field.key === property;
+    });
+
+    if (!isWritten) {
+      new Notice(
+        `No enabled frontmatter field writes the property "${property}". Duplicate detection ("Prevent duplicate notes") will not work until this is fixed.`,
+        8000,
+      );
+    }
   }
 
   /**

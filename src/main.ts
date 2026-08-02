@@ -18,6 +18,7 @@ import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagN
 import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
 import { replaceTemplateVariables } from "./utils/templateVariables";
 import { normalizeVaultPath } from "./utils/pathUtils";
+import { buildFrontmatterLines, mergeFrontmatterFields } from "./utils/frontmatter";
 import { getYouTubeTranscript } from "./youtube";
 import { getFormatHandler } from "./fileFormatHandlers";
 import {
@@ -77,6 +78,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
   async loadSettings() {
     const loadedData: Record<string, unknown> | null = (await this.loadData()) as Record<string, unknown> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+    // Always rebuild as a fresh object (rather than falling back to the
+    // shared DEFAULT_SETTINGS.frontmatterFields reference) so settings-tab
+    // edits never mutate the module-level defaults, and so fields added in
+    // later versions get merged in even if a partial object was saved.
+    this.settings.frontmatterFields = mergeFrontmatterFields(
+      loadedData?.frontmatterFields as Parameters<typeof mergeFrontmatterFields>[0],
+    );
     await this.runSettingsMigrations(loadedData);
   }
 
@@ -624,44 +632,26 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
     // Add frontmatter with videoDetails if available
     if (videoDetails) {
-      const frontmatter: Record<string, unknown> = {
-        title: videoTitle,
-        url: videoUrl,
-      };
-
-      // Add common videoDetails fields to frontmatter
-      if (videoDetails.videoId) frontmatter.videoId = videoDetails.videoId;
-      if (videoDetails.author) frontmatter.channel = videoDetails.author;
-      if (videoDetails.channelId) frontmatter.channelId = videoDetails.channelId;
-      if (videoDetails.lengthSeconds) frontmatter.duration = videoDetails.lengthSeconds;
-      if (videoDetails.viewCount) frontmatter.views = videoDetails.viewCount;
-      if (videoDetails.publishDate) frontmatter.published = videoDetails.publishDate;
-      if (videoDetails.description) frontmatter.description = videoDetails.description;
-      if (videoDetails.isLiveContent !== undefined) frontmatter.isLive = videoDetails.isLiveContent;
-      if (videoDetails.isPrivate !== undefined) frontmatter.isPrivate = videoDetails.isPrivate;
-      if (videoDetails.isUnlisted !== undefined) frontmatter.isUnlisted = videoDetails.isUnlisted;
-
-      // Add frontmatter block
-      const frontmatterLines = ["---"];
-      for (const [key, value] of Object.entries(frontmatter)) {
-        if (value !== null && value !== undefined) {
-          let stringValue: string;
-          if (typeof value === "string") {
-            stringValue = value.includes("\n")
-              ? `"${value.replace(/"/g, '\\"')}"`
-              : `"${value}"`;
-          } else if (typeof value === "object") {
-            stringValue = JSON.stringify(value);
-          } else if (typeof value === "number" || typeof value === "boolean") {
-            stringValue = String(value);
-          } else {
-            stringValue = JSON.stringify(value);
-          }
-          frontmatterLines.push(`${key}: ${stringValue}`);
-        }
+      const frontmatterLines = buildFrontmatterLines(
+        {
+          title: videoTitle,
+          url: videoUrl,
+          videoId: videoDetails.videoId,
+          channel: videoDetails.author,
+          channelId: videoDetails.channelId,
+          duration: videoDetails.lengthSeconds,
+          views: videoDetails.viewCount,
+          published: videoDetails.publishDate,
+          description: videoDetails.description,
+          isLive: videoDetails.isLiveContent,
+          isPrivate: videoDetails.isPrivate,
+          isUnlisted: videoDetails.isUnlisted,
+        },
+        this.settings.frontmatterFields,
+      );
+      if (frontmatterLines.length > 0) {
+        parts.push(frontmatterLines.join("\n"));
       }
-      frontmatterLines.push("---");
-      parts.push(frontmatterLines.join("\n"));
     }
 
     // Add channel tag if enabled and channel name is available

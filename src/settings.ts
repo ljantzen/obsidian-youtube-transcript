@@ -1,5 +1,6 @@
 import type { YouTubeTranscriptPluginSettings } from "./types";
 import type { ModelInfo } from "./llm/modelFetcher";
+import { DEFAULT_FRONTMATTER_FIELDS } from "./utils/frontmatter";
 
 export const DEFAULT_PROMPT = `Please process the following YouTube video transcript. Your task is to:
 
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   checkForDuplicates: false, // Default to false - do not prevent duplicate transcripts
   duplicateCheckProperty: "url", // Default to "url" - the property the plugin writes by default
   allowClipboardAccess: true, // Default to true - enable clipboard prefill and clipboard command
+  frontmatterFields: DEFAULT_FRONTMATTER_FIELDS, // Default to all fields enabled with their historical key names
 };
 
 /**
