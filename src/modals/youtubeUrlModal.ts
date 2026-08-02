@@ -598,7 +598,13 @@ export class YouTubeUrlModal extends Modal {
       text: "Fetch transcript",
     });
     submitButton.addClass("youtube-transcript-button-secondary");
-    submitButton.addEventListener("click", () => {
+
+    // Guards against double-submission (e.g. clicking Fetch or pressing Enter
+    // again) while a fetch is already in progress and the modal is still open.
+    let isSubmitting = false;
+
+    const handleSubmit = () => {
+      if (isSubmitting) return;
       try {
         const url = input.value.trim();
         if (!url) {
@@ -644,6 +650,11 @@ export class YouTubeUrlModal extends Modal {
         }
         // Get selected language (empty string = auto-select)
         const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
+
+        isSubmitting = true;
+        submitButton.disabled = true;
+        submitButton.setText("Fetching…");
+
         const result = this.onSubmit(
           url,
           createNewFile,
@@ -662,82 +673,26 @@ export class YouTubeUrlModal extends Modal {
           }).catch((error: unknown) => {
             console.error("Error in onSubmit callback:", error);
             // Don't close modal on error so user can retry
+            isSubmitting = false;
+            submitButton.disabled = false;
+            submitButton.setText("Fetch transcript");
           });
         } else {
           this.close();
         }
       } catch (error) {
         console.error("Error in submit button handler:", error);
+        isSubmitting = false;
+        submitButton.disabled = false;
+        submitButton.setText("Fetch transcript");
       }
-    });
+    };
+
+    submitButton.addEventListener("click", handleSubmit);
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
-        const url = input.value.trim();
-        if (url) {
-          // Get selected file formats
-          const selectedFormats = Object.entries(formatCheckboxes)
-            .filter(([_, checkbox]) => checkbox.checked)
-            .map(([format]) => format as "markdown" | "pdf" | "srt");
-
-          if (selectedFormats.length === 0) {
-            new Notice("Please select at least one file format", 5000);
-            return;
-          }
-
-          // PDF and SRT formats always require creating a new file
-          const hasPdfOrSrt = selectedFormats.includes("pdf") || selectedFormats.includes("srt");
-          const createNewFile = hasPdfOrSrt ? true : createNewFileCheckbox.checked;
-          const includeVideoUrl = includeUrlCheckbox.checked;
-          const generateSummary = hasAnyProviderKey && generateSummaryCheckbox
-            ? generateSummaryCheckbox.checked
-            : false;
-          const useLLM = hasAnyProviderKey && useLLMCheckbox
-            ? useLLMCheckbox.checked
-            : false;
-          // Get selected provider (default to settings if not available)
-          const llmProvider = providerDropdown
-            ? (providerDropdown.value)
-            : this.settings.llmProvider;
-          const tagWithChannelName = tagChannelCheckbox.checked;
-          // Get selected directory from dropdown
-          // Empty string = current directory, __default__ = default directory, other = specific directory
-          let selectedDirectory: string | null = null;
-          if (createNewFile) {
-            const dirValue = directoryDropdown.value;
-            if (dirValue === "") {
-              selectedDirectory = null;
-            } else if (dirValue === "__default__") {
-              selectedDirectory = this.settings.defaultDirectory || null;
-            } else {
-              selectedDirectory = dirValue;
-            }
-          }
-          // Get selected language (empty string = auto-select)
-          const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
-          const result = this.onSubmit(
-            url,
-            createNewFile,
-            includeVideoUrl,
-            generateSummary,
-            useLLM,
-            llmProvider,
-            selectedDirectory,
-            tagWithChannelName,
-            selectedFormats,
-            languageCode,
-          );
-          if (result instanceof Promise) {
-            result.then(() => {
-              this.close();
-            }).catch((error: unknown) => {
-              console.error("Error in onSubmit callback:", error);
-              // Don't close modal on error so user can retry
-            });
-          } else {
-            this.close();
-          }
-        }
+        handleSubmit();
       }
     });
 
