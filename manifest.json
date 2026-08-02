@@ -1,7 +1,7 @@
 {
 	"id": "youtube-transcript-fetcher",
 	"name": "YouTube transcript fetcher",
-	"version": "2.0.19",
+	"version": "2.0.20",
 	"minAppVersion": "1.4.10",
 	"description": "Fetch, clean and embed YouTube video transcripts in your notes.",
 	"author": "Leif Jantzen",
