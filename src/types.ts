@@ -19,6 +19,31 @@ export interface CustomLLMProvider {
   customHeaders?: Record<string, string>; // Optional custom headers (e.g., HTTP-Referer, X-Title for OpenRouter)
 }
 
+// Canonical identifiers for the fields the plugin can write into note frontmatter
+export type FrontmatterFieldId =
+  | "title"
+  | "url"
+  | "videoId"
+  | "channel"
+  | "channelId"
+  | "duration"
+  | "views"
+  | "published"
+  | "description"
+  | "isLive"
+  | "isPrivate"
+  | "isUnlisted";
+
+export interface FrontmatterFieldConfig {
+  enabled: boolean; // Whether this field is written to frontmatter
+  key: string; // The property key used in frontmatter (user-customizable)
+}
+
+export type FrontmatterFieldsSettings = Record<
+  FrontmatterFieldId,
+  FrontmatterFieldConfig
+>;
+
 export interface YouTubeTranscriptPluginSettings {
   useLLMProcessing: boolean; // Whether to use LLM processing for transcripts
   llmProvider: LLMProvider;
@@ -55,6 +80,7 @@ export interface YouTubeTranscriptPluginSettings {
   checkForDuplicates: boolean; // When enabled, prevents creating a new note if one already exists for the same video
   duplicateCheckProperty: string; // The frontmatter property to check for duplicate detection (e.g., "url")
   allowClipboardAccess: boolean; // When enabled, the plugin may read the clipboard to prefill the URL field and power the clipboard command
+  frontmatterFields: FrontmatterFieldsSettings; // Per-field include/exclude and custom key name for generated frontmatter
 }
 
 export interface CaptionTrack {
