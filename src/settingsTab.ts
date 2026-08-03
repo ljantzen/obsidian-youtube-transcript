@@ -1,4 +1,11 @@
-import { App, PluginSettingTab, Setting, Notice, Plugin } from "obsidian";
+import {
+  App,
+  PluginSettingTab,
+  Setting,
+  Notice,
+  Plugin,
+  type SettingDefinitionItem,
+} from "obsidian";
 import type { YouTubeTranscriptPluginSettings, LLMProvider, CustomLLMProvider } from "./types";
 import {
   DEFAULT_SETTINGS,
@@ -7,6 +14,17 @@ import {
   DEFAULT_GEMINI_MODELS,
   DEFAULT_CLAUDE_MODELS,
 } from "./settings";
+import {
+  normalizeVaultPath,
+  normalizeFilesystemPath,
+  normalizeFolderName,
+  normalizeLanguageList,
+  valueOrDefault,
+  trimmedOrDefault,
+  resolveClaudeModel,
+  resolveDirectoryDeletion,
+  resolveProviderDeletion,
+} from "./utils";
 import {
   fetchOpenAIModels,
   fetchGeminiModels,
@@ -44,6 +62,298 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     this.saveSettings = saveSettings;
   }
 
+  // Declarative settings API (Obsidian 1.13.0+). display() below remains the
+  // fallback for older Obsidian versions and is kept behaviorally in sync via
+  // the shared normalization helpers imported from ./utils.
+
+  getControlValue(key: string): unknown {
+    return (this.settings as unknown as Record<string, unknown>)[key];
+  }
+
+  async setControlValue(key: string, value: unknown): Promise<void> {
+    const settings = this.settings as unknown as Record<string, unknown>;
+    switch (key) {
+      case "defaultNoteName":
+      case "defaultSrtFileName":
+        value = valueOrDefault(value as string, "{VideoName}");
+        break;
+      case "duplicateCheckProperty":
+        value = trimmedOrDefault(value as string, "url");
+        break;
+      case "preferredLanguage":
+        value = normalizeLanguageList(value as string);
+        break;
+      case "localVideoDirectory":
+        value = normalizeFilesystemPath(value as string);
+        break;
+      case "attachmentFolder":
+        value = normalizeFolderName(value as string);
+        break;
+      case "defaultCoverNoteName":
+        value = (value as string).trim();
+        break;
+      case "coverNoteTemplate":
+        value = normalizeVaultPath(value as string);
+        break;
+      case "claudeModel": {
+        const resolved = resolveClaudeModel(value as string, DEFAULT_SETTINGS.claudeModel);
+        value = resolved.value;
+        break;
+      }
+    }
+
+    settings[key] = value;
+    await this.saveSettings();
+
+    if (
+      key === "useLLMProcessing" ||
+      key === "llmProvider" ||
+      key === "savedDirectories" ||
+      key === "defaultDirectory" ||
+      key === "customProviders"
+    ) {
+      this.update();
+    } else {
+      this.refreshDomState();
+    }
+  }
+
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    const version = this.plugin.manifest.version;
+    const savedDirs = this.settings.savedDirectories || [];
+
+    return [
+      { name: "Version", desc: `Plugin version: ${version}` },
+      {
+        type: "group",
+        heading: "Files and folders",
+        items: [
+          {
+            name: "Available file formats",
+            desc: "Select which file formats should be available in the transcript creation modal",
+            render: (_setting, group) => this.buildFileFormatCheckboxes(group.listEl),
+          },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Transcript directories",
+        items: [
+          {
+            name: "Default directory",
+            desc: "Select which saved directory to use by default when creating new transcript files. Leave as 'None' to use the current file's directory.",
+            visible: () => savedDirs.length > 0,
+            control: {
+              type: "dropdown",
+              key: "defaultDirectory",
+              defaultValue: "",
+              options: {
+                "": "None (use current file's directory)",
+                ...Object.fromEntries(savedDirs.filter((d) => d?.trim()).map((d) => [d, d])),
+              },
+            },
+          },
+        ],
+      },
+      {
+        type: "list",
+        heading: "Manage directories",
+        emptyState: "No directories saved. Add one below.",
+        items: savedDirs.map((dir) => ({
+          name: dir,
+          desc: this.settings.defaultDirectory === dir ? "(Default)" : undefined,
+        })),
+        onDelete: (index) => {
+          void (async () => {
+            const result = resolveDirectoryDeletion(savedDirs, this.settings.defaultDirectory, index);
+            this.settings.savedDirectories = result.savedDirectories;
+            this.settings.defaultDirectory = result.defaultDirectory;
+            await this.saveSettings();
+            this.update();
+          })();
+        },
+      },
+      {
+        name: "Add directory",
+        render: (_setting, group) => this.renderAddDirectoryRow(group.listEl, () => this.update()),
+      },
+      {
+        type: "group",
+        heading: "Transcript",
+        items: [
+          { name: "Create new markdown file", desc: "When enabled, the modal will default to creating a new markdown file instead of inserting into the current file (can be overridden in the modal.  If PDF is selected as output format, this setting is ignored, as PDF files will always be created.)", control: { type: "toggle", key: "createNewFile" } },
+          { name: "Default note name", desc: "Template for note file names. Supports {VideoName} and {ChannelName} variables.", control: { type: "text", key: "defaultNoteName", placeholder: "{VideoName}" } },
+          { name: "Preferred languages", desc: "Comma-separated list of preferred transcript language codes in order of preference (e.g., 'en,es,fr' for English, then Spanish, then French). Languages will be tried in order until one is available. Leave empty for auto-select (prefers English). You can override this in the modal when multiple languages are available.", control: { type: "text", key: "preferredLanguage", placeholder: "en,es,fr" } },
+          { name: "Include video URL", desc: "When enabled, the video URL will be included in the transcript (can be overridden in the modal)", control: { type: "toggle", key: "includeVideoUrl" } },
+          { name: "Generate summary", desc: "When enabled and an LLM provider is selected, generate a summary of the video (can be overridden in the modal)", control: { type: "toggle", key: "generateSummary" } },
+          { name: "Tag with channel name", desc: "When enabled, notes will be tagged with the YouTube channel name (can be overridden in the modal)", control: { type: "toggle", key: "tagWithChannelName" } },
+          { name: "Single line transcript", desc: "When enabled, the transcript will be kept on a single line without line breaks. Timestamps (if enabled) will be inline. Useful for compact formatting or when copying to other applications.", control: { type: "toggle", key: "singleLineTranscript" } },
+          { name: "Allow clipboard access", desc: 'When enabled, the plugin reads the clipboard to prefill the URL field when the modal opens, and powers the "Fetch from clipboard" command. Disable if you prefer the plugin never accesses the clipboard.', control: { type: "toggle", key: "allowClipboardAccess" } },
+          { name: "Prevent duplicate notes", desc: "When enabled, creating a transcript will be blocked if a note already exists with a matching value in the frontmatter property below", control: { type: "toggle", key: "checkForDuplicates" } },
+          { name: "Duplicate check property", desc: 'The frontmatter property used to detect duplicates. Defaults to "url", which the plugin writes automatically.', control: { type: "text", key: "duplicateCheckProperty", placeholder: "url" } },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Frontmatter",
+        items: [
+          {
+            name: "Frontmatter fields",
+            desc: "Choose which properties are written to each note's frontmatter, and optionally rename the property key used for each one. Disabled fields are omitted entirely.",
+            render: (_setting, group) => this.renderFrontmatterFields(group.listEl),
+          },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Timestamp",
+        items: [
+          { name: "Include timestamps", desc: "When enabled, timestamps will be included in transcripts as clickable links to the video at that time", control: { type: "toggle", key: "includeTimestamps" } },
+          { name: "Timestamp frequency", desc: "How often to show timestamps: 0 = every sentence, >0 = every N seconds (e.g., 30 = every 30 seconds)", control: { type: "number", key: "timestampFrequency", placeholder: "0", min: 0, defaultValue: 0 } },
+          { name: "Include timestamps in LLM output", desc: "When enabled, timestamps will be preserved in LLM-processed transcripts. When disabled, timestamps are removed before LLM processing.", control: { type: "toggle", key: "includeTimestampsInLLM" } },
+          { name: "Local video directory", desc: "Filesystem directory where local video files are stored. If set, timestamp links will point to local files (file:///path/video-id.mp4?t=SECONDS) instead of YouTube URLs. Leave empty to use YouTube URLs.", control: { type: "text", key: "localVideoDirectory", placeholder: "/path/to/videos" } },
+        ],
+      },
+      {
+        type: "group",
+        heading: "PDF",
+        items: [
+          { name: "Create cover note", desc: "When enabled, a cover note will be created for PDF and/or SRT files", control: { type: "toggle", key: "createCoverNote" } },
+          {
+            name: "Cover note location",
+            desc: "Location/path where cover notes should be created. Leave empty to use the same location as the PDF/SRT files. Supports '{ChannelName}' and '{VideoName}' template variables",
+            render: (setting) => this.renderCoverNoteLocationField(setting),
+          },
+          { name: "Attachment folder", desc: "Folder name used to nest PDF and SRT files under the cover note location. Leave empty to use the video title as the folder name.", control: { type: "text", key: "attachmentFolder", placeholder: "attachments" } },
+          { name: "Default SRT file name", desc: "Template for SRT file names. Supports {VideoName} and {ChannelName} variables.", control: { type: "text", key: "defaultSrtFileName", placeholder: "{VideoName}" } },
+          {
+            name: "Cover note template",
+            desc: "Path to a markdown template file for cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {SrtLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",
+            control: { type: "file", key: "coverNoteTemplate", placeholder: "Templates/Cover Note.md", filter: (file) => file.extension === "md" },
+          },
+          { name: "Cover note file name", desc: "Template for cover note file names. Supports {VideoName} and {ChannelName}. Default: {VideoName}", control: { type: "text", key: "defaultCoverNoteName", placeholder: "{VideoName}" } },
+        ],
+      },
+      {
+        type: "group",
+        heading: "LLM",
+        items: [
+          { name: "Use LLM processing", desc: "When enabled, transcripts will be processed by the selected LLM provider to clean up and format the content", control: { type: "toggle", key: "useLLMProcessing" } },
+          {
+            name: "LLM provider",
+            desc: "Select which LLM provider to use for transcript processing",
+            visible: () => this.settings.useLLMProcessing,
+            control: {
+              type: "dropdown",
+              key: "llmProvider",
+              defaultValue: "openai",
+              options: {
+                openai: "OpenAI",
+                gemini: "Google Gemini",
+                claude: "Anthropic Claude",
+                ...Object.fromEntries(
+                  (this.settings.customProviders || []).map((p) => [p.id, `${p.name} (Custom)`]),
+                ),
+              },
+            },
+          },
+          {
+            name: "OpenAI API key",
+            desc: "Your OpenAI API key for processing transcripts (get one at https://platform.openai.com/api-keys)",
+            visible: () => this.settings.useLLMProcessing && this.settings.llmProvider === "openai",
+            render: (setting) => this.renderOpenAIKeyField(setting),
+          },
+          {
+            name: "OpenAI model",
+            desc: "Select the OpenAI model to use for transcript processing",
+            visible: () => this.settings.useLLMProcessing && this.settings.llmProvider === "openai",
+            render: (setting) => this.createOpenAIModelSetting(setting),
+          },
+          {
+            name: "Gemini API key",
+            desc: "Your Google Gemini API key for processing transcripts (get one at https://aistudio.google.com/app/apikey)",
+            visible: () => this.settings.useLLMProcessing && this.settings.llmProvider === "gemini",
+            render: (setting) => this.renderGeminiKeyField(setting),
+          },
+          {
+            name: "Gemini model",
+            desc: "Select the Gemini model to use for transcript processing",
+            visible: () => this.settings.useLLMProcessing && this.settings.llmProvider === "gemini",
+            render: (setting) => this.createGeminiModelSetting(setting),
+          },
+          {
+            name: "Claude API key",
+            desc: "Your Anthropic Claude API key for processing transcripts (get one at https://console.anthropic.com/)",
+            visible: () => this.settings.useLLMProcessing && this.settings.llmProvider === "claude",
+            render: (setting) => this.renderClaudeKeyField(setting),
+          },
+          {
+            name: "Claude model",
+            desc: "Enter the Claude model ID to use for transcript processing. Examples: claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001, or simplified versions like claude-opus-4, claude-sonnet-4, claude-haiku-4-5. Only Claude version 4 models are supported.",
+            visible: () => this.settings.useLLMProcessing && this.settings.llmProvider === "claude",
+            control: {
+              type: "text",
+              key: "claudeModel",
+              placeholder: "claude-sonnet-4-20250514",
+              validate: (value: string) => resolveClaudeModel(value, DEFAULT_SETTINGS.claudeModel).error,
+            },
+          },
+          {
+            name: "Processing prompt",
+            desc: "The prompt sent to the LLM for processing the transcript",
+            visible: () => this.settings.useLLMProcessing,
+            control: { type: "textarea", key: "prompt", placeholder: DEFAULT_PROMPT, rows: 10 },
+          },
+          {
+            name: "LLM timeout",
+            desc: "Timeout for LLM API requests in minutes (default: 1 minute / 60 seconds)",
+            visible: () => this.settings.useLLMProcessing,
+            control: { type: "number", key: "openaiTimeout", placeholder: "5", min: 1, defaultValue: 1 },
+          },
+          {
+            name: "Force LLM output language",
+            desc: "When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures the processed transcript matches the original language.",
+            visible: () => this.settings.useLLMProcessing,
+            control: { type: "toggle", key: "forceLLMLanguage" },
+          },
+        ],
+      },
+      {
+        type: "list",
+        heading: "Custom LLM providers",
+        visible: () => this.settings.useLLMProcessing,
+        emptyState: "No custom providers configured. Add one below.",
+        items: (this.settings.customProviders || []).map((provider) => ({
+          name: provider.name,
+          desc: provider.endpoint,
+          action: (el: HTMLElement, index: number) => {
+            const current = this.settings.customProviders[index];
+            if (current) this.showEditCustomProviderModal(el, current);
+          },
+        })),
+        addItem: {
+          name: "Add custom provider",
+          action: (el: HTMLElement) => this.showAddCustomProviderModal(el),
+        },
+        onDelete: (index) => {
+          void (async () => {
+            const provider = this.settings.customProviders[index];
+            if (!provider) return;
+            const result = resolveProviderDeletion(
+              this.settings.customProviders,
+              this.settings.llmProvider,
+              provider.id,
+            );
+            this.settings.customProviders = result.customProviders;
+            this.settings.llmProvider = result.llmProvider;
+            await this.saveSettings();
+            this.update();
+          })();
+        },
+      },
+    ];
+  }
+
   display(): void {
     const { containerEl } = this;
 
@@ -64,66 +374,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     // Files and folders section
     new Setting(containerEl).setName("Files and folders").setHeading();
 
-    new Setting(containerEl)
-      .setName("Available file formats")
-      .setDesc(
-        "Select which file formats should be available in the transcript creation modal",
-      );
-
-    const formatCheckboxes: Record<string, HTMLInputElement> = {};
-    const formatLabels: Record<string, HTMLElement> = {};
-    const formatsContainer = containerEl.createDiv({
-      attr: { style: "margin-left: 1.5em; margin-bottom: 1em;" },
-    });
-
-    const formats: ("markdown" | "pdf" | "srt")[] = ["markdown", "pdf", "srt"];
-    const formatNames: Record<string, string> = {
-      markdown: "Markdown (.md)",
-      pdf: "PDF",
-      srt: "SRT Subtitles (.srt)",
-    };
-
-    formats.forEach((format) => {
-      const checkboxContainer = formatsContainer.createDiv({
-        attr: { style: "display: flex; align-items: center; margin-bottom: 0.5em;" },
-      });
-
-      const checkbox = checkboxContainer.createEl("input", {
-        type: "checkbox",
-        attr: { id: `format-${format}` },
-      });
-
-      checkbox.checked =
-        this.settings.fileFormats && this.settings.fileFormats.includes(format);
-
-      checkbox.addEventListener("change", () => {
-        const selectedFormats = formats.filter((f) => {
-          const cb = formatCheckboxes[f];
-          return cb && cb.checked;
-        });
-
-        // Ensure at least one format is always selected
-        if (selectedFormats.length === 0) {
-          checkbox.checked = true;
-          return;
-        }
-
-        this.settings.fileFormats = selectedFormats;
-        void this.saveSettings();
-      });
-
-      formatCheckboxes[format] = checkbox;
-
-      const label = checkboxContainer.createEl("label", {
-        text: formatNames[format],
-        attr: {
-          for: `format-${format}`,
-          style: "margin-left: 0.5em; cursor: pointer; flex: 1;",
-        },
-      });
-
-      formatLabels[format] = label;
-    });
+    this.renderFileFormatCheckboxes(containerEl);
 
     new Setting(containerEl).setName("Transcript directories").setHeading();
 
@@ -200,13 +451,9 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             attr: { style: "font-size: 0.9em;" },
           });
           removeButton.onclick = async () => {
-            // If removing the default directory, clear the default
-            if (defaultDir === dir) {
-              this.settings.defaultDirectory = null;
-            }
-            this.settings.savedDirectories = savedDirs.filter(
-              (_, i) => i !== index,
-            );
+            const result = resolveDirectoryDeletion(savedDirs, this.settings.defaultDirectory, index);
+            this.settings.savedDirectories = result.savedDirectories;
+            this.settings.defaultDirectory = result.defaultDirectory;
             await this.saveSettings();
             // Refresh the entire display to update the default directory dropdown
             this.display();
@@ -217,40 +464,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
     renderDirectoriesList();
 
-    // Add new directory input
-    const addDirectoryContainer = containerEl.createDiv({
-      attr: {
-        style: "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
-      },
-    });
-    const addDirectoryInput = addDirectoryContainer.createEl("input", {
-      type: "text",
-      attr: {
-        placeholder: "Transcripts or Notes/YouTube",
-        style: "flex: 1;",
-      },
-    });
-    new FolderSuggest(this.app, addDirectoryInput);
-    const addButton = addDirectoryContainer.createEl("button", {
-      text: "Add",
-    });
-    addButton.onclick = async () => {
-      const newDir = addDirectoryInput.value.trim();
-      if (newDir && newDir !== "") {
-        // Normalize path: remove leading/trailing slashes, ensure forward slashes
-        const normalizedDir = newDir
-          .replace(/^\/+|\/+$/g, "")
-          .replace(/\\/g, "/");
-        const savedDirs = this.settings.savedDirectories || [];
-        if (!savedDirs.includes(normalizedDir)) {
-          this.settings.savedDirectories = [...savedDirs, normalizedDir];
-          await this.saveSettings();
-          addDirectoryInput.value = "";
-          // Refresh the entire display to update the default directory dropdown
-          this.display();
-        }
-      }
-    };
+    this.renderAddDirectoryRow(containerEl, () => this.display());
 
     // Transcript section
     new Setting(containerEl).setName("Transcript").setHeading();
@@ -279,7 +493,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setPlaceholder("{VideoName}")
           .setValue(this.settings.defaultNoteName || "{VideoName}")
           .onChange(async (value) => {
-            this.settings.defaultNoteName = value || "{VideoName}";
+            this.settings.defaultNoteName = valueOrDefault(value, "{VideoName}");
             await this.saveSettings();
           });
       });
@@ -295,13 +509,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setPlaceholder("en,es,fr")
           .setValue(this.settings.preferredLanguage || "")
           .onChange(async (value) => {
-            // Normalize: trim, lowercase, remove extra spaces
-            const normalizedValue = value
-              .split(",")
-              .map((lang) => lang.trim().toLowerCase())
-              .filter((lang) => lang.length > 0)
-              .join(",");
-            this.settings.preferredLanguage = normalizedValue;
+            this.settings.preferredLanguage = normalizeLanguageList(value);
             await this.saveSettings();
           });
       });
@@ -401,7 +609,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setPlaceholder("url")
           .setValue(this.settings.duplicateCheckProperty || "url")
           .onChange(async (value) => {
-            this.settings.duplicateCheckProperty = value.trim() || "url";
+            this.settings.duplicateCheckProperty = trimmedOrDefault(value, "url");
             await this.saveSettings();
           });
         text.inputEl.addEventListener("blur", () =>
@@ -416,33 +624,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       "Choose which properties are written to each note's frontmatter, and optionally rename the property key used for each one. Disabled fields are omitted entirely.",
     );
 
-    for (const id of FRONTMATTER_FIELD_ORDER) {
-      const defaultConfig = DEFAULT_FRONTMATTER_FIELDS[id];
-      const fieldConfig = this.settings.frontmatterFields[id] ?? defaultConfig;
-
-      new Setting(containerEl)
-        .setName(FRONTMATTER_FIELD_LABELS[id])
-        .addToggle((toggle) => {
-          toggle.setValue(fieldConfig.enabled).onChange(async (value) => {
-            this.settings.frontmatterFields[id].enabled = value;
-            await this.saveSettings();
-            this.warnIfDuplicateCheckPropertyMissing();
-          });
-        })
-        .addText((text) => {
-          text
-            .setPlaceholder(defaultConfig.key)
-            .setValue(fieldConfig.key)
-            .onChange(async (value) => {
-              this.settings.frontmatterFields[id].key =
-                value.trim() || defaultConfig.key;
-              await this.saveSettings();
-            });
-          text.inputEl.addEventListener("blur", () =>
-            this.warnIfDuplicateCheckPropertyMissing(),
-          );
-        });
-    }
+    this.renderFrontmatterFields(containerEl);
 
     // Timestamp section
     new Setting(containerEl).setName("Timestamp").setHeading();
@@ -504,12 +686,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setPlaceholder("/path/to/videos")
           .setValue(this.settings.localVideoDirectory || "")
           .onChange(async (value) => {
-            // Normalize path: remove trailing slashes, ensure forward slashes
-            const normalizedPath = value
-              .trim()
-              .replace(/\\/g, "/")
-              .replace(/\/+$/, "");
-            this.settings.localVideoDirectory = normalizedPath;
+            this.settings.localVideoDirectory = normalizeFilesystemPath(value);
             await this.saveSettings();
           });
       });
@@ -529,26 +706,13 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(containerEl)
-      .setName("Cover note location")
-      .setDesc(
-        "Location/path where cover notes should be created. Leave empty to use the same location as the PDF/SRT files. Supports '{ChannelName}' and '{VideoName}' template variables",
-      )
-      .addText((text) => {
-        text
-          .setPlaceholder("Notes/Transcripts or Notes/{ChannelName}")
-          .setValue(this.settings.coverNoteLocation || "")
-          .onChange(async (value) => {
-            // Normalize path: remove leading/trailing slashes, ensure forward slashes
-            const normalizedPath = value
-              .trim()
-              .replace(/^\/+|\/+$/g, "")
-              .replace(/\\/g, "/");
-            this.settings.coverNoteLocation = normalizedPath;
-            await this.saveSettings();
-          });
-        new FolderSuggest(this.app, text.inputEl);
-      });
+    this.renderCoverNoteLocationField(
+      new Setting(containerEl)
+        .setName("Cover note location")
+        .setDesc(
+          "Location/path where cover notes should be created. Leave empty to use the same location as the PDF/SRT files. Supports '{ChannelName}' and '{VideoName}' template variables",
+        ),
+    );
 
     new Setting(containerEl)
       .setName("Attachment folder")
@@ -560,7 +724,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setPlaceholder("attachments")
           .setValue(this.settings.attachmentFolder || "")
           .onChange(async (value) => {
-            this.settings.attachmentFolder = value.trim().replace(/[/\\]+/g, "").trim();
+            this.settings.attachmentFolder = normalizeFolderName(value);
             await this.saveSettings();
           });
       });
@@ -575,7 +739,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setPlaceholder("{VideoName}")
           .setValue(this.settings.defaultSrtFileName || "{VideoName}")
           .onChange(async (value) => {
-            this.settings.defaultSrtFileName = value || "{VideoName}";
+            this.settings.defaultSrtFileName = valueOrDefault(value, "{VideoName}");
             await this.saveSettings();
           });
       });
@@ -590,12 +754,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           .setPlaceholder("Templates/Cover Note.md")
           .setValue(this.settings.coverNoteTemplate || "")
           .onChange(async (value) => {
-            // Normalize path: remove leading/trailing slashes, ensure forward slashes
-            const normalizedPath = value
-              .trim()
-              .replace(/^\/+|\/+$/g, "")
-              .replace(/\\/g, "/");
-            this.settings.coverNoteTemplate = normalizedPath;
+            this.settings.coverNoteTemplate = normalizeVaultPath(value);
             await this.saveSettings();
           });
         new FileSuggest(this.app, text.inputEl);
@@ -665,63 +824,45 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
       // Show OpenAI API key field if OpenAI is selected
       if (this.settings.llmProvider === "openai") {
-        new Setting(containerEl)
-          .setName("OpenAI API key")
-          .setDesc(
-            "Your OpenAI API key for processing transcripts (get one at https://platform.openai.com/api-keys)",
-          )
-          .addText((text) => {
-            text.inputEl.type = "password";
-            text
-              .setPlaceholder("sk-...")
-              .setValue(this.settings.openaiKey)
-              .onChange(async (value) => {
-                this.settings.openaiKey = value;
-                await this.saveSettings();
-              });
-          });
-
-        this.createOpenAIModelSetting(containerEl);
+        this.renderOpenAIKeyField(
+          new Setting(containerEl)
+            .setName("OpenAI API key")
+            .setDesc(
+              "Your OpenAI API key for processing transcripts (get one at https://platform.openai.com/api-keys)",
+            ),
+        );
+        this.createOpenAIModelSetting(
+          new Setting(containerEl)
+            .setName("OpenAI model")
+            .setDesc("Select the OpenAI model to use for transcript processing"),
+        );
       }
 
       // Show Gemini API key field if Gemini is selected
       if (this.settings.llmProvider === "gemini") {
-        new Setting(containerEl)
-          .setName("Gemini API key")
-          .setDesc(
-            "Your Google Gemini API key for processing transcripts (get one at https://aistudio.google.com/app/apikey)",
-          )
-        .addText((text) => {
-          text.inputEl.type = "password";
-          text
-            .setPlaceholder("AIza...")
-            .setValue(this.settings.geminiKey)
-            .onChange(async (value) => {
-              this.settings.geminiKey = value;
-              await this.saveSettings();
-            });
-        });
-
-      this.createGeminiModelSetting(containerEl);
-    }
+        this.renderGeminiKeyField(
+          new Setting(containerEl)
+            .setName("Gemini API key")
+            .setDesc(
+              "Your Google Gemini API key for processing transcripts (get one at https://aistudio.google.com/app/apikey)",
+            ),
+        );
+        this.createGeminiModelSetting(
+          new Setting(containerEl)
+            .setName("Gemini model")
+            .setDesc("Select the Gemini model to use for transcript processing"),
+        );
+      }
 
       // Show Claude API key field if Claude is selected
       if (this.settings.llmProvider === "claude") {
-        new Setting(containerEl)
-          .setName("Claude API key")
-          .setDesc(
-            "Your Anthropic Claude API key for processing transcripts (get one at https://console.anthropic.com/)",
-          )
-          .addText((text) => {
-            text.inputEl.type = "password";
-            text
-              .setPlaceholder("sk-ant-...")
-              .setValue(this.settings.claudeKey)
-              .onChange(async (value) => {
-                this.settings.claudeKey = value;
-                await this.saveSettings();
-              });
-          });
+        this.renderClaudeKeyField(
+          new Setting(containerEl)
+            .setName("Claude API key")
+            .setDesc(
+              "Your Anthropic Claude API key for processing transcripts (get one at https://console.anthropic.com/)",
+            ),
+        );
 
         this.createClaudeModelSetting(containerEl);
       }
@@ -797,6 +938,184 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           });
       });
     } // End of if (this.settings.useLLMProcessing)
+  }
+
+  private renderFrontmatterFields(containerEl: HTMLElement): void {
+    for (const id of FRONTMATTER_FIELD_ORDER) {
+      const defaultConfig = DEFAULT_FRONTMATTER_FIELDS[id];
+      const fieldConfig = this.settings.frontmatterFields[id] ?? defaultConfig;
+
+      new Setting(containerEl)
+        .setName(FRONTMATTER_FIELD_LABELS[id])
+        .addToggle((toggle) => {
+          toggle.setValue(fieldConfig.enabled).onChange(async (value) => {
+            this.settings.frontmatterFields[id].enabled = value;
+            await this.saveSettings();
+            this.warnIfDuplicateCheckPropertyMissing();
+          });
+        })
+        .addText((text) => {
+          text
+            .setPlaceholder(defaultConfig.key)
+            .setValue(fieldConfig.key)
+            .onChange(async (value) => {
+              this.settings.frontmatterFields[id].key =
+                value.trim() || defaultConfig.key;
+              await this.saveSettings();
+            });
+          text.inputEl.addEventListener("blur", () =>
+            this.warnIfDuplicateCheckPropertyMissing(),
+          );
+        });
+    }
+  }
+
+  private renderFileFormatCheckboxes(containerEl: HTMLElement): void {
+    new Setting(containerEl)
+      .setName("Available file formats")
+      .setDesc(
+        "Select which file formats should be available in the transcript creation modal",
+      );
+    this.buildFileFormatCheckboxes(containerEl);
+  }
+
+  private buildFileFormatCheckboxes(containerEl: HTMLElement): void {
+    const formatCheckboxes: Record<string, HTMLInputElement> = {};
+    const formatsContainer = containerEl.createDiv({
+      attr: { style: "margin-left: 1.5em; margin-bottom: 1em;" },
+    });
+
+    const formats: ("markdown" | "pdf" | "srt")[] = ["markdown", "pdf", "srt"];
+    const formatNames: Record<string, string> = {
+      markdown: "Markdown (.md)",
+      pdf: "PDF",
+      srt: "SRT Subtitles (.srt)",
+    };
+
+    formats.forEach((format) => {
+      const checkboxContainer = formatsContainer.createDiv({
+        attr: { style: "display: flex; align-items: center; margin-bottom: 0.5em;" },
+      });
+
+      const checkbox = checkboxContainer.createEl("input", {
+        type: "checkbox",
+        attr: { id: `format-${format}` },
+      });
+
+      checkbox.checked =
+        this.settings.fileFormats && this.settings.fileFormats.includes(format);
+
+      checkbox.addEventListener("change", () => {
+        const selectedFormats = formats.filter((f) => {
+          const cb = formatCheckboxes[f];
+          return cb && cb.checked;
+        });
+
+        // Ensure at least one format is always selected
+        if (selectedFormats.length === 0) {
+          checkbox.checked = true;
+          return;
+        }
+
+        this.settings.fileFormats = selectedFormats;
+        void this.saveSettings();
+      });
+
+      formatCheckboxes[format] = checkbox;
+
+      checkboxContainer.createEl("label", {
+        text: formatNames[format],
+        attr: {
+          for: `format-${format}`,
+          style: "margin-left: 0.5em; cursor: pointer; flex: 1;",
+        },
+      });
+    });
+  }
+
+  private renderAddDirectoryRow(containerEl: HTMLElement, onAdded: () => void): void {
+    const addDirectoryContainer = containerEl.createDiv({
+      attr: {
+        style: "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
+      },
+    });
+    const addDirectoryInput = addDirectoryContainer.createEl("input", {
+      type: "text",
+      attr: {
+        placeholder: "Transcripts or Notes/YouTube",
+        style: "flex: 1;",
+      },
+    });
+    new FolderSuggest(this.app, addDirectoryInput);
+    const addButton = addDirectoryContainer.createEl("button", {
+      text: "Add",
+    });
+    addButton.onclick = async () => {
+      const newDir = addDirectoryInput.value.trim();
+      if (newDir && newDir !== "") {
+        const normalizedDir = normalizeVaultPath(newDir);
+        const savedDirs = this.settings.savedDirectories || [];
+        if (!savedDirs.includes(normalizedDir)) {
+          this.settings.savedDirectories = [...savedDirs, normalizedDir];
+          await this.saveSettings();
+          addDirectoryInput.value = "";
+          onAdded();
+        }
+      }
+    };
+  }
+
+  private renderCoverNoteLocationField(setting: Setting): void {
+    setting
+      .addText((text) => {
+        text
+          .setPlaceholder("Notes/Transcripts or Notes/{ChannelName}")
+          .setValue(this.settings.coverNoteLocation || "")
+          .onChange(async (value) => {
+            this.settings.coverNoteLocation = normalizeVaultPath(value);
+            await this.saveSettings();
+          });
+        new FolderSuggest(this.app, text.inputEl);
+      });
+  }
+
+  private renderOpenAIKeyField(setting: Setting): void {
+    setting.addText((text) => {
+      text.inputEl.type = "password";
+      text
+        .setPlaceholder("sk-...")
+        .setValue(this.settings.openaiKey)
+        .onChange(async (value) => {
+          this.settings.openaiKey = value;
+          await this.saveSettings();
+        });
+    });
+  }
+
+  private renderGeminiKeyField(setting: Setting): void {
+    setting.addText((text) => {
+      text.inputEl.type = "password";
+      text
+        .setPlaceholder("AIza...")
+        .setValue(this.settings.geminiKey)
+        .onChange(async (value) => {
+          this.settings.geminiKey = value;
+          await this.saveSettings();
+        });
+    });
+  }
+
+  private renderClaudeKeyField(setting: Setting): void {
+    setting.addText((text) => {
+      text.inputEl.type = "password";
+      text
+        .setPlaceholder("sk-ant-...")
+        .setValue(this.settings.claudeKey)
+        .onChange(async (value) => {
+          this.settings.claudeKey = value;
+          await this.saveSettings();
+        });
+    });
   }
 
   /**
@@ -890,11 +1209,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
   /**
    * Creates the OpenAI model selection setting with refresh functionality
    */
-  private createOpenAIModelSetting(containerEl: HTMLElement): void {
-    const setting = new Setting(containerEl)
-      .setName("OpenAI model")
-      .setDesc("Select the OpenAI model to use for transcript processing");
-
+  private createOpenAIModelSetting(setting: Setting): void {
     const modelsToUse = this.cachedOpenAIModels || DEFAULT_OPENAI_MODELS;
     let currentValue =
       this.settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
@@ -938,11 +1253,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
   /**
    * Creates the Gemini model selection setting with refresh functionality
    */
-  private createGeminiModelSetting(containerEl: HTMLElement): void {
-    const setting = new Setting(containerEl)
-      .setName("Gemini model")
-      .setDesc("Select the Gemini model to use for transcript processing");
-
+  private createGeminiModelSetting(setting: Setting): void {
     const modelsToUse = this.cachedGeminiModels || DEFAULT_GEMINI_MODELS;
     let currentValue =
       this.settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
@@ -1077,13 +1388,13 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           attr: { style: "font-size: 0.9em;" },
         });
         removeButton.onclick = async () => {
-          this.settings.customProviders = this.settings.customProviders.filter(
-            (p) => p.id !== provider.id,
+          const result = resolveProviderDeletion(
+            this.settings.customProviders,
+            this.settings.llmProvider,
+            provider.id,
           );
-          // If this was the selected provider, switch to OpenAI
-          if (this.settings.llmProvider === provider.id) {
-            this.settings.llmProvider = "openai";
-          }
+          this.settings.customProviders = result.customProviders;
+          this.settings.llmProvider = result.llmProvider;
           await this.saveSettings();
           this.display();
         };

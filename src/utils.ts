@@ -1,3 +1,5 @@
+import type { CustomLLMProvider, LLMProvider } from "./types";
+
 export function extractVideoId(url: string): string | null {
   const patterns = [
     // Standard, mobile, and music YouTube domains
@@ -62,6 +64,117 @@ export function validateClaudeModelName(modelName: string): boolean {
 export function normalizeUrl(url: string): string {
   const videoId = extractVideoId(url);
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
+}
+
+/**
+ * Normalizes a vault-relative path: trims, strips leading/trailing slashes,
+ * and converts backslashes to forward slashes. Used for saved directories
+ * and cover note location, which are relative to the vault root.
+ */
+export function normalizeVaultPath(path: string): string {
+  return path
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\\/g, "/");
+}
+
+/**
+ * Normalizes a filesystem path: trims, converts backslashes to forward
+ * slashes, and strips only the trailing slash (a leading slash is kept
+ * since this may be an absolute filesystem path, unlike normalizeVaultPath).
+ */
+export function normalizeFilesystemPath(path: string): string {
+  return path
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+}
+
+/**
+ * Normalizes a bare folder/segment name by stripping all slash characters
+ * (it must not contain path separators at all).
+ */
+export function normalizeFolderName(name: string): string {
+  return name.trim().replace(/[/\\]+/g, "").trim();
+}
+
+/**
+ * Normalizes a comma-separated language code list: trims and lowercases each
+ * entry, drops empty entries, and rejoins with commas.
+ */
+export function normalizeLanguageList(value: string): string {
+  return value
+    .split(",")
+    .map((lang) => lang.trim().toLowerCase())
+    .filter((lang) => lang.length > 0)
+    .join(",");
+}
+
+/**
+ * Returns value if non-empty, otherwise fallback (no trimming).
+ */
+export function valueOrDefault(value: string, fallback: string): string {
+  return value || fallback;
+}
+
+/**
+ * Returns the trimmed value if non-empty, otherwise fallback.
+ */
+export function trimmedOrDefault(value: string, fallback: string): string {
+  return value.trim() || fallback;
+}
+
+/**
+ * Resolves a user-entered Claude model name: empty input falls back to the
+ * default model; a valid (per validateClaudeModelName) non-empty input is
+ * used as-is (trimmed); anything else is rejected with an error message.
+ */
+export function resolveClaudeModel(
+  value: string,
+  fallback: string,
+): { value: string; error?: string } {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return { value: fallback };
+  }
+  if (validateClaudeModelName(trimmed)) {
+    return { value: trimmed };
+  }
+  return {
+    value: trimmed,
+    error: `Invalid Claude model name: "${trimmed}". Must be a Claude version 4 model (e.g., claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001).`,
+  };
+}
+
+/**
+ * Resolves the result of deleting a saved directory by index: removes it
+ * from the list, and clears defaultDirectory if it pointed at the removed entry.
+ */
+export function resolveDirectoryDeletion(
+  savedDirectories: string[],
+  defaultDirectory: string | null,
+  index: number,
+): { savedDirectories: string[]; defaultDirectory: string | null } {
+  const removedDir = savedDirectories[index];
+  return {
+    savedDirectories: savedDirectories.filter((_, i) => i !== index),
+    defaultDirectory: defaultDirectory === removedDir ? null : defaultDirectory,
+  };
+}
+
+/**
+ * Resolves the result of deleting a custom LLM provider: removes it from the
+ * list, and switches llmProvider back to "openai" if it was the selected one.
+ */
+export function resolveProviderDeletion(
+  customProviders: CustomLLMProvider[],
+  llmProvider: LLMProvider,
+  providerIdToDelete: string,
+): { customProviders: CustomLLMProvider[]; llmProvider: LLMProvider } {
+  return {
+    customProviders: customProviders.filter((p) => p.id !== providerIdToDelete),
+    llmProvider: llmProvider === providerIdToDelete ? "openai" : llmProvider,
+  };
 }
 
 /**
