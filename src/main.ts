@@ -39,7 +39,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     await this.loadSettings();
 
     // This creates an icon in the left ribbon.
-    this.addRibbonIcon("youtube", "Youtube transcript", () => {
+    this.addRibbonIcon("youtube", "YouTube transcript", () => {
       this.fetchTranscript();
     });
 
@@ -262,7 +262,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
   async fetchTranscriptFromClipboard() {
     if (!(this.settings.allowClipboardAccess ?? true)) {
-      new Notice("Clipboard access is disabled. Enable it in Settings → YouTube Transcript Settings.", 10000);
+      new Notice("Clipboard access is disabled. Enable it in settings → YouTube transcript settings.", 10000);
       return;
     }
     try {
@@ -489,18 +489,18 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       } else {
         // PDF and SRT formats cannot be inserted into existing files, must create new file
         if (fileFormat === "pdf") {
-          new Notice("PDF format requires creating a new file. Please enable 'Create new file' in settings or use the modal to create a PDF.", 10000);
+          new Notice("PDF format requires creating a new file. Please enable 'create new Markdown file' in settings or use the modal to create a PDF.", 10000);
           return;
         }
         if (fileFormat === "srt") {
-          new Notice("SRT format requires creating a new file. Please enable 'Create new file' in settings or use the modal to create an SRT file.", 10000);
+          new Notice("SRT format requires creating a new file. Please enable 'create new Markdown file' in settings or use the modal to create an SRT file.", 10000);
           return;
         }
 
         const activeView =
           this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!activeView) {
-          new Notice("Please open a markdown file first", 10000);
+          new Notice("Please open a Markdown file first", 10000);
           return;
         }
 

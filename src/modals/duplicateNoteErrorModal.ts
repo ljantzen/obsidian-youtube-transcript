@@ -12,7 +12,7 @@ export class DuplicateNoteErrorModal extends Modal {
     const { contentEl } = this;
 
     contentEl.createEl("h2", {
-      text: "Duplicate Note Detected",
+      text: "Duplicate note detected",
       attr: { style: "color: var(--text-error);" },
     });
 

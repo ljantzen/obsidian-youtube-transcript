@@ -97,7 +97,7 @@ export async function processWithGemini(
     const response = await Promise.race([requestPromise, timeoutPromise]);
 
     if (response.status < 200 || response.status >= 300) {
-      const errorData: ApiErrorBody = response.json ?? {};
+      const errorData = (response.json as ApiErrorBody | null) ?? {};
 
       if (response.status === 429) {
         if (statusCallback) statusCallback(null); // Hide notice

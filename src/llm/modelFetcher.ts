@@ -122,7 +122,7 @@ export async function fetchGeminiModels(
       if (response.status === 401 || response.status === 403) {
         throw new Error("Invalid Gemini API key");
       }
-      const errorData: ApiErrorBody = response.json ?? {};
+      const errorData = (response.json as ApiErrorBody | null) ?? {};
       throw new Error(
         `Gemini API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
       );
@@ -221,7 +221,7 @@ export async function fetchClaudeModels(
         if (response.status === 401 || response.status === 403) {
           throw new Error("Invalid Claude API key");
         }
-        const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
+        const errorData = (response.json as ApiErrorBody | null) ?? {};
         throw new Error(
           `Claude API error: ${response.status} - ${errorData.error?.message || response.text || "Unknown error"}`,
         );

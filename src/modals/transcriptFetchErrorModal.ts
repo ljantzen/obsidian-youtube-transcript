@@ -12,7 +12,7 @@ export class TranscriptFetchErrorModal extends Modal {
     const { contentEl } = this;
 
     contentEl.createEl("h2", {
-      text: "Could Not Fetch Transcript",
+      text: "Could not fetch transcript",
       attr: { style: "color: var(--text-error);" },
     });
 

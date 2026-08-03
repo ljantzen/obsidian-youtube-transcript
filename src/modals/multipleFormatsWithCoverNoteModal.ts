@@ -9,7 +9,7 @@ export class MultipleFormatsWithCoverNoteModal extends Modal {
     const { contentEl } = this;
 
     contentEl.createEl("h2", {
-      text: "PDF Cover Notes Disabled",
+      text: "PDF cover notes disabled",
       attr: { style: "color: var(--text-warning);" },
     });
 
