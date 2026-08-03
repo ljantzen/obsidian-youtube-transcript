@@ -14,8 +14,8 @@ export class FolderSuggest extends PathSuggest {
 			}
 		}
 
-		// Return only folders - type assertion is safe since we've filtered
-		return folders as TAbstractFile[];
+		// Return only folders
+		return folders;
 	}
 }
 
@@ -32,7 +32,7 @@ export class FileSuggest extends PathSuggest {
 			}
 		}
 
-		return files as TAbstractFile[];
+		return files;
 	}
 
 	renderSuggestion(file: TAbstractFile, el: HTMLElement): void {

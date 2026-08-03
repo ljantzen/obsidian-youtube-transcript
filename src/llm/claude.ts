@@ -99,7 +99,7 @@ export async function processWithClaude(
     const response = await Promise.race([requestPromise, timeoutPromise]);
 
     if (response.status < 200 || response.status >= 300) {
-      const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
+      const errorData: ApiErrorBody = response.json ?? {};
 
       if (response.status === 429) {
         if (statusCallback) statusCallback(null); // Hide notice

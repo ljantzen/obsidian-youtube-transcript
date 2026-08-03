@@ -101,7 +101,7 @@ export async function processWithOpenAI(
     const response = await Promise.race([requestPromise, timeoutPromise]);
 
     if (response.status < 200 || response.status >= 300) {
-      const errorData = (response.json as ApiErrorBody | null) ?? ({} as ApiErrorBody);
+      const errorData: ApiErrorBody = response.json ?? {};
 
       // Handle rate limiting (429) specifically
       if (response.status === 429) {
