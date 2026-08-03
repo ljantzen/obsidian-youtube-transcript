@@ -182,7 +182,7 @@ async function htmlToPdf(html: string): Promise<ArrayBuffer> {
       });
 
       // Generate PDF
-      const pdfData = await (webContents as unknown as ElectronWebContents).printToPDF({
+      const pdfData = await webContents.printToPDF({
         marginsType: 1,
         printBackground: true,
         printSelectionOnly: false,

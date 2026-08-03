@@ -250,7 +250,7 @@ async function fetchPlayerDataWithAndroidClient(
     }
 
     const data: PlayerData = response.json as PlayerData;
-    const ps = data?.playabilityStatus as unknown as {status?: string; reason?: string} | undefined;
+    const ps = data?.playabilityStatus;
     if (ps) {
       if (ps.status === "LOGIN_REQUIRED") {
         // Video requires authentication — no point trying other clients
@@ -271,7 +271,7 @@ async function fetchPlayerDataWithAndroidClient(
   // a last resort. This gives us caption URLs but they may still be blocked
   // (see transcript fetch fallbacks below).
   if (htmlPlayerData) {
-    const ps = htmlPlayerData.playabilityStatus as unknown as {status?: string; reason?: string} | undefined;
+    const ps = htmlPlayerData.playabilityStatus;
     if (ps?.status === "LOGIN_REQUIRED") {
       throw new Error("This video requires login to view");
     }
@@ -335,13 +335,13 @@ export async function getYouTubeTranscript(
   }
 
   // Extract video metadata
-  const vd = videoData.videoDetails as unknown as VideoDetails | undefined;
+  const vd = videoData.videoDetails;
   const videoTitle = vd?.title || "YouTube Transcript";
   const channelName = vd?.author || null;
   const videoDetails: VideoDetails | null = vd || null;
 
   // Extract caption tracks
-  const captions = videoData.captions as unknown as {playerCaptionsTracklistRenderer?: {captionTracks?: CaptionTrack[]}} | undefined;
+  const captions = videoData.captions;
   const captionTracks: CaptionTrack[] =
     captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
 
