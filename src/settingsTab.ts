@@ -6,7 +6,12 @@ import {
   Plugin,
   type SettingDefinitionItem,
 } from "obsidian";
-import type { YouTubeTranscriptPluginSettings, LLMProvider, CustomLLMProvider } from "./types";
+import type {
+  YouTubeTranscriptPluginSettings,
+  LLMProvider,
+  CustomLLMProvider,
+  FrontmatterFieldId,
+} from "./types";
 import {
   DEFAULT_SETTINGS,
   DEFAULT_PROMPT,
@@ -131,8 +136,11 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           {
             name: "Available file formats",
             desc: "Select which file formats should be available in the transcript creation modal",
-            render: (_setting, group) => this.buildFileFormatCheckboxes(group.listEl),
           },
+          ...this.fileFormats.map((format) => ({
+            name: this.fileFormatNames[format],
+            render: (setting: Setting) => this.configureFileFormatSetting(setting, format),
+          })),
         ],
       },
       {
@@ -200,8 +208,11 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           {
             name: "Frontmatter fields",
             desc: "Choose which properties are written to each note's frontmatter, and optionally rename the property key used for each one. Disabled fields are omitted entirely.",
-            render: (_setting, group) => this.renderFrontmatterFields(group.listEl),
           },
+          ...FRONTMATTER_FIELD_ORDER.map((id) => ({
+            name: FRONTMATTER_FIELD_LABELS[id],
+            render: (setting: Setting) => this.configureFrontmatterFieldSetting(setting, id),
+          })),
         ],
       },
       {
@@ -289,14 +300,9 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           },
           {
             name: "Claude model",
-            desc: "Enter the Claude model ID to use for transcript processing. Examples: claude-opus-4-1-20250805, claude-sonnet-4-20250514, claude-haiku-4-5-20251001, or simplified versions like claude-opus-4, claude-sonnet-4, claude-haiku-4-5. Only Claude version 4 models are supported.",
+            desc: "Select the Claude model to use for transcript processing",
             visible: () => this.settings.useLLMProcessing && this.settings.llmProvider === "claude",
-            control: {
-              type: "text",
-              key: "claudeModel",
-              placeholder: "claude-sonnet-4-20250514",
-              validate: (value: string) => resolveClaudeModel(value, DEFAULT_SETTINGS.claudeModel).error,
-            },
+            render: (setting) => this.createClaudeModelSetting(setting),
           },
           {
             name: "Processing prompt",
@@ -864,7 +870,11 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             ),
         );
 
-        this.createClaudeModelSetting(containerEl);
+        this.createClaudeModelSetting(
+          new Setting(containerEl)
+            .setName("Claude model")
+            .setDesc("Select the Claude model to use for transcript processing"),
+        );
       }
 
       const promptSetting = new Setting(containerEl)
@@ -942,33 +952,47 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
 
   private renderFrontmatterFields(containerEl: HTMLElement): void {
     for (const id of FRONTMATTER_FIELD_ORDER) {
-      const defaultConfig = DEFAULT_FRONTMATTER_FIELDS[id];
-      const fieldConfig = this.settings.frontmatterFields[id] ?? defaultConfig;
-
-      new Setting(containerEl)
-        .setName(FRONTMATTER_FIELD_LABELS[id])
-        .addToggle((toggle) => {
-          toggle.setValue(fieldConfig.enabled).onChange(async (value) => {
-            this.settings.frontmatterFields[id].enabled = value;
-            await this.saveSettings();
-            this.warnIfDuplicateCheckPropertyMissing();
-          });
-        })
-        .addText((text) => {
-          text
-            .setPlaceholder(defaultConfig.key)
-            .setValue(fieldConfig.key)
-            .onChange(async (value) => {
-              this.settings.frontmatterFields[id].key =
-                value.trim() || defaultConfig.key;
-              await this.saveSettings();
-            });
-          text.inputEl.addEventListener("blur", () =>
-            this.warnIfDuplicateCheckPropertyMissing(),
-          );
-        });
+      this.configureFrontmatterFieldSetting(new Setting(containerEl), id);
     }
   }
+
+  private configureFrontmatterFieldSetting(
+    setting: Setting,
+    id: FrontmatterFieldId,
+  ): void {
+    const defaultConfig = DEFAULT_FRONTMATTER_FIELDS[id];
+    const fieldConfig = this.settings.frontmatterFields[id] ?? defaultConfig;
+
+    setting
+      .setName(FRONTMATTER_FIELD_LABELS[id])
+      .addToggle((toggle) => {
+        toggle.setValue(fieldConfig.enabled).onChange(async (value) => {
+          this.settings.frontmatterFields[id].enabled = value;
+          await this.saveSettings();
+          this.warnIfDuplicateCheckPropertyMissing();
+        });
+      })
+      .addText((text) => {
+        text
+          .setPlaceholder(defaultConfig.key)
+          .setValue(fieldConfig.key)
+          .onChange(async (value) => {
+            this.settings.frontmatterFields[id].key =
+              value.trim() || defaultConfig.key;
+            await this.saveSettings();
+          });
+        text.inputEl.addEventListener("blur", () =>
+          this.warnIfDuplicateCheckPropertyMissing(),
+        );
+      });
+  }
+
+  private readonly fileFormats: ("markdown" | "pdf" | "srt")[] = ["markdown", "pdf", "srt"];
+  private readonly fileFormatNames: Record<"markdown" | "pdf" | "srt", string> = {
+    markdown: "Markdown (.md)",
+    pdf: "PDF",
+    srt: "SRT Subtitles (.srt)",
+  };
 
   private renderFileFormatCheckboxes(containerEl: HTMLElement): void {
     new Setting(containerEl)
@@ -976,60 +1000,35 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       .setDesc(
         "Select which file formats should be available in the transcript creation modal",
       );
-    this.buildFileFormatCheckboxes(containerEl);
+    for (const format of this.fileFormats) {
+      this.configureFileFormatSetting(new Setting(containerEl), format);
+    }
   }
 
-  private buildFileFormatCheckboxes(containerEl: HTMLElement): void {
-    const formatCheckboxes: Record<string, HTMLInputElement> = {};
-    const formatsContainer = containerEl.createDiv({
-      attr: { style: "margin-left: 1.5em; margin-bottom: 1em;" },
-    });
+  private configureFileFormatSetting(
+    setting: Setting,
+    format: "markdown" | "pdf" | "srt",
+  ): void {
+    setting.setName(this.fileFormatNames[format]).addToggle((toggle) => {
+      toggle
+        .setValue(this.settings.fileFormats?.includes(format) ?? false)
+        .onChange(async (value) => {
+          const selected = new Set(this.settings.fileFormats || []);
+          if (value) {
+            selected.add(format);
+          } else {
+            selected.delete(format);
+          }
 
-    const formats: ("markdown" | "pdf" | "srt")[] = ["markdown", "pdf", "srt"];
-    const formatNames: Record<string, string> = {
-      markdown: "Markdown (.md)",
-      pdf: "PDF",
-      srt: "SRT Subtitles (.srt)",
-    };
+          // Ensure at least one format is always selected
+          if (selected.size === 0) {
+            toggle.setValue(true);
+            return;
+          }
 
-    formats.forEach((format) => {
-      const checkboxContainer = formatsContainer.createDiv({
-        attr: { style: "display: flex; align-items: center; margin-bottom: 0.5em;" },
-      });
-
-      const checkbox = checkboxContainer.createEl("input", {
-        type: "checkbox",
-        attr: { id: `format-${format}` },
-      });
-
-      checkbox.checked =
-        this.settings.fileFormats && this.settings.fileFormats.includes(format);
-
-      checkbox.addEventListener("change", () => {
-        const selectedFormats = formats.filter((f) => {
-          const cb = formatCheckboxes[f];
-          return cb && cb.checked;
+          this.settings.fileFormats = this.fileFormats.filter((f) => selected.has(f));
+          await this.saveSettings();
         });
-
-        // Ensure at least one format is always selected
-        if (selectedFormats.length === 0) {
-          checkbox.checked = true;
-          return;
-        }
-
-        this.settings.fileFormats = selectedFormats;
-        void this.saveSettings();
-      });
-
-      formatCheckboxes[format] = checkbox;
-
-      checkboxContainer.createEl("label", {
-        text: formatNames[format],
-        attr: {
-          for: `format-${format}`,
-          style: "margin-left: 0.5em; cursor: pointer; flex: 1;",
-        },
-      });
     });
   }
 
@@ -1297,11 +1296,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
   /**
    * Creates the Claude model selection setting with refresh functionality
    */
-  private createClaudeModelSetting(containerEl: HTMLElement): void {
-    const setting = new Setting(containerEl)
-      .setName("Claude model")
-      .setDesc("Select the Claude model to use for transcript processing");
-
+  private createClaudeModelSetting(setting: Setting): void {
     const modelsToUse = this.cachedClaudeModels || DEFAULT_CLAUDE_MODELS;
     let currentValue =
       this.settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
