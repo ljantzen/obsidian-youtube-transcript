@@ -386,8 +386,8 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       languageCode, disableCoverNote = false, fileFormats = [],
       skipDuplicateCheck = false,
     } = options;
+    const videoId = extractVideoId(url);
     if (!skipDuplicateCheck && createNewFile && this.settings.checkForDuplicates) {
-      const videoId = extractVideoId(url);
       if (videoId) {
         const existingNote = this.findDuplicateNote(videoId);
         if (existingNote) {
