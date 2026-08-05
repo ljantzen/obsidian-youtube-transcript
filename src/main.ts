@@ -39,7 +39,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     await this.loadSettings();
 
     // This creates an icon in the left ribbon.
-    this.addRibbonIcon("youtube", "YouTube transcript", () => {
+    this.addRibbonIcon("closed-caption", "YouTube transcript", () => {
       this.fetchTranscript();
     });
 
