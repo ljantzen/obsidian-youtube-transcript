@@ -21,11 +21,14 @@ export function generateSrt(segments: TranscriptSegment[]): string {
   return validSegments
     .map((seg, i) => {
       const start = seg.startTime;
+      const next = validSegments[i + 1];
       let end: number;
       if (seg.duration !== undefined && seg.duration > 0) {
         end = start + seg.duration;
+        if (next && end > next.startTime) {
+          end = next.startTime;
+        }
       } else {
-        const next = validSegments[i + 1];
         end = next ? next.startTime : start + 5;
       }
       return `${i + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${seg.text}`;

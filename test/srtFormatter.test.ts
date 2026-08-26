@@ -90,6 +90,25 @@ describe("generateSrt", () => {
       const result = generateSrt(segments);
       expect(result).toContain("00:00:10,000 --> 00:00:15,000");
     });
+
+    it("clamps end time to the next segment's start when duration overlaps it", () => {
+      const segments: TranscriptSegment[] = [
+        { startTime: 10, text: "Overlapping", duration: 8 },
+        { startTime: 14, text: "Next", duration: 2 },
+      ];
+      const result = generateSrt(segments);
+      expect(result).toContain("00:00:10,000 --> 00:00:14,000");
+      expect(result).toContain("00:00:14,000 --> 00:00:16,000");
+    });
+
+    it("keeps duration-based end time when it does not overlap the next segment", () => {
+      const segments: TranscriptSegment[] = [
+        { startTime: 10, text: "No overlap", duration: 2 },
+        { startTime: 14, text: "Next", duration: 2 },
+      ];
+      const result = generateSrt(segments);
+      expect(result).toContain("00:00:10,000 --> 00:00:12,000");
+    });
   });
 
   describe("cue structure", () => {
