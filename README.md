@@ -104,7 +104,7 @@ The plugin allows you to generate **one or more file formats** in a single reque
 **Format Details:**
 - **Markdown (.md)**: Full transcript with timestamps as clickable links. Opens automatically after creation.
 - **PDF**: Professional document format. Creates nested folder with optional markdown cover note. PDFs open in your system's default PDF viewer.
-- **SRT**: Subtitle format for video players. LLM processing is automatically skipped for SRT files to preserve timing cues.
+- **SRT**: Subtitle format for video players. LLM processing is automatically skipped for SRT files to preserve timing cues. By default, cue timing follows the transcript's actual segment durations; optionally, you can switch to reading-speed-based timing (see Settings → File Creation Settings).
 
 **Available Formats:**
 - Configure which formats are available in Settings → YouTube Transcript Settings → Available file formats
@@ -410,6 +410,8 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Allow clipboard access**: When enabled, the plugin reads the clipboard to prefill the URL field when the modal opens, and powers the "Fetch from clipboard" command. Disable if you prefer the plugin never touches the clipboard (default: enabled)
 - **Prevent duplicate notes**: When enabled, checks whether a transcript for the same video already exists in your vault before fetching. Only applies when "Create new file" is enabled
 - **Duplicate check property**: The YAML frontmatter property name to check for duplicate detection (default: `url`). The plugin compares the video ID extracted from this property's value against the current video
+- **Use reading speed for SRT timing**: When enabled, each SRT cue's duration is computed from its word count at the reading speed below, instead of the actual transcript segment timing (default: disabled)
+- **SRT reading speed (WPM)**: Words per minute used to compute SRT cue duration when reading-speed timing is enabled (default: 180). Only shown when "Use reading speed for SRT timing" is enabled.
 
 ### Cover Note Settings
 - **Create cover note**: When enabled, a markdown cover note will be automatically created for PDF and/or SRT files. Files will be automatically nested in subfolders for better organization.
@@ -515,7 +517,7 @@ Test coverage includes:
 - Frontmatter generation
 - Language selection and fallback logic
 - Force LLM output language functionality
-- SRT subtitle format generation (time formatting, cue structure, segment filtering, end-time calculation)
+- SRT subtitle format generation (time formatting, cue structure, segment filtering, end-time calculation, reading-speed-based cue timing)
 - Duplicate note prevention (video URL matching, frontmatter property extraction)
 - Custom LLM provider key validation
 - Cover note directory guard logic (no open file required when location is configured)

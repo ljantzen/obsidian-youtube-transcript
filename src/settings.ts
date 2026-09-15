@@ -39,6 +39,8 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   coverNoteLocation: "", // Default to empty string - no specific location set
   attachmentFolder: "", // Default to empty string - use video title as subfolder name
   defaultSrtFileName: "{VideoName}", // Default to video title
+  srtUseReadingSpeed: false, // Default to false - use actual transcript segment timing
+  srtReadingSpeedWpm: 180, // Default reading speed of 180 words per minute
   coverNoteTemplate: "", // Default to empty string - use default template
   defaultCoverNoteName: "{VideoName}", // Default to video title
   singleLineTranscript: false, // Default to false - use line breaks for readability

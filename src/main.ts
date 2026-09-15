@@ -680,8 +680,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const markdownContent = parts.join("\n\n");
 
     // For SRT, generate cue content from raw segments (ignore markdownContent)
+    const formatOptions = {
+      srt: {
+        readingSpeedWpm: this.settings.srtUseReadingSpeed ? this.settings.srtReadingSpeedWpm : undefined,
+      },
+    };
     try {
-      await handler.createFile(this.app, newFilePath, markdownContent, segments);
+      await handler.createFile(this.app, newFilePath, markdownContent, segments, formatOptions);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       if (errorMessage.includes("already exists") || errorMessage.includes("file exists")) {
@@ -693,7 +698,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           newFilePath = `${baseName} (${counter}).${fileExtension}`;
           counter++;
         }
-        await handler.createFile(this.app, newFilePath, markdownContent, segments);
+        await handler.createFile(this.app, newFilePath, markdownContent, segments, formatOptions);
       } else {
         throw error;
       }

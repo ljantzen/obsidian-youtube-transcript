@@ -114,7 +114,8 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       key === "llmProvider" ||
       key === "savedDirectories" ||
       key === "defaultDirectory" ||
-      key === "customProviders"
+      key === "customProviders" ||
+      key === "srtUseReadingSpeed"
     ) {
       this.update();
     } else {
@@ -236,6 +237,13 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           },
           { name: "Attachment folder", desc: "Folder name used to nest PDF and SRT files under the cover note location. Leave empty to use the video title as the folder name.", control: { type: "text", key: "attachmentFolder", placeholder: "attachments" } },
           { name: "Default SRT file name", desc: "Template for SRT file names. Supports {VideoName} and {ChannelName} variables.", control: { type: "text", key: "defaultSrtFileName", placeholder: "{VideoName}" } },
+          { name: "Use reading speed for SRT timing", desc: "When enabled, each SRT cue's duration is computed from its word count at the reading speed below, instead of the actual transcript segment timing.", control: { type: "toggle", key: "srtUseReadingSpeed" } },
+          {
+            name: "SRT reading speed (WPM)",
+            desc: "Words per minute used to compute SRT cue duration when reading-speed timing is enabled.",
+            visible: () => this.settings.srtUseReadingSpeed,
+            control: { type: "number", key: "srtReadingSpeedWpm", placeholder: "180", min: 1, defaultValue: 180 },
+          },
           {
             name: "Cover note template",
             desc: "Path to a markdown template file for cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {SrtLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",

@@ -71,6 +71,8 @@ export interface YouTubeTranscriptPluginSettings {
   coverNoteLocation: string; // Location/path where cover notes should be created (supports {ChannelName}, {VideoName})
   attachmentFolder: string; // Subfolder name for PDF/SRT files nested under cover note location (empty = use video title)
   defaultSrtFileName: string; // Template for SRT file names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
+  srtUseReadingSpeed: boolean; // When enabled, SRT cue duration is computed from a reading speed instead of actual segment timing
+  srtReadingSpeedWpm: number; // Reading speed (words per minute) used to compute SRT cue duration when srtUseReadingSpeed is enabled
   coverNoteTemplate: string; // Path to template file for cover notes (empty = use default template)
   defaultCoverNoteName: string; // Template for cover note file names. Supports {VideoName}, {ChannelName}. Default: "{VideoName}"
   singleLineTranscript: boolean; // When enabled, transcript will be kept on a single line without line breaks

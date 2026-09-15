@@ -192,6 +192,59 @@ describe("generateSrt", () => {
     });
   });
 
+  describe("reading speed timing", () => {
+    it("computes cue duration from word count at the given WPM", () => {
+      // 6 words at 60 wpm = 6 seconds
+      const segments: TranscriptSegment[] = [
+        { startTime: 10, text: "one two three four five six", duration: 1 },
+      ];
+      const result = generateSrt(segments, { readingSpeedWpm: 60 });
+      expect(result).toContain("00:00:10,000 --> 00:00:16,000");
+    });
+
+    it("ignores the actual duration field when reading speed is set", () => {
+      const segments: TranscriptSegment[] = [
+        { startTime: 0, text: "one two three four five six", duration: 100 },
+      ];
+      const result = generateSrt(segments, { readingSpeedWpm: 60 });
+      expect(result).toContain("00:00:00,000 --> 00:00:06,000");
+    });
+
+    it("enforces a minimum cue duration for very short text", () => {
+      const segments: TranscriptSegment[] = [
+        { startTime: 0, text: "hi", duration: 1 },
+        { startTime: 10, text: "Next", duration: 1 },
+      ];
+      const result = generateSrt(segments, { readingSpeedWpm: 600 });
+      expect(result).toContain("00:00:00,000 --> 00:00:01,000");
+    });
+
+    it("clamps reading-speed end time to the next segment's start", () => {
+      const segments: TranscriptSegment[] = [
+        { startTime: 0, text: "one two three four five six seven eight", duration: 1 },
+        { startTime: 2, text: "Next", duration: 1 },
+      ];
+      const result = generateSrt(segments, { readingSpeedWpm: 60 });
+      expect(result).toContain("00:00:00,000 --> 00:00:02,000");
+    });
+
+    it("falls back to normal duration-based timing when readingSpeedWpm is not set", () => {
+      const segments: TranscriptSegment[] = [
+        { startTime: 10, text: "With duration", duration: 3.5 },
+      ];
+      const result = generateSrt(segments, {});
+      expect(result).toContain("00:00:10,000 --> 00:00:13,500");
+    });
+
+    it("falls back to normal duration-based timing when readingSpeedWpm is 0", () => {
+      const segments: TranscriptSegment[] = [
+        { startTime: 10, text: "With duration", duration: 3.5 },
+      ];
+      const result = generateSrt(segments, { readingSpeedWpm: 0 });
+      expect(result).toContain("00:00:10,000 --> 00:00:13,500");
+    });
+  });
+
   describe("edge cases", () => {
     it("handles a single valid segment", () => {
       const segments: TranscriptSegment[] = [

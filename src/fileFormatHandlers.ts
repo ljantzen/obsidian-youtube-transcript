@@ -1,11 +1,21 @@
 import { App, Notice } from "obsidian";
 import type { FileFormat, TranscriptSegment } from "./types";
 import { generatePdfFromMarkdown } from "./pdfGenerator";
-import { generateSrt } from "./srtFormatter";
+import { generateSrt, type SrtOptions } from "./srtFormatter";
+
+export interface FileFormatHandlerOptions {
+  srt?: SrtOptions;
+}
 
 export interface FileFormatHandler {
   readonly extension: string;
-  createFile(app: App, filePath: string, markdownContent: string, segments: TranscriptSegment[]): Promise<void>;
+  createFile(
+    app: App,
+    filePath: string,
+    markdownContent: string,
+    segments: TranscriptSegment[],
+    options?: FileFormatHandlerOptions,
+  ): Promise<void>;
   postCreate(app: App, filePath: string): Promise<void>;
 }
 
@@ -43,8 +53,14 @@ class PDFHandler implements FileFormatHandler {
 class SRTHandler implements FileFormatHandler {
   readonly extension = "srt";
 
-  async createFile(app: App, filePath: string, _markdownContent: string, segments: TranscriptSegment[]): Promise<void> {
-    await app.vault.create(filePath, generateSrt(segments));
+  async createFile(
+    app: App,
+    filePath: string,
+    _markdownContent: string,
+    segments: TranscriptSegment[],
+    options?: FileFormatHandlerOptions,
+  ): Promise<void> {
+    await app.vault.create(filePath, generateSrt(segments, options?.srt));
   }
 
   async postCreate(_app: App, filePath: string): Promise<void> {
