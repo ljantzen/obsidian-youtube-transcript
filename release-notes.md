@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 2.0.27 (2026-09-24)
 
 ### Bug Fixes
 - **LLM-processed transcripts of long videos were cut short**: Long transcripts were sent to the LLM in a single request, so the result was cut off at the model's output limit (Claude was limited to 4096 tokens) or shortened by the model without any warning. In a test with a video of about 15,000 spoken words, only about 20% of the content came back.

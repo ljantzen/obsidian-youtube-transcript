@@ -252,7 +252,7 @@ If you customize the prompt, avoid instructions such as "use complete sentences"
 
 ### Prompt Migration
 
-The default prompt changed in the release after 2.0.26. The earlier default asked for "complete sentences" and "proper grammar and sentence structure", which made models rewrite the transcript into something closer to a summary. The new default keeps the speaker's own words (see [Default Processing](#llm-processing-optional)).
+The default prompt changed in version 2.0.27. The earlier default asked for "complete sentences" and "proper grammar and sentence structure", which made models rewrite the transcript into something closer to a summary. The new default keeps the speaker's own words (see [Default Processing](#llm-processing-optional)).
 
 **What happens when you upgrade:**
 - **Unmodified default prompt**: If your saved prompt is exactly the earlier default (leading and trailing whitespace are ignored), it is replaced with the new default when the plugin loads. You don't need to do anything.
