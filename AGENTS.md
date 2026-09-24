@@ -23,29 +23,36 @@ This document provides context and guidelines for AI coding assistants working o
 
 ```
 src/
-├── main.ts              # Plugin entry point, orchestrates everything
-├── youtube.ts           # YouTube API interaction, transcript fetching
-├── llm/                 # LLM provider integrations
+├── main.ts                # Plugin entry point, orchestrates everything
+├── youtube.ts             # YouTube API interaction, transcript fetching, LLM routing (processWithLLM)
+├── llm/                   # LLM provider integrations
 │   ├── openai.ts
 │   ├── gemini.ts
 │   ├── claude.ts
-│   ├── modelFetcher.ts  # Fetches available models from APIs
-│   └── parser.ts        # Parses LLM responses
-├── modals.ts            # User-facing dialogs
-├── settings.ts          # Default settings and constants
-├── settingsTab.ts       # Settings UI
-├── pdfGenerator.ts      # PDF generation from transcripts
-├── types.ts             # TypeScript interfaces
-└── utils.ts             # Shared utilities
+│   ├── custom.ts          # OpenAI-compatible custom providers
+│   ├── chunking.ts        # Splits long transcripts into parts, joins results, handles truncation
+│   ├── modelFetcher.ts    # Fetches available models from APIs
+│   └── parser.ts          # Builds the single-request prompt, parses LLM responses
+├── modals/                # User-facing dialogs (URL modal, retry, error modals)
+├── settings.ts            # Default settings and constants
+├── settingsTab.ts         # Settings UI (declarative getSettingDefinitions API)
+├── settingsTabHelpers.ts  # Model dropdown and refresh button helpers
+├── providerUtils.ts       # hasProviderKey(), getProviderName()
+├── fileFormatHandlers.ts  # Per-format (markdown/pdf/srt) handlers
+├── srtFormatter.ts        # SRT generation
+├── pdfGenerator.ts        # PDF generation from transcripts
+├── types.ts               # TypeScript interfaces
+├── utils/                 # frontmatter, path and template variable helpers
+└── utils.ts               # Shared utilities
 ```
 
 ### Key Data Flow
 
 1. **User triggers command** → `main.ts:fetchTranscript()`
-2. **URL modal opens** → `modals.ts:YouTubeUrlModal`
+2. **URL modal opens** → `modals/youtubeUrlModal.ts:YouTubeUrlModal`
 3. **Video ID extracted** → `utils.ts:extractVideoId()`
 4. **Transcript fetched** → `youtube.ts:getYouTubeTranscript()`
-5. **Optional LLM processing** → `llm/{provider}.ts:processWithProvider()`
+5. **Optional LLM processing** → `youtube.ts:processWithLLM()` → `llm/{provider}.ts:processWith{Provider}()` → `llm/chunking.ts:processTranscriptInChunks()`
 6. **File created** → `main.ts:createTranscriptFile()`
    - PDF: `pdfGenerator.ts:generatePdfFromMarkdown()`
    - Markdown: Direct file creation
@@ -77,10 +84,10 @@ src/
 
 ### Testing Philosophy
 
-- **Comprehensive coverage:** Over 400 tests covering most functionality
+- **Comprehensive coverage:** Over 650 tests covering most functionality
 - **Test files mirror source structure:** `test/featureName.test.ts`
 - **Uses Vitest with happy-dom** for DOM APIs
-- **Obsidian APIs are mocked** where needed
+- **Obsidian APIs are mocked** where needed. The `obsidian` package only ships type declarations, so `vitest.config.ts` aliases it to `test/__mocks__/obsidian.ts` (a minimal `Notice` and `requestUrl`). This lets tests import `src/` modules that import `obsidian`; use `vi.mock("obsidian", ...)` in a test when you need specific behavior
 - **Pure functions are tested thoroughly** (e.g., `utils.ts`)
 
 ### Common Test Patterns
@@ -106,10 +113,23 @@ it('should fetch transcript', async () => {
 
 ## Key Conventions
 
+### LLM Provider Structure
+
+Every provider follows the same shape, so long transcripts are never truncated:
+
+- A `requestCompletion(prompt)` closure sends **one** request and returns `LLMCompletion` = `{ text, truncated }`. `truncated` must be true when the provider stopped at its output limit (OpenAI/custom: `finish_reason === "length"`, Gemini: `finishReason === "MAX_TOKENS"`, Claude: `stop_reason === "max_tokens"`).
+- `makeRequest()` passes that closure to `processTranscriptInChunks()` together with a `ChunkedProcessingState` created once per call, then runs `parseLLMResponse()` on the result.
+- Retry handling (timeout, rate limit) wraps `makeRequest()`. Because the state lives outside it, a retry resumes after the last finished part.
+
+`processTranscriptInChunks()` sends short transcripts (≤ `DEFAULT_CHUNK_SIZE`, 12,000 chars) as one request built by `buildPrompt()`. Longer transcripts, or a single request that came back truncated, are split into parts. Each part gets a prompt from `buildChunkPrompt()` with the headings so far and the end of the previous output (`buildPartContext()`). A truncated part is split in two and retried, the summary is requested separately, and parts are joined with `joinProcessedParts()`, which repairs repeated titles and re-opened sections.
+
+Don't send the whole transcript in a single request from a provider, and don't hard-code a low output token limit: that is what caused truncated transcripts before.
+
 ### Settings Management
 
 - **All settings defined in:** `types.ts:YouTubeTranscriptPluginSettings`
 - **Defaults in:** `settings.ts:DEFAULT_SETTINGS`
+- **Changing the default prompt:** Add the previous `DEFAULT_PROMPT` to `LEGACY_DEFAULT_PROMPTS` in `settings.ts`, so users who never customized it get the new default on load (`normalizeSavedPrompt()`)
 - **Backward compatibility pattern:**
   ```typescript
   // In main.ts onload()
@@ -132,19 +152,19 @@ it('should fetch transcript', async () => {
 
 - **Keep functions focused:** Single responsibility
 - **Extract utilities:** Pure functions go in `utils.ts`
-- **Provider pattern:** Each LLM provider exports `processWithProvider()`
+- **Provider pattern:** Each LLM provider exports `processWith{Provider}()` (see [LLM Provider Structure](#llm-provider-structure))
 - **No circular dependencies:** Main imports from modules, not vice versa
 
 ## Common Tasks
 
 ### Adding a New LLM Provider
 
-1. Create `src/llm/newprovider.ts` with `processWithProvider()` function
-2. Add provider to `types.ts:LLMProvider` union type
-3. Update `main.ts:hasProviderKey()` for API key validation
+1. Create `src/llm/newprovider.ts` with a `processWith{Provider}()` function following the structure in [LLM Provider Structure](#llm-provider-structure): a `requestCompletion()` that returns `{ text, truncated }`, routed through `processTranscriptInChunks()`
+2. Add provider to `types.ts:LLMProvider` union type and route it in `youtube.ts:processWithLLM()`
+3. Update `providerUtils.ts:hasProviderKey()` for API key validation
 4. Add model fetcher to `llm/modelFetcher.ts`
 5. Update `settingsTab.ts` with settings UI
-6. Add tests in `test/llmProviderIntegration.test.ts`
+6. Add tests in `test/llmProviderIntegration.test.ts`; chunking behavior is covered provider-independently in `test/chunkedLLMProcessing.test.ts`
 
 ### Adding a New Setting
 
@@ -170,13 +190,13 @@ if (selectedDirectory !== null) {
 }
 ```
 
-**Important:** PDF nesting happens AFTER basic directory selection. See lines 595-620.
+**Important:** PDF nesting happens AFTER basic directory selection, further down in the same function.
 
 ### Working with PDFs
 
 - **Generation:** `pdfGenerator.ts:generatePdfFromMarkdown()`
 - **Cover notes:** Created when `createPdfCoverNote = true`
-- **Nesting logic:** In `main.ts:createTranscriptFile()` around line 595
+- **Nesting logic:** In `main.ts:createTranscriptFile()`, after basic directory selection
 - **Documentation:** See `PDF-HANDLING.md` for complete specification
 
 ## Codebase Navigation Tips
@@ -186,13 +206,15 @@ if (selectedDirectory !== null) {
 | Task | File | Function/Area |
 |------|------|---------------|
 | Transcript fetching | `youtube.ts` | `getYouTubeTranscript()` |
-| LLM processing | `llm/{provider}.ts` | `processWithProvider()` |
-| Directory selection | `main.ts` | `createTranscriptFile()` lines 580-594 |
+| LLM routing | `youtube.ts` | `processWithLLM()` |
+| LLM requests | `llm/{provider}.ts` | `processWith{Provider}()` |
+| Long transcript chunking | `llm/chunking.ts` | `processTranscriptInChunks()` |
+| Directory selection | `main.ts` | `createTranscriptFile()` |
 | PDF generation | `pdfGenerator.ts` | `generatePdfFromMarkdown()` |
 | URL parsing | `utils.ts` | `extractVideoId()` |
 | Filename sanitization | `utils.ts` | `sanitizeFilename()` |
-| Settings UI | `settingsTab.ts` | `display()` |
-| Modal dialogs | `modals.ts` | Various modal classes |
+| Settings UI | `settingsTab.ts` | `getSettingDefinitions()` |
+| Modal dialogs | `modals/` | One file per modal |
 
 ### Understanding Settings
 
@@ -222,7 +244,7 @@ generateSummary: boolean             // Create summary section
 2. **Directory creation timing:**
    - Must happen AFTER all path calculations
    - Including PDF nesting logic
-   - See lines 623-640 in `main.ts`
+   - See the directory creation step near the end of `main.ts:createTranscriptFile()`
 
 3. **Sanitization is critical:**
    - All filenames go through `sanitizeFilename()`
@@ -313,8 +335,13 @@ npm run test:coverage             # Generate coverage report
 
 **LLM processing fails:**
 - Verify API key is set and valid
-- Check timeout settings (`openaiTimeout`)
+- Check timeout settings (`openaiTimeout`, applied to each request, including each part of a long transcript)
 - Look at provider-specific error handling
+
+**LLM output is incomplete:**
+- Check the provider's `truncated` detection (see [LLM Provider Structure](#llm-provider-structure))
+- Look for "response was truncated" warnings in the console
+- For output that is shortened without being truncated, lower `DEFAULT_CHUNK_SIZE` in `llm/chunking.ts`
 
 **Tests failing after changes:**
 - Run `npm test` to see specific failures
@@ -351,10 +378,11 @@ npm run test:coverage             # Generate coverage report
 
 ## File Size Reference
 
-- **main.ts:** ~900 lines - plugin core logic
-- **youtube.ts:** ~300 lines - transcript fetching
-- **settingsTab.ts:** ~600 lines - settings UI
-- **pdfGenerator.ts:** ~200 lines - PDF generation
+- **main.ts:** ~1200 lines - plugin core logic
+- **youtube.ts:** ~900 lines - transcript fetching and LLM routing
+- **settingsTab.ts:** ~950 lines - settings UI
+- **llm/chunking.ts:** ~400 lines - long transcript processing
+- **pdfGenerator.ts:** ~350 lines - PDF generation
 - **utils.ts:** ~250 lines - shared utilities
 
 Large files are well-organized with clear function boundaries. Don't hesitate to extract logic into new files if it improves clarity.
@@ -368,8 +396,8 @@ Large files are well-organized with clear function boundaries. Don't hesitate to
 
 ## Version Information
 
-This document is for agents working with the obsidian-ytt plugin codebase. Last updated during the "Remove core attachment folder support" refactoring (February 2026).
+This document is for agents working with the obsidian-ytt plugin codebase. Last updated during the "Chunked LLM processing for long transcripts" change (September 2026).
 
-**Current test count:** 422 tests across 28 test files  
+**Current test count:** 691 tests across 37 test files  
 **Build system:** ESBuild with TypeScript  
 **Node version:** Compatible with Obsidian's bundled version

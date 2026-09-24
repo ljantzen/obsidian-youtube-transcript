@@ -216,9 +216,11 @@ Timestamps are included by default and appear as clickable links. In multi-line 
 The plugin supports multiple LLM providers for cleaning and processing transcripts:
 
 **Built-in Providers:**
-1. **OpenAI** - GPT-4o Mini, GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo, and more
-2. **Google Gemini** - Gemini 3 Pro, Gemini 3 Flash, Gemini 2.0 Flash, and more
-3. **Anthropic Claude** - Claude Sonnet 4, Claude Opus 4, Claude Haiku 4
+1. **OpenAI** - e.g. GPT-4o Mini, GPT-4o
+2. **Google Gemini** - e.g. Gemini 3 Pro, Gemini 3 Flash, Gemini 2.0 Flash
+3. **Anthropic Claude** - e.g. Claude Opus 5, Claude Sonnet 5, Claude Haiku 4.5
+
+The model list for each built-in provider is fetched from the provider's API, so any model available to your API key can be selected, including models released after this plugin version.
 
 **Custom Providers:**
 You can add your own custom LLM providers that use OpenAI-compatible API format:
@@ -243,10 +245,46 @@ You can add your own custom LLM providers that use OpenAI-compatible API format:
 
 **Note**: If no LLM providers are configured (no API keys), LLM-related options will be hidden from the modal to keep the interface clean.
 
-**Long videos**: Transcripts longer than about 12,000 characters (roughly 15 minutes of speech) are processed in parts, one request per part, and joined afterwards. Each part is sent with the headings used so far and the end of the previous part, so headings and structure continue across parts instead of starting over. Models cap how much text a single response can contain and tend to shorten very long inputs, so sending a long transcript in one request would cut it short. If a response still hits the model's output limit, that part is split again automatically. When a summary is requested for a long transcript, it is generated in a separate request. The timeout applies to each request, and if a request fails and you retry, parts that already finished are not sent again.
-
 **Default Processing:**
-The default prompt removes self-promotion, calls to action, and promotional content while maintaining the original meaning and improving grammar and sentence structure.
+The default prompt cleans up the transcript while keeping the speaker's own words: it adds punctuation, capitalization, and paragraph breaks, fixes obvious transcription errors, and removes filler words and promotional content. It tells the model not to paraphrase, summarize, or condense, so the result reads like an edited transcript rather than an article about the video.
+
+If you customize the prompt, avoid instructions such as "use complete sentences" or "ensure proper grammar and sentence structure". Models tend to take them as permission to rewrite, and the transcript drifts toward a summary. To get the current default back, clear the prompt field.
+
+### Prompt Migration
+
+The default prompt changed in the release after 2.0.26. The earlier default asked for "complete sentences" and "proper grammar and sentence structure", which made models rewrite the transcript into something closer to a summary. The new default keeps the speaker's own words (see [Default Processing](#llm-processing-optional)).
+
+**What happens when you upgrade:**
+- **Unmodified default prompt**: If your saved prompt is exactly the earlier default (leading and trailing whitespace are ignored), it is replaced with the new default when the plugin loads. You don't need to do anything.
+- **Empty prompt**: The new default is used.
+- **Customized prompt**: Any change to the earlier default, even one added line, counts as a customization. Your prompt is left exactly as it is and keeps working as before.
+
+**Checking which prompt you have:** Open Settings → YouTube Transcript Settings → Processing prompt. If it starts with "Please process the following YouTube video transcript", you still have the earlier default or a customized version of it. The new default starts with "Please clean up the following YouTube video transcript".
+
+**Switching a customized prompt to the new default:**
+1. Copy any instructions of your own that you want to keep (for example, "Make sections where appropriate using markdown headings").
+2. Clear the prompt field. The new default is used right away and is shown as the field's placeholder; it is saved as your prompt the next time the plugin loads.
+3. To add your own instructions, paste the placeholder text into the field and add them as extra numbered items before the final paragraph.
+
+Alternatively, edit your prompt in place: remove "Create an accurate and complete transcription with complete sentences" and "Ensure proper grammar and sentence structure", and add an instruction to keep the speaker's own words without paraphrasing or condensing.
+
+### Long Videos
+
+Models limit how much text a single response can contain, and they tend to shorten very long inputs on their own. Sending the transcript of a long video in one request would therefore return only part of it. To avoid this, long transcripts are processed in parts:
+
+- **Splitting**: Transcripts longer than about 12,000 characters (roughly 15 minutes of speech) are split into parts at line breaks, sentence ends, or spaces. Each part is sent in its own request and the results are joined into one transcript.
+- **Continuous structure**: Each part is sent with the headings used so far and the end of the previous part, so headings continue across parts instead of starting over. When the parts are joined, a repeated document title is turned into a section heading, and a heading that repeats the section the previous part ended in is removed.
+- **Output limit detection**: If a response still stops at the model's output limit, that part is split in two and sent again.
+- **Summary**: When a summary is requested, it is generated in a separate request from the full transcript.
+- **Progress**: The status notice shows which part is being processed (e.g. "part 3 of 7").
+- **Timeouts and retries**: The timeout applies to each request. If a request times out or is rate limited and you retry, parts that already finished are not sent again.
+
+Short transcripts are still sent in a single request.
+
+**Things to keep in mind:**
+- A long video takes several requests (about one per 15 minutes of video, plus one for the summary), which uses more of your provider's rate limit and quota. Free tiers with low per-minute limits may trigger the rate-limit dialog on long videos.
+- A custom prompt applies to every part. Instructions that concern the document as a whole, such as "start with a title", work best for short videos.
+- Because the model sees each part separately, heading levels can still vary slightly between parts.
 
 ### Custom LLM Providers
 
@@ -298,6 +336,7 @@ You can configure custom LLM providers that use OpenAI-compatible API format:
 - Custom providers must use OpenAI-compatible API format
 - The API should accept requests with `model`, `messages`, and `temperature` fields
 - The response should follow OpenAI's format with `choices[0].message.content`
+- The response should set `choices[0].finish_reason` to `"length"` when output stops at the model's limit, as OpenAI does. This is how the plugin detects a cut-off response and splits the part. If a server doesn't report it, cut-off parts can't be detected.
 
 ### Summary Generation
 
@@ -306,6 +345,8 @@ When enabled, the plugin can generate concise summaries of video content:
 1. Enable "Generate summary" in settings or the modal
 2. Ensure an LLM provider is configured with a valid API key
 3. The summary will appear at the top of the transcript with a "## Summary" header
+
+For long videos, the summary is generated in a separate request after the transcript parts (see [Long Videos](#long-videos)).
 
 ### Language Selection
 
@@ -341,6 +382,7 @@ The plugin automatically extracts and includes video metadata:
 - Metadata is included as YAML frontmatter at the top of the file
 - Includes: title, url, videoId, channel, channelId, duration, views, published date, description, and more
 - Fully searchable and queryable in Obsidian
+- Choose which fields are written and rename their property keys in Settings → Frontmatter (see [Frontmatter Settings](#frontmatter-settings))
 
 **In Cover Notes:**
 - All metadata is available as template variables (see Cover Notes for PDF and SRT Files section above)
@@ -414,6 +456,10 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **Duplicate check property**: The YAML frontmatter property name to check for duplicate detection (default: `url`). The plugin compares the video ID extracted from this property's value against the current video
 - **Use reading speed for SRT timing**: When enabled, each SRT cue's duration is computed from its word count at the reading speed below, instead of the actual transcript segment timing (default: disabled)
 - **SRT reading speed (WPM)**: Words per minute used to compute SRT cue duration when reading-speed timing is enabled (default: 180). Only shown when "Use reading speed for SRT timing" is enabled.
+
+### Frontmatter Settings
+- **Frontmatter fields**: For each field (title, URL, video ID, channel, channel ID, duration, views, published date, description, is live, is private, is unlisted), choose whether it is written to the note's frontmatter and which property key it uses. For example, write the channel as `author` instead of `channel`. Disabled fields are left out entirely. By default all fields are enabled with their standard key names.
+- **Note**: The duplicate check reads the property named in **Duplicate check property** (default: `url`). If you rename or disable the URL field, update that setting to match, or duplicates won't be detected.
 
 ### Cover Note Settings
 - **Create cover note**: When enabled, a markdown cover note will be automatically created for PDF and/or SRT files. Files will be automatically nested in subfolders for better organization.
@@ -519,6 +565,7 @@ Test coverage includes:
 - Frontmatter generation
 - Language selection and fallback logic
 - Force LLM output language functionality
+- Chunked LLM processing of long transcripts (splitting, truncation handling, retry resumption, heading continuity)
 - SRT subtitle format generation (time formatting, cue structure, segment filtering, end-time calculation, reading-speed-based cue timing)
 - Duplicate note prevention (video URL matching, frontmatter property extraction)
 - Custom LLM provider key validation
@@ -570,6 +617,13 @@ npm run lint:fix
 - **For local models**: Ensure the local server (Ollama, LM Studio) is running
 - Review the console (F12) for error messages
 - Check the timeout setting if requests are timing out
+- **Rate limit errors on long videos**: Long videos are processed in several requests (see [Long Videos](#long-videos)). If you hit rate limits, wait and retry (finished parts are kept) or use a plan with higher limits
+
+### LLM-processed transcript is shorter than expected
+- Some reduction is normal: the default prompt removes filler words, repetition, and promotional content
+- If content is missing from the end of the video, check the console (F12) for warnings that a response was truncated
+- **For custom providers**: Make sure the server reports `finish_reason: "length"` for cut-off responses, and that the model's context window can hold a part of about 12,000 characters plus the prompt
+- A custom prompt that asks for a condensed or summarized version will shorten each part
 
 ### Timestamps not appearing
 - Ensure "Include timestamps" is enabled in settings
