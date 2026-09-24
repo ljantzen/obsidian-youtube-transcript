@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { getClaudeMaxOutputTokens } from "../src/llm/claude";
 
 type LLMProvider = "openai" | "gemini" | "claude" | "none";
 
@@ -150,7 +151,7 @@ describe("LLM Provider Integration", () => {
 
         const requestBody = {
           model: model,
-          max_tokens: 4096,
+          max_tokens: getClaudeMaxOutputTokens(model),
           messages: [
             {
               role: "user",
@@ -161,7 +162,7 @@ describe("LLM Provider Integration", () => {
         };
 
         expect(requestBody.model).toBe("claude-sonnet-4-20250514");
-        expect(requestBody.max_tokens).toBe(4096);
+        expect(requestBody.max_tokens).toBe(16000);
         expect(requestBody.messages).toHaveLength(1);
         expect(requestBody.messages[0].role).toBe("user");
         expect(requestBody.messages[0].content).toContain(

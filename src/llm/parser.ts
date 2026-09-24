@@ -230,6 +230,17 @@ function getLanguageName(languageCode: string): string {
   return languageNames[languageCode.toLowerCase()] || languageCode.toUpperCase();
 }
 
+export function getLanguageRequirement(
+  forceLLMLanguage: boolean,
+  transcriptLanguageCode?: string,
+): string {
+  if (!forceLLMLanguage || !transcriptLanguageCode || transcriptLanguageCode.trim() === "") {
+    return "";
+  }
+  const languageName = getLanguageName(transcriptLanguageCode);
+  return `\n\nCRITICAL LANGUAGE REQUIREMENT: The transcript you are processing is in ${languageName} (language code: ${transcriptLanguageCode.toUpperCase()}). You MUST output your processed transcript and summary (if requested) in the SAME LANGUAGE (${languageName}). Do not translate or convert the content to any other language. Maintain the original language throughout your entire response.`;
+}
+
 export function buildPrompt(
   basePrompt: string,
   transcript: string,
@@ -250,14 +261,13 @@ export function buildPrompt(
     fullPrompt += `- Start with a "## Transcript" markdown header followed by the processed transcript\n`;
   }
 
+  fullPrompt += `\n\nIMPORTANT: The transcript section must cover the ENTIRE transcript from beginning to end. Do NOT summarize, shorten, or skip any of its content.`;
+
   if (includeTimestampsInLLM) {
     fullPrompt += `\n\nIMPORTANT: The transcript contains timestamp links in the format [MM:SS](url). You MUST preserve these timestamp links exactly as they appear in the original transcript. Do not remove, modify, or reformat them.`;
   }
 
-  if (forceLLMLanguage && transcriptLanguageCode && transcriptLanguageCode.trim() !== "") {
-    const languageName = getLanguageName(transcriptLanguageCode);
-    fullPrompt += `\n\nCRITICAL LANGUAGE REQUIREMENT: The transcript you are processing is in ${languageName} (language code: ${transcriptLanguageCode.toUpperCase()}). You MUST output your processed transcript and summary (if requested) in the SAME LANGUAGE (${languageName}). Do not translate or convert the content to any other language. Maintain the original language throughout your entire response.`;
-  }
+  fullPrompt += getLanguageRequirement(forceLLMLanguage, transcriptLanguageCode);
 
   fullPrompt += `\nTranscript:\n${transcript}`;
 

@@ -13,7 +13,7 @@ import type {
   ProcessTranscriptOptions,
   TranscriptFileOptions,
 } from "./types";
-import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
+import { DEFAULT_SETTINGS, normalizeSavedPrompt } from "./settings";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName, sanitizeExternalMarkdown } from "./utils";
 import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
 import { replaceTemplateVariables } from "./utils/templateVariables";
@@ -124,9 +124,10 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       changed = true;
     }
 
-    // prompt: repair empty saved value
-    if (!this.settings.prompt || this.settings.prompt.trim() === "") {
-      this.settings.prompt = DEFAULT_PROMPT;
+    // prompt: repair empty saved value, upgrade an unmodified earlier default
+    const prompt = normalizeSavedPrompt(this.settings.prompt);
+    if (prompt !== this.settings.prompt) {
+      this.settings.prompt = prompt;
       changed = true;
     }
 

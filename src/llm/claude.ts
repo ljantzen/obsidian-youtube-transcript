@@ -1,7 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
 
 interface ApiErrorBody { error?: { message?: string } }
-interface ClaudeResponseBody { content?: Array<{ type?: string; text?: string }> }
+interface ClaudeResponseBody { content?: Array<{ type?: string; text?: string }>; stop_reason?: string }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -10,11 +10,12 @@ import type {
 } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
 import { validateClaudeModelName } from "../utils";
+import { parseLLMResponse, getProcessingStatusMessage } from "./parser";
 import {
-  parseLLMResponse,
-  buildPrompt,
-  getProcessingStatusMessage,
-} from "./parser";
+  processTranscriptInChunks,
+  createChunkedProcessingState,
+  type LLMCompletion,
+} from "./chunking";
 import { UserCancelledError } from "./openai";
 
 export async function processWithClaude(
@@ -41,16 +42,11 @@ export async function processWithClaude(
   if (statusCallback) statusCallback(getProcessingStatusMessage("Claude"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
-  const fullPrompt = buildPrompt(
-    prompt,
-    transcript,
-    generateSummary,
-    settings.includeTimestampsInLLM || false,
-    settings.forceLLMLanguage || false,
-    transcriptLanguageCode,
-  );
+  const chunkState = createChunkedProcessingState();
 
-  const makeRequest = async (): Promise<LLMResponse> => {
+  const requestCompletion = async (
+    fullPrompt: string,
+  ): Promise<LLMCompletion> => {
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -86,7 +82,7 @@ export async function processWithClaude(
       },
       body: JSON.stringify({
         model: model,
-        max_tokens: 4096,
+        max_tokens: getClaudeMaxOutputTokens(model),
         messages: [
           {
             role: "user",
@@ -148,7 +144,22 @@ export async function processWithClaude(
       throw new Error("No response from Claude");
     }
 
-    const responseContent: string = rawContent;
+    return { text: rawContent.trim(), truncated: data.stop_reason === "max_tokens" };
+  };
+
+  const makeRequest = async (): Promise<LLMResponse> => {
+    const responseContent = await processTranscriptInChunks({
+      transcript,
+      basePrompt: prompt,
+      generateSummary,
+      includeTimestampsInLLM: settings.includeTimestampsInLLM || false,
+      forceLLMLanguage: settings.forceLLMLanguage || false,
+      transcriptLanguageCode,
+      providerName: "Claude",
+      complete: requestCompletion,
+      statusCallback,
+      state: chunkState,
+    });
     return parseLLMResponse(responseContent.trim(), generateSummary);
   };
 
@@ -256,4 +267,14 @@ export async function processWithClaude(
     console.error("Claude processing error:", error);
     throw new Error(errorMsg);
   }
+}
+
+/**
+ * Output token limit to request. Legacy Claude 3 and 3.5 models reject values
+ * above their smaller limits; newer models allow far more.
+ */
+export function getClaudeMaxOutputTokens(model: string): number {
+  if (/^claude-3-(haiku|sonnet|opus)-/.test(model)) return 4096;
+  if (/^claude-3-5-/.test(model)) return 8192;
+  return 16000;
 }

@@ -1,7 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
 
 interface ApiErrorBody { error?: { message?: string } }
-interface ChatResponseBody { choices?: Array<{ message?: { content?: string } }> }
+interface ChatResponseBody { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -9,11 +9,12 @@ import type {
   RetryModalConstructor,
 } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
+import { parseLLMResponse, getProcessingStatusMessage } from "./parser";
 import {
-  parseLLMResponse,
-  buildPrompt,
-  getProcessingStatusMessage,
-} from "./parser";
+  processTranscriptInChunks,
+  createChunkedProcessingState,
+  type LLMCompletion,
+} from "./chunking";
 
 export class UserCancelledError extends Error {
   constructor(message = "Transcript creation cancelled by user") {
@@ -53,16 +54,11 @@ export async function processWithOpenAI(
   if (statusCallback) statusCallback(getProcessingStatusMessage("OpenAI"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
-  const fullPrompt = buildPrompt(
-    prompt,
-    transcript,
-    generateSummary,
-    settings.includeTimestampsInLLM || false,
-    settings.forceLLMLanguage || false,
-    transcriptLanguageCode,
-  );
+  const chunkState = createChunkedProcessingState();
 
-  const makeRequest = async (): Promise<LLMResponse> => {
+  const requestCompletion = async (
+    fullPrompt: string,
+  ): Promise<LLMCompletion> => {
     // Add timeout wrapper using configured timeout
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
@@ -142,7 +138,22 @@ export async function processWithOpenAI(
       throw new Error("No response from OpenAI");
     }
 
-    const responseContent: string = rawContent;
+    return { text: rawContent.trim(), truncated: data.choices?.[0]?.finish_reason === "length" };
+  };
+
+  const makeRequest = async (): Promise<LLMResponse> => {
+    const responseContent = await processTranscriptInChunks({
+      transcript,
+      basePrompt: prompt,
+      generateSummary,
+      includeTimestampsInLLM: settings.includeTimestampsInLLM || false,
+      forceLLMLanguage: settings.forceLLMLanguage || false,
+      transcriptLanguageCode,
+      providerName: "OpenAI",
+      complete: requestCompletion,
+      statusCallback,
+      state: chunkState,
+    });
     return parseLLMResponse(responseContent.trim(), generateSummary);
   };
 

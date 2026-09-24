@@ -2,7 +2,24 @@ import type { YouTubeTranscriptPluginSettings } from "./types";
 import type { ModelInfo } from "./llm/modelFetcher";
 import { DEFAULT_FRONTMATTER_FIELDS } from "./utils/frontmatter";
 
-export const DEFAULT_PROMPT = `Please process the following YouTube video transcript. Your task is to:
+export const DEFAULT_PROMPT = `Please clean up the following YouTube video transcript. It was generated automatically from speech, so it may lack punctuation, capitalization, and paragraph breaks, and it may contain misheard words.
+
+Your task is to:
+
+1. Keep the speaker's own words and phrasing. Do NOT paraphrase, summarize, condense, or reorder anything: every sentence, point, example, and explanation must remain in your output.
+2. Add punctuation, capitalization, and paragraph breaks.
+3. Fix obvious transcription errors (misheard words, misspelled names).
+4. Remove filler words (e.g., "um", "uh") and false starts, but nothing else.
+5. Remove self-promotion, calls to action, and promotional content (e.g., "like and subscribe", "check out my channel", "visit my website").
+
+The result should read like an edited transcript of what was said, not like an article about it. Return only the cleaned transcript without any additional commentary or explanation.`;
+
+/**
+ * Earlier default prompts. A saved prompt that still matches one of these was
+ * never customized, so it is upgraded to the current default on load.
+ */
+export const LEGACY_DEFAULT_PROMPTS: string[] = [
+  `Please process the following YouTube video transcript. Your task is to:
 
 1. Create an accurate and complete transcription with complete sentences
 2. Remove all self-promotion, calls to action, and promotional content (e.g., "like and subscribe", "check out my channel", "visit my website", etc.)
@@ -10,7 +27,21 @@ export const DEFAULT_PROMPT = `Please process the following YouTube video transc
 4. Ensure proper grammar and sentence structure
 5. Keep the content focused on the actual video content
 
-Return only the cleaned transcript without any additional commentary or explanation.`;
+Return only the cleaned transcript without any additional commentary or explanation.`,
+];
+
+/**
+ * Returns the prompt to use for a saved value: the current default when the
+ * saved prompt is empty or an unmodified earlier default, otherwise unchanged.
+ */
+export function normalizeSavedPrompt(prompt: string | undefined | null): string {
+  if (!prompt || prompt.trim() === "") return DEFAULT_PROMPT;
+  const trimmed = prompt.trim();
+  if (LEGACY_DEFAULT_PROMPTS.some((legacy) => legacy.trim() === trimmed)) {
+    return DEFAULT_PROMPT;
+  }
+  return prompt;
+}
 
 export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   useLLMProcessing: false, // Default to false - use raw transcript by default

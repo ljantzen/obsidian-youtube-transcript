@@ -1,7 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
 
 interface ApiErrorBody { error?: { message?: string } }
-interface ChatResponseBody { choices?: Array<{ message?: { content?: string } }> }
+interface ChatResponseBody { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -9,12 +9,14 @@ import type {
   RetryModalConstructor,
   CustomLLMProvider,
 } from "../types";
+import { DEFAULT_SETTINGS } from "../settings";
 import { UserCancelledError, TimeoutError } from "./openai";
+import { parseLLMResponse, getProcessingStatusMessage } from "./parser";
 import {
-  parseLLMResponse,
-  buildPrompt,
-  getProcessingStatusMessage,
-} from "./parser";
+  processTranscriptInChunks,
+  createChunkedProcessingState,
+  type LLMCompletion,
+} from "./chunking";
 
 export async function processWithCustomProvider(
   app: App,
@@ -40,17 +42,12 @@ export async function processWithCustomProvider(
 
   if (statusCallback) statusCallback(getProcessingStatusMessage(provider.name));
 
-  const prompt = settings.prompt;
-  const fullPrompt = buildPrompt(
-    prompt,
-    transcript,
-    generateSummary,
-    settings.includeTimestampsInLLM || false,
-    settings.forceLLMLanguage || false,
-    transcriptLanguageCode,
-  );
+  const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
+  const chunkState = createChunkedProcessingState();
 
-  const makeRequest = async (): Promise<LLMResponse> => {
+  const requestCompletion = async (
+    fullPrompt: string,
+  ): Promise<LLMCompletion> => {
     // Add timeout wrapper using configured timeout
     const timeoutMinutes = provider.timeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
@@ -137,7 +134,22 @@ export async function processWithCustomProvider(
       throw new Error(`No response from ${provider.name}`);
     }
 
-    const responseContent: string = rawContent;
+    return { text: rawContent.trim(), truncated: data.choices?.[0]?.finish_reason === "length" };
+  };
+
+  const makeRequest = async (): Promise<LLMResponse> => {
+    const responseContent = await processTranscriptInChunks({
+      transcript,
+      basePrompt: prompt,
+      generateSummary,
+      includeTimestampsInLLM: settings.includeTimestampsInLLM || false,
+      forceLLMLanguage: settings.forceLLMLanguage || false,
+      transcriptLanguageCode,
+      providerName: provider.name,
+      complete: requestCompletion,
+      statusCallback,
+      state: chunkState,
+    });
     return parseLLMResponse(responseContent.trim(), generateSummary);
   };
 

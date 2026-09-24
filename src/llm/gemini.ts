@@ -1,7 +1,7 @@
 import { Notice, App, requestUrl } from "obsidian";
 
 interface ApiErrorBody { error?: { message?: string } }
-interface GeminiResponseBody { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+interface GeminiResponseBody { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }> }
 import type {
   YouTubeTranscriptPluginSettings,
   LLMResponse,
@@ -9,11 +9,12 @@ import type {
   RetryModalConstructor,
 } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
+import { parseLLMResponse, getProcessingStatusMessage } from "./parser";
 import {
-  parseLLMResponse,
-  buildPrompt,
-  getProcessingStatusMessage,
-} from "./parser";
+  processTranscriptInChunks,
+  createChunkedProcessingState,
+  type LLMCompletion,
+} from "./chunking";
 import { UserCancelledError } from "./openai";
 
 export async function processWithGemini(
@@ -40,16 +41,11 @@ export async function processWithGemini(
   if (statusCallback) statusCallback(getProcessingStatusMessage("Gemini"));
 
   const prompt = settings.prompt || DEFAULT_SETTINGS.prompt;
-  const fullPrompt = buildPrompt(
-    prompt,
-    transcript,
-    generateSummary,
-    settings.includeTimestampsInLLM || false,
-    settings.forceLLMLanguage || false,
-    transcriptLanguageCode,
-  );
+  const chunkState = createChunkedProcessingState();
 
-  const makeRequest = async (): Promise<LLMResponse> => {
+  const requestCompletion = async (
+    fullPrompt: string,
+  ): Promise<LLMCompletion> => {
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -139,14 +135,31 @@ export async function processWithGemini(
     }
 
     const data: GeminiResponseBody = response.json as GeminiResponseBody;
-    const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const rawContent = data.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text ?? "")
+      .join("");
 
     if (!rawContent) {
       if (statusCallback) statusCallback(null); // Hide notice
       throw new Error("No response from Gemini");
     }
 
-    const responseContent: string = rawContent;
+    return { text: rawContent.trim(), truncated: data.candidates?.[0]?.finishReason === "MAX_TOKENS" };
+  };
+
+  const makeRequest = async (): Promise<LLMResponse> => {
+    const responseContent = await processTranscriptInChunks({
+      transcript,
+      basePrompt: prompt,
+      generateSummary,
+      includeTimestampsInLLM: settings.includeTimestampsInLLM || false,
+      forceLLMLanguage: settings.forceLLMLanguage || false,
+      transcriptLanguageCode,
+      providerName: "Gemini",
+      complete: requestCompletion,
+      statusCallback,
+      state: chunkState,
+    });
     return parseLLMResponse(responseContent.trim(), generateSummary);
   };
 

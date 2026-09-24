@@ -243,6 +243,8 @@ You can add your own custom LLM providers that use OpenAI-compatible API format:
 
 **Note**: If no LLM providers are configured (no API keys), LLM-related options will be hidden from the modal to keep the interface clean.
 
+**Long videos**: Transcripts longer than about 12,000 characters (roughly 15 minutes of speech) are processed in parts, one request per part, and joined afterwards. Each part is sent with the headings used so far and the end of the previous part, so headings and structure continue across parts instead of starting over. Models cap how much text a single response can contain and tend to shorten very long inputs, so sending a long transcript in one request would cut it short. If a response still hits the model's output limit, that part is split again automatically. When a summary is requested for a long transcript, it is generated in a separate request. The timeout applies to each request, and if a request fails and you retry, parts that already finished are not sent again.
+
 **Default Processing:**
 The default prompt removes self-promotion, calls to action, and promotional content while maintaining the original meaning and improving grammar and sentence structure.
 
@@ -398,7 +400,7 @@ All settings are available in **Settings → YouTube Transcript Settings**:
 - **API keys**: Enter your API keys for the selected provider
 - **Model selection**: Choose from available models (automatically fetched for built-in providers)
 - **Processing prompt**: Customize how transcripts are processed
-- **LLM timeout**: Set timeout for API requests (default: 1 minute)
+- **LLM timeout**: Set timeout for each API request (default: 1 minute). Long transcripts are sent in several requests, and each one has this timeout.
 - **Force LLM output language**: When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures processed transcripts maintain the original language and prevents unwanted translations. The language is automatically detected from the transcript you're processing.
 
 ### File Creation Settings
