@@ -19,8 +19,8 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@eslint/compat": "^2.1.1",
-		"@types/node": "^26.6.1",
-		"@vitest/coverage-v8": "^5.0.1",
+		"@types/node": "^26.6.2",
+		"@vitest/coverage-v8": "^5.0.2",
 		"esbuild": "^0.28.2",
 		"eslint": "^10.0.0",
 		"eslint-plugin-obsidianmd": "^0.4.2",
