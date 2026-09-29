@@ -277,7 +277,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
 
       // Extract all YouTube URLs from clipboard
       const { extractAllVideoUrls } = await import("./utils");
-      const urls = extractAllVideoUrls(clipboardText);
+      const urls = extractAllVideoUrls(clipboardText, this.settings.removeTrackingParams ?? true);
 
       if (urls.length === 0) {
         new Notice("No YouTube URLs found in clipboard. Please copy a valid YouTube URL or video ID.", 10000);

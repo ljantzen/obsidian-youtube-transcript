@@ -1,6 +1,6 @@
 import { App, Modal, TextComponent, MarkdownView, Notice } from "obsidian";
 import type { LLMProvider, YouTubeTranscriptPluginSettings, CaptionTrack } from "../types";
-import { extractVideoId } from "../utils";
+import { extractVideoId, stripTrackingParams } from "../utils";
 import { getAvailableLanguages } from "../youtube";
 import { requestUrl } from "obsidian";
 
@@ -243,6 +243,28 @@ export class YouTubeUrlModal extends Modal {
       }, 500); // Wait 500ms after user stops typing
     });
 
+    // Drop tracking parameters (si, feature, utm_*, ...) from pasted and prefilled YouTube URLs
+    const cleanUrl = (text: string): string =>
+      (this.settings.removeTrackingParams ?? true) ? stripTrackingParams(text) : text;
+
+    input.addEventListener("paste", (event: ClipboardEvent) => {
+      if (!(this.settings.removeTrackingParams ?? true)) {
+        return;
+      }
+      const pastedUrl = stripTrackingParams(event.clipboardData?.getData("text/plain").trim() ?? "");
+      if (!pastedUrl || !extractVideoId(pastedUrl)) {
+        return;
+      }
+      event.preventDefault();
+      input.setRangeText(
+        pastedUrl,
+        input.selectionStart ?? input.value.length,
+        input.selectionEnd ?? input.value.length,
+        "end",
+      );
+      input.dispatchEvent(new Event("input"));
+    });
+
     // Check for YouTube URL: first from editor selection, then from clipboard
     // This happens after language dropdown is set up so fetchLanguages can be called
     let prefilledUrl = false;
@@ -250,9 +272,9 @@ export class YouTubeUrlModal extends Modal {
     // Try to get URL from editor selection first (useful on mobile)
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (activeView?.editor) {
-      const selectedText = activeView.editor.getSelection();
-      if (selectedText && extractVideoId(selectedText.trim())) {
-        input.value = selectedText.trim();
+      const selectedUrl = cleanUrl(activeView.editor.getSelection().trim());
+      if (selectedUrl && extractVideoId(selectedUrl)) {
+        input.value = selectedUrl;
         input.select();
         prefilledUrl = true;
       }
@@ -261,9 +283,9 @@ export class YouTubeUrlModal extends Modal {
     // If no selection, try clipboard (only when clipboard access is permitted)
     if (!prefilledUrl && (this.settings.allowClipboardAccess ?? true)) {
       try {
-        const clipboardText = await navigator.clipboard.readText();
-        if (clipboardText && extractVideoId(clipboardText.trim())) {
-          input.value = clipboardText.trim();
+        const clipboardUrl = cleanUrl((await navigator.clipboard.readText()).trim());
+        if (clipboardUrl && extractVideoId(clipboardUrl)) {
+          input.value = clipboardUrl;
           // Select the text so user can easily replace it if needed
           input.select();
           prefilledUrl = true;

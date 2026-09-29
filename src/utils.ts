@@ -16,16 +16,44 @@ export function extractVideoId(url: string): string | null {
   return null;
 }
 
-export function extractAllVideoUrls(text: string): string[] {
+// Query parameters that change what a YouTube URL points to. Everything else
+// (si, feature, pp, utm_*, fbclid, ab_channel, ...) is tracking and is dropped.
+const YOUTUBE_URL_PARAMS = new Set(["v", "t", "start", "list", "index"]);
+
+const YOUTUBE_HOST_PATTERN = /^(?:[a-z]+:\/\/)?(?:(?:www\.|m\.|mobile\.|music\.)?youtube\.com|youtu\.be)\//i;
+
+/**
+ * Removes tracking parameters from a YouTube URL, keeping the video, playlist
+ * and timestamp. Anything that isn't a YouTube URL (including a bare video ID)
+ * is returned unchanged.
+ */
+export function stripTrackingParams(url: string): string {
+  if (!YOUTUBE_HOST_PATTERN.test(url)) return url;
+
+  const hashIndex = url.indexOf("#");
+  const hash = hashIndex === -1 ? "" : url.slice(hashIndex);
+  const withoutHash = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const queryIndex = withoutHash.indexOf("?");
+  if (queryIndex === -1) return url;
+
+  const base = withoutHash.slice(0, queryIndex);
+  const kept = withoutHash
+    .slice(queryIndex + 1)
+    .split("&")
+    .filter((param) => YOUTUBE_URL_PARAMS.has(param.split("=")[0]));
+  return `${base}${kept.length > 0 ? `?${kept.join("&")}` : ""}${hash}`;
+}
+
+export function extractAllVideoUrls(text: string, removeTrackingParams = true): string[] {
   const seen = new Set<string>();
   const urls: string[] = [];
   for (const token of text.split(/\s+/)) {
-    const trimmed = token.trim();
-    if (!trimmed) continue;
-    const videoId = extractVideoId(trimmed);
+    const cleaned = removeTrackingParams ? stripTrackingParams(token.trim()) : token.trim();
+    if (!cleaned) continue;
+    const videoId = extractVideoId(cleaned);
     if (videoId && !seen.has(videoId)) {
       seen.add(videoId);
-      urls.push(trimmed);
+      urls.push(cleaned);
     }
   }
   return urls;

@@ -82,6 +82,7 @@ export interface YouTubeTranscriptPluginSettings {
   checkForDuplicates: boolean; // When enabled, prevents creating a new note if one already exists for the same video
   duplicateCheckProperty: string; // The frontmatter property to check for duplicate detection (e.g., "url")
   allowClipboardAccess: boolean; // When enabled, the plugin may read the clipboard to prefill the URL field and power the clipboard command
+  removeTrackingParams: boolean; // When enabled, tracking parameters (si, feature, utm_*, ...) are removed from pasted and clipboard YouTube URLs
   frontmatterFields: FrontmatterFieldsSettings; // Per-field include/exclude and custom key name for generated frontmatter
 }
 
