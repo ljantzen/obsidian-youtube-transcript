@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 2.0.28 (2026-10-08)
 
 ### Features
 - **Tracking parameters are removed from YouTube URLs**: When a YouTube URL is pasted into the URL field, prefilled from the clipboard or editor selection, or read by the "Fetch from clipboard" command, tracking parameters such as `si`, `feature`, `pp` and `utm_*` are removed. The video, playlist and timestamp are kept. URLs where a tracking parameter comes before the video ID (`watch?feature=share&v=...`) are now recognized too. Turn this off with the new **Remove tracking parameters** setting.
