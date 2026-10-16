@@ -1,0 +1,21 @@
+# Summary
+
+[Introduction](index.md)
+
+- [Installation](installation.md)
+- [Getting Started](getting-started.md)
+- [Output Formats](output-formats.md)
+  - [Cover Notes](cover-notes.md)
+  - [Preventing Duplicate Notes](duplicate-notes.md)
+- [Transcript Content](transcript-content.md)
+  - [Timestamps](timestamps.md)
+  - [Language Selection](language-selection.md)
+  - [Metadata and Tags](metadata-and-tags.md)
+- [Directories](directories.md)
+- [LLM Processing](llm-processing.md)
+  - [Custom Providers](custom-providers.md)
+  - [Long Videos](long-videos.md)
+  - [Prompt Migration](prompt-migration.md)
+- [Settings Reference](settings-reference.md)
+- [Privacy and Permissions](privacy-and-permissions.md)
+- [Troubleshooting](troubleshooting.md)

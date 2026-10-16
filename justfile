@@ -51,8 +51,20 @@ check: lint typecheck test
 release VERSION="":
     ./release.sh {{VERSION}}
 
+# Build the mdbook user manual (docs/book)
+docs-build:
+    mdbook build docs
+
+# Serve the user manual locally with live reload
+docs-serve:
+    mdbook serve docs --open
+
+# Remove the built user manual
+docs-clean:
+    rm -rf docs/book
+
 # Remove build artifacts and coverage output
-clean:
+clean: docs-clean
     rm -rf main.js main.js.map coverage .nyc_output
 
 # Remove node_modules and build artifacts, then reinstall

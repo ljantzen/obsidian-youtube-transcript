@@ -1,0 +1,15 @@
+[book]
+title = "YouTube Transcript Fetcher"
+description = "User manual for the YouTube Transcript Fetcher plugin for Obsidian"
+authors = ["Leif Jantzen"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/ljantzen/obsidian-youtube-transcript"
+edit-url-template = "https://github.com/ljantzen/obsidian-youtube-transcript/edit/main/docs/src/{path}"
+default-theme = "light"
+preferred-dark-theme = "navy"
+
+[output.html.search]
+limit-results = 20
