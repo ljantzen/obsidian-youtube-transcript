@@ -4,6 +4,7 @@ import {
   Setting,
   Notice,
   Plugin,
+  Platform,
   type SettingDefinitionItem,
 } from "obsidian";
 import type {
@@ -200,6 +201,12 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           { name: "Remove tracking parameters", desc: "When enabled, tracking parameters such as si, feature and utm_* are removed from YouTube URLs pasted into the URL field or read from the clipboard. The video, playlist and timestamp are kept.", control: { type: "toggle", key: "removeTrackingParams" } },
           { name: "Prevent duplicate notes", desc: "When enabled, creating a transcript will be blocked if a note already exists with a matching value in the frontmatter property below", control: { type: "toggle", key: "checkForDuplicates" } },
           { name: "Duplicate check property", desc: 'The frontmatter property used to detect duplicates. Defaults to "url", which the plugin writes automatically.', control: { type: "text", key: "duplicateCheckProperty", placeholder: "url" } },
+          {
+            name: "Prevent screen lock while processing",
+            desc: "On Android/iOS, keeps the screen awake while fetching and processing a transcript, so the OS locking the screen doesn't interrupt a long fetch or LLM run. Has no effect on desktop.",
+            visible: () => Platform.isMobile,
+            control: { type: "toggle", key: "preventMobileScreenLock" },
+          },
         ],
       },
       {

@@ -4,6 +4,7 @@ import {
   Notice,
   TFile,
   TFolder,
+  Platform,
 } from "obsidian";
 import type {
   YouTubeTranscriptPluginSettings,
@@ -20,6 +21,7 @@ import { replaceTemplateVariables } from "./utils/templateVariables";
 import { normalizeVaultPath } from "./utils/pathUtils";
 import { buildFrontmatterLines, mergeFrontmatterFields } from "./utils/frontmatter";
 import { getYouTubeTranscript } from "./youtube";
+import { requestWakeLock, releaseWakeLock } from "./utils/wakeLock";
 import { getFormatHandler } from "./fileFormatHandlers";
 import {
   YouTubeUrlModal,
@@ -410,6 +412,12 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       "Fetching transcript from YouTube...",
       0,
     );
+    // Android/iOS lock the screen mid-fetch otherwise, which suspends Obsidian
+    // and can break the network request or chunked LLM processing.
+    const wakeLock =
+      Platform.isMobile && (this.settings.preventMobileScreenLock ?? true)
+        ? await requestWakeLock()
+        : null;
     try {
       // Use provided language code, or fall back to preferred languages setting, or null for auto-select
       // Note: preferredLanguage can be a comma-separated list, which will be handled in getYouTubeTranscript
@@ -531,6 +539,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       console.error("Transcript fetch error:", error);
     } finally {
       fetchingNotice.hide();
+      await releaseWakeLock(wakeLock);
       // Remove this video from processing set when done (success or error)
       if (videoId) {
         this.processingVideoIds.delete(videoId);

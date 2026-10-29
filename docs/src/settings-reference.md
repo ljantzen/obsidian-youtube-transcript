@@ -25,6 +25,7 @@ All settings are available in **Settings → YouTube Transcript Settings**.
 - **Duplicate check property**: The YAML frontmatter property name to check for duplicate detection (default: `url`). The plugin compares the video ID extracted from this property's value against the current video
 - **Use reading speed for SRT timing**: When enabled, each SRT cue's duration is computed from its word count at the reading speed below, instead of the actual transcript segment timing (default: disabled)
 - **SRT reading speed (WPM)**: Words per minute used to compute SRT cue duration when reading-speed timing is enabled (default: 180). Only shown when "Use reading speed for SRT timing" is enabled.
+- **Prevent screen lock while processing**: On Android/iOS, keeps the screen awake while fetching and processing a transcript, so the OS locking the screen doesn't interrupt a long fetch or LLM run (default: enabled). Only shown on mobile — has no effect on desktop.
 
 ## Frontmatter Settings
 

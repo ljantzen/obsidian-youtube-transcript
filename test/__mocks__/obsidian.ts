@@ -11,3 +11,12 @@ export class Notice {
 export function requestUrl(): Promise<never> {
   return Promise.reject(new Error("requestUrl is not available in tests"));
 }
+
+export const Platform = {
+  isMobile: false,
+  isDesktop: true,
+  isMobileApp: false,
+  isDesktopApp: true,
+  isIosApp: false,
+  isAndroidApp: false,
+};

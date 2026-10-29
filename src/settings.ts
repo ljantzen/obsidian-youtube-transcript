@@ -82,6 +82,7 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   duplicateCheckProperty: "url", // Default to "url" - the property the plugin writes by default
   allowClipboardAccess: true, // Default to true - enable clipboard prefill and clipboard command
   removeTrackingParams: true, // Default to true - strip tracking parameters from pasted and clipboard URLs
+  preventMobileScreenLock: true, // Default to true - avoid the OS locking the screen mid-fetch on Android/iOS
   frontmatterFields: DEFAULT_FRONTMATTER_FIELDS, // Default to all fields enabled with their historical key names
 };
 
