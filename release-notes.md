@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 2.0.29 (2026-10-29)
 
 ### Features
 - **Prevent screen lock while processing (Android/iOS)**: While fetching and processing a transcript, the plugin now requests a screen wake lock on mobile, so the OS locking the screen mid-fetch doesn't suspend Obsidian and break the network request or a long LLM run. Enabled by default; turn it off with the new **Prevent screen lock while processing** setting (only shown on mobile). Has no effect on desktop.
