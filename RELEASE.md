@@ -35,10 +35,10 @@ git push
 
 ### 3. Create and Push Tag
 
-Create a tag matching the version (must start with `v`):
+Create a tag matching the version exactly, with no `v` prefix:
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag 0.2.0
+git push origin 0.2.0
 ```
 
 ### 4. GitHub Actions Will Automatically
@@ -49,12 +49,12 @@ git push origin v0.2.0
 
 ## Release Tag Format
 
-Tags must follow the semantic versioning format with a `v` prefix:
-- ✅ `v0.1.0`
-- ✅ `v1.0.0`
-- ✅ `v0.2.1`
-- ❌ `0.1.0` (missing `v` prefix)
-- ❌ `v1.0` (not semantic versioning)
+Tags must follow the semantic versioning format with **no** `v` prefix, matching `manifest.json`'s `version` exactly:
+- ✅ `0.1.0`
+- ✅ `1.0.0`
+- ✅ `0.2.1`
+- ❌ `v0.1.0` (`v` prefix — this repo's convention omits it; some stray early tags have it, don't follow those)
+- ❌ `0.1` (not semantic versioning)
 
 ## Manual Release (Alternative)
 
@@ -67,7 +67,7 @@ If you need to create a release manually:
 
 2. Go to GitHub → Releases → Draft a new release
 
-3. Create a new tag (e.g., `v0.2.0`)
+3. Create a new tag (e.g., `0.2.0`, no `v` prefix)
 
 4. Upload files:
    - `main.js`
