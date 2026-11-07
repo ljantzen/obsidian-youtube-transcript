@@ -16,6 +16,7 @@ import {
   type LLMCompletion,
 } from "./chunking";
 import { UserCancelledError } from "./openai";
+import { raceWithTimeout } from "./requestTimeout";
 
 export async function processWithGemini(
   app: App,
@@ -48,17 +49,7 @@ export async function processWithGemini(
   ): Promise<LLMCompletion> => {
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      window.setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Gemini request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
-            ),
-          ),
-        timeoutMs,
-      );
-    });
+    const timeoutMessage = `Gemini request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`;
 
     const model = settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
     const apiKey = settings.geminiKey.trim();
@@ -90,7 +81,7 @@ export async function processWithGemini(
       }),
     });
 
-    const response = await Promise.race([requestPromise, timeoutPromise]);
+    const response = await raceWithTimeout(requestPromise, timeoutMs, timeoutMessage);
 
     if (response.status < 200 || response.status >= 300) {
       const errorData = (response.json as ApiErrorBody | null) ?? {};

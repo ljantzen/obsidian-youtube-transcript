@@ -17,6 +17,7 @@ import {
   type LLMCompletion,
 } from "./chunking";
 import { UserCancelledError } from "./openai";
+import { raceWithTimeout } from "./requestTimeout";
 
 export async function processWithClaude(
   app: App,
@@ -49,17 +50,7 @@ export async function processWithClaude(
   ): Promise<LLMCompletion> => {
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      window.setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Claude request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
-            ),
-          ),
-        timeoutMs,
-      );
-    });
+    const timeoutMessage = `Claude request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`;
 
     const apiKey = settings.claudeKey.trim();
     const model = settings.claudeModel || DEFAULT_SETTINGS.claudeModel;
@@ -92,7 +83,7 @@ export async function processWithClaude(
       }),
     });
 
-    const response = await Promise.race([requestPromise, timeoutPromise]);
+    const response = await raceWithTimeout(requestPromise, timeoutMs, timeoutMessage);
 
     if (response.status < 200 || response.status >= 300) {
       const errorData = (response.json as ApiErrorBody | null) ?? {};

@@ -11,6 +11,7 @@ import type {
 } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
 import { UserCancelledError, TimeoutError } from "./openai";
+import { raceWithTimeout } from "./requestTimeout";
 import { parseLLMResponse, getProcessingStatusMessage } from "./parser";
 import {
   processTranscriptInChunks,
@@ -51,17 +52,7 @@ export async function processWithCustomProvider(
     // Add timeout wrapper using configured timeout
     const timeoutMinutes = provider.timeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      window.setTimeout(
-        () =>
-          reject(
-            new TimeoutError(
-              `${provider.name} request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
-            ),
-          ),
-        timeoutMs,
-      );
-    });
+    const timeoutMessage = `${provider.name} request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`;
 
     // Build headers - start with auth and content-type
     const headers: Record<string, string> = {
@@ -91,7 +82,7 @@ export async function processWithCustomProvider(
       }),
     });
 
-    const response = await Promise.race([requestPromise, timeoutPromise]);
+    const response = await raceWithTimeout(requestPromise, timeoutMs, timeoutMessage);
 
     if (response.status < 200 || response.status >= 300) {
       const errorData = (response.json as ApiErrorBody | null) ?? {};

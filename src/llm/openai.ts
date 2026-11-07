@@ -15,18 +15,14 @@ import {
   createChunkedProcessingState,
   type LLMCompletion,
 } from "./chunking";
+import { TimeoutError, raceWithTimeout } from "./requestTimeout";
+
+export { TimeoutError };
 
 export class UserCancelledError extends Error {
   constructor(message = "Transcript creation cancelled by user") {
     super(message);
     this.name = "UserCancelledError";
-  }
-}
-
-export class TimeoutError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TimeoutError";
   }
 }
 
@@ -62,17 +58,7 @@ export async function processWithOpenAI(
     // Add timeout wrapper using configured timeout
     const timeoutMinutes = settings.openaiTimeout || 1;
     const timeoutMs = timeoutMinutes * 60 * 1000;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      window.setTimeout(
-        () =>
-          reject(
-            new TimeoutError(
-              `OpenAI request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`,
-            ),
-          ),
-        timeoutMs,
-      );
-    });
+    const timeoutMessage = `OpenAI request timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}`;
 
     const requestPromise = requestUrl({
       url: "https://api.openai.com/v1/chat/completions",
@@ -94,7 +80,7 @@ export async function processWithOpenAI(
       }),
     });
 
-    const response = await Promise.race([requestPromise, timeoutPromise]);
+    const response = await raceWithTimeout(requestPromise, timeoutMs, timeoutMessage);
 
     if (response.status < 200 || response.status >= 300) {
       const errorData = (response.json as ApiErrorBody | null) ?? {};
