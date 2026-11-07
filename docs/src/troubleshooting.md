@@ -17,6 +17,7 @@
 - Review the console (F12) for error messages
 - Check the timeout setting if requests are timing out
 - **Rate limit errors on long videos**: Long videos are processed in several requests (see [Long Videos](long-videos.md)). If you hit rate limits, wait and retry (finished parts are kept) or use a plan with higher limits
+- **Status shows "waiting to resume" after switching apps (mobile)**: This is expected — backgrounding Obsidian can drop the current request, and the plugin is waiting for you to return before retrying it automatically. No action needed; just reopen Obsidian.
 
 ## LLM-processed transcript is shorter than expected
 

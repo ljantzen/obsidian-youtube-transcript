@@ -8,6 +8,7 @@ Models limit how much text a single response can contain, and they tend to short
 - **Summary**: When a summary is requested, it is generated in a separate request from the full transcript.
 - **Progress**: The status notice shows which part is being processed (e.g. "part 3 of 7").
 - **Timeouts and retries**: The timeout applies to each request. If a request times out or is rate limited and you retry, parts that already finished are not sent again.
+- **Mobile backgrounding**: On Android/iOS, switching away from Obsidian mid-request no longer counts against the timeout — only time spent in the foreground does. If backgrounding actually drops a part's connection, that part is retried automatically once you return to the app, with no action needed from you.
 
 Short transcripts are still sent in a single request.
 

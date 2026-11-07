@@ -1,5 +1,13 @@
 # Release Notes
 
+## Unreleased
+
+### Bug Fixes
+- **"Add directory" in Manage Directories did nothing (#163)**: The input field and Add button weren't wired up to the settings framework correctly, so typing a directory and clicking Add (or pressing Enter) had no effect.
+- **LLM processing could fail right after returning to Obsidian on mobile**: Switching away from Obsidian suspends it, and the per-request timeout kept counting down the whole time; returning after a minute or more could fail the request instantly, even though almost no real processing time had passed.
+  - The timeout now only counts down while Obsidian is in the foreground, so time spent backgrounded no longer counts against it.
+  - If backgrounding actually dropped a request's connection, the affected part of a long transcript is now retried automatically once you return to the app, instead of showing an error.
+
 ## 2.0.29 (2026-10-29)
 
 ### Features

@@ -31,6 +31,8 @@ src/
 │   ├── claude.ts
 │   ├── custom.ts          # OpenAI-compatible custom providers
 │   ├── chunking.ts        # Splits long transcripts into parts, joins results, handles truncation
+│   ├── requestTimeout.ts  # Timeout that pauses while Obsidian is backgrounded
+│   ├── resumeOnVisible.ts # Retries a call dropped by backgrounding once the app is visible again
 │   ├── modelFetcher.ts    # Fetches available models from APIs
 │   └── parser.ts          # Builds the single-request prompt, parses LLM responses
 ├── modals/                # User-facing dialogs (URL modal, retry, error modals)
@@ -118,10 +120,13 @@ it('should fetch transcript', async () => {
 Every provider follows the same shape, so long transcripts are never truncated:
 
 - A `requestCompletion(prompt)` closure sends **one** request and returns `LLMCompletion` = `{ text, truncated }`. `truncated` must be true when the provider stopped at its output limit (OpenAI/custom: `finish_reason === "length"`, Gemini: `finishReason === "MAX_TOKENS"`, Claude: `stop_reason === "max_tokens"`).
+- `requestCompletion` races its request against `raceWithTimeout()` from `llm/requestTimeout.ts`, not a raw `setTimeout`: the countdown pauses while Obsidian is backgrounded (`document.hidden`) and resumes the remaining budget when it's visible again, so returning from a backgrounded app doesn't trigger an instant, spurious timeout.
 - `makeRequest()` passes that closure to `processTranscriptInChunks()` together with a `ChunkedProcessingState` created once per call, then runs `parseLLMResponse()` on the result.
 - Retry handling (timeout, rate limit) wraps `makeRequest()`. Because the state lives outside it, a retry resumes after the last finished part.
 
 `processTranscriptInChunks()` sends short transcripts (≤ `DEFAULT_CHUNK_SIZE`, 12,000 chars) as one request built by `buildPrompt()`. Longer transcripts, or a single request that came back truncated, are split into parts. Each part gets a prompt from `buildChunkPrompt()` with the headings so far and the end of the previous output (`buildPartContext()`). A truncated part is split in two and retried, the summary is requested separately, and parts are joined with `joinProcessedParts()`, which repairs repeated titles and re-opened sections.
+
+Independently of that splitting, `processTranscriptInChunks()` also wraps the provider's `complete` once with `withResumeRetry()` from `llm/resumeOnVisible.ts`, used for the single-request path, every chunk, and the summary request alike. If a call fails after the document was hidden at any point during it, the wrapper waits for `visibilitychange` back to visible and retries automatically (reporting via `statusCallback`) instead of propagating the error — a failure that happened entirely in the foreground is rethrown immediately, unaffected. This is what makes backgrounding-dropped connections recover on their own instead of forcing the user through `RetryModal`.
 
 Don't send the whole transcript in a single request from a provider, and don't hard-code a low output token limit: that is what caused truncated transcripts before.
 
@@ -337,6 +342,7 @@ npm run test:coverage             # Generate coverage report
 - Verify API key is set and valid
 - Check timeout settings (`openaiTimeout`, applied to each request, including each part of a long transcript)
 - Look at provider-specific error handling
+- On mobile, a failure right after switching back to Obsidian is expected to self-heal: `llm/requestTimeout.ts` pauses the timeout while backgrounded, and `llm/resumeOnVisible.ts` retries a dropped call once visible again. If it's still failing, the problem isn't backgrounding
 
 **LLM output is incomplete:**
 - Check the provider's `truncated` detection (see [LLM Provider Structure](#llm-provider-structure))

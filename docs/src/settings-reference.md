@@ -9,7 +9,7 @@ All settings are available in **Settings → YouTube Transcript Settings**.
 - **API keys**: Enter your API keys for the selected provider
 - **Model selection**: Choose from available models (automatically fetched for built-in providers)
 - **Processing prompt**: Customize how transcripts are processed
-- **LLM timeout**: Set timeout for each API request (default: 1 minute). Long transcripts are sent in several requests, and each one has this timeout.
+- **LLM timeout**: Set timeout for each API request (default: 1 minute). Long transcripts are sent in several requests, and each one has this timeout. On Android/iOS, the countdown only runs while Obsidian is in the foreground, so time spent with the app backgrounded doesn't count against it.
 - **Force LLM output language**: When enabled, the LLM will be instructed to output in the same language as the selected transcript language. This ensures processed transcripts maintain the original language and prevents unwanted translations. The language is automatically detected from the transcript you're processing.
 
 ## File Creation Settings
