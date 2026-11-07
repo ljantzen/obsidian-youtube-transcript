@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 2.1.0 (2026-11-07)
 
 ### Bug Fixes
 - **"Add directory" in Manage Directories did nothing (#163)**: The input field and Add button weren't wired up to the settings framework correctly, so typing a directory and clicking Add (or pressing Enter) had no effect.
