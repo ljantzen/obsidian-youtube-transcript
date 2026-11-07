@@ -184,7 +184,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
       },
       {
         name: "Add directory",
-        render: (_setting, group) => this.renderAddDirectoryRow(group.listEl, () => this.update()),
+        render: (setting) => this.renderAddDirectoryRow(setting, () => this.update()),
       },
       {
         type: "group",
@@ -440,36 +440,35 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
     });
   }
 
-  private renderAddDirectoryRow(containerEl: HTMLElement, onAdded: () => void): void {
-    const addDirectoryContainer = containerEl.createDiv({
-      attr: {
-        style: "display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;",
-      },
-    });
-    const addDirectoryInput = addDirectoryContainer.createEl("input", {
-      type: "text",
-      attr: {
-        placeholder: "Transcripts or Notes/YouTube",
-        style: "flex: 1;",
-      },
-    });
-    new FolderSuggest(this.app, addDirectoryInput);
-    const addButton = addDirectoryContainer.createEl("button", {
-      text: "Add",
-    });
-    addButton.onclick = async () => {
-      const newDir = addDirectoryInput.value.trim();
+  private renderAddDirectoryRow(setting: Setting, onAdded: () => void): void {
+    let newDirValue = "";
+    const addDirectory = async () => {
+      const newDir = newDirValue.trim();
       if (newDir && newDir !== "") {
         const normalizedDir = normalizeVaultPath(newDir);
         const savedDirs = this.settings.savedDirectories || [];
         if (!savedDirs.includes(normalizedDir)) {
           this.settings.savedDirectories = [...savedDirs, normalizedDir];
           await this.saveSettings();
-          addDirectoryInput.value = "";
           onAdded();
         }
       }
     };
+    setting.addText((text) => {
+      text.setPlaceholder("Transcripts or Notes/YouTube").onChange((value) => {
+        newDirValue = value;
+      });
+      new FolderSuggest(this.app, text.inputEl);
+      text.inputEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          void addDirectory();
+        }
+      });
+    });
+    setting.addButton((button) => {
+      button.setButtonText("Add").onClick(() => void addDirectory());
+    });
   }
 
   private renderCoverNoteLocationField(setting: Setting): void {
