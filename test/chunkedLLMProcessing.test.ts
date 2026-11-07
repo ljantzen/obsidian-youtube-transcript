@@ -325,6 +325,40 @@ describe("Chunked LLM processing", () => {
       expect(result).toContain("word1499");
     });
 
+    it("should transparently retry a part that failed while the app was backgrounded", async () => {
+      Object.defineProperty(document, "hidden", { value: false, configurable: true });
+
+      let calls = 0;
+      const failOnceWhileHidden = vi.fn(async (prompt: string): Promise<LLMCompletion> => {
+        calls++;
+        if (calls === 2) {
+          Object.defineProperty(document, "hidden", { value: true, configurable: true });
+          document.dispatchEvent(new Event("visibilitychange"));
+          // Resolve visibility on a later microtask so withResumeRetry's
+          // waitUntilVisible() is already listening when it changes back.
+          Promise.resolve().then(() => {
+            Object.defineProperty(document, "hidden", { value: false, configurable: true });
+            document.dispatchEvent(new Event("visibilitychange"));
+          });
+          throw new Error("connection dropped while backgrounded");
+        }
+        return { text: echoTranscript(prompt), truncated: false };
+      });
+
+      const result = await processTranscriptInChunks({
+        ...baseOptions,
+        transcript: words(1500),
+        generateSummary: false,
+        complete: failOnceWhileHidden,
+        chunkSize: 2000,
+      });
+
+      Object.defineProperty(document, "hidden", { value: false, configurable: true });
+
+      expect(result).toContain("word1499");
+      expect(calls).toBeGreaterThan(2); // the failed part was retried, not left unresolved
+    });
+
     it("should give each part the headings produced by earlier parts", async () => {
       const prompts: string[] = [];
       let part = 0;

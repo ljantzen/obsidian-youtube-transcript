@@ -1,5 +1,6 @@
 import type { StatusCallback } from "../types";
 import { buildPrompt, getLanguageRequirement } from "./parser";
+import { withResumeRetry } from "./resumeOnVisible";
 
 /**
  * Long transcripts are processed in chunks. A single LLM response is capped by
@@ -270,11 +271,22 @@ export async function processTranscriptInChunks(
     basePrompt,
     generateSummary,
     providerName,
-    complete,
     statusCallback,
   } = options;
   const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
   const state = options.state ?? createChunkedProcessingState();
+
+  // If the app is backgrounded mid-request, a mobile WebView can drop the
+  // connection. Retry automatically once the app is visible again instead of
+  // surfacing the error, since the failure wasn't a real request problem.
+  const complete = withResumeRetry(options.complete, {
+    onWaitingForResume: () =>
+      statusCallback?.(
+        `Connection interrupted while backgrounded; waiting to resume ${providerName} processing...`,
+      ),
+    onRetrying: () => statusCallback?.(`Retrying ${providerName} request...`),
+  });
+  const chunkOptions: ChunkedProcessingOptions = { ...options, complete };
 
   let chunks = splitTranscriptIntoChunks(transcript, chunkSize);
 
@@ -311,7 +323,7 @@ export async function processTranscriptInChunks(
         );
       }
       output = await processChunk(
-        options,
+        chunkOptions,
         chunks[i],
         i + 1,
         total,
@@ -332,7 +344,7 @@ export async function processTranscriptInChunks(
     if (statusCallback) {
       statusCallback(`Generating summary with ${providerName}...`);
     }
-    state.summary = await summarize(options, transcript);
+    state.summary = await summarize(chunkOptions, transcript);
   }
 
   return `## Summary\n\n${state.summary}\n\n## Transcript\n\n${joinedTranscript}`;
