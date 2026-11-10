@@ -23,7 +23,7 @@
 		"@vitest/coverage-v8": "^5.1.0",
 		"esbuild": "^0.28.2",
 		"eslint": "^10.0.0",
-		"eslint-plugin-obsidianmd": "^0.4.2",
+		"eslint-plugin-obsidianmd": "^0.5.1",
 		"happy-dom": "^21.0.4",
 		"obsidian": "latest",
 		"tslib": "2.9.1",
