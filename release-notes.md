@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 2.2.0 (2026-11-14)
 
 ### Features
 - **Multiple named LLM system prompts**: Settings → LLM now has a "Saved prompts" list alongside the built-in, unmodifiable **Default** prompt. Add, rename, edit and delete named prompts there. The "Enter YouTube URL" dialog shows a prompt dropdown whenever more than one prompt is available, plus a text box to tweak the prompt for just that one fetch — editing it reveals a **Save as new prompt** option to keep the tweak for later. "Fetch from clipboard" (which has no dialog) uses whichever prompt was last selected or edited. If you had customized the old single "Processing prompt" field, that text is preserved automatically as a new saved prompt (named "Migrated prompt") and selected, so existing behavior is unchanged after upgrading.
