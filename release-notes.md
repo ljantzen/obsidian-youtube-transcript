@@ -1,5 +1,10 @@
 # Release Notes
 
+## Unreleased
+
+### Features
+- **Channel URL in frontmatter and cover note templates**: The video's YouTube channel URL (derived from its channel ID) is now available as a `channelUrl` frontmatter field and a `{ChannelUrl}` cover note template variable.
+
 ## 2.1.0 (2026-11-07)
 
 ### Bug Fixes

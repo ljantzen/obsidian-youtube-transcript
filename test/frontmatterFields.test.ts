@@ -12,6 +12,7 @@ const sampleValues = {
   videoId: "dQw4w9WgXcQ",
   channel: "Test Channel",
   channelId: "UC123",
+  channelUrl: "https://www.youtube.com/channel/UC123",
   duration: "240",
   views: "1000000",
   published: "2023-01-01",
@@ -31,6 +32,9 @@ describe("buildFrontmatterLines", () => {
     expect(lines).toContain('url: "https://youtube.com/watch?v=dQw4w9WgXcQ"');
     expect(lines).toContain('videoId: "dQw4w9WgXcQ"');
     expect(lines).toContain('channel: "Test Channel"');
+    expect(lines).toContain(
+      'channelUrl: "https://www.youtube.com/channel/UC123"',
+    );
     expect(lines).toContain("isLive: false");
     expect(lines).toContain("isPrivate: false");
     expect(lines).toContain("isUnlisted: false");

@@ -658,6 +658,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           videoId: videoDetails.videoId,
           channel: videoDetails.author,
           channelId: videoDetails.channelId,
+          channelUrl: videoDetails.channelId
+            ? `https://www.youtube.com/channel/${videoDetails.channelId}`
+            : undefined,
           duration: videoDetails.lengthSeconds,
           views: videoDetails.viewCount,
           published: videoDetails.publishDate,
@@ -1073,6 +1076,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       PublishDate: videoDetails.publishDate || "",
       Description: sanitizeExternalMarkdown(videoDetails.description || videoDetails.shortDescription || ""),
       ChannelId: videoDetails.channelId || "",
+      ChannelUrl: videoDetails.channelId
+        ? `https://www.youtube.com/channel/${videoDetails.channelId}`
+        : "",
       IsLive: videoDetails.isLiveContent ? "true" : "false",
       IsPrivate: videoDetails.isPrivate ? "true" : "false",
       IsUnlisted: videoDetails.isUnlisted ? "true" : "false",

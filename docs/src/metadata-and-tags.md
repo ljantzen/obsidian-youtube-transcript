@@ -14,7 +14,7 @@ The plugin automatically extracts and includes video metadata:
 
 **In Markdown Files:**
 - Metadata is included as YAML frontmatter at the top of the file
-- Includes: title, url, videoId, channel, channelId, duration, views, published date, description, and more
+- Includes: title, url, videoId, channel, channelId, channelUrl, duration, views, published date, description, and more
 - Fully searchable and queryable in Obsidian
 - Choose which fields are written and rename their property keys in Settings → Frontmatter (see [Settings Reference](settings-reference.md#frontmatter-settings))
 

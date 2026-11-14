@@ -254,7 +254,7 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           },
           {
             name: "Cover note template",
-            desc: "Path to a markdown template file for cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {SrtLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",
+            desc: "Path to a markdown template file for cover notes. Leave empty to use the default template. Supports template variables: {ChannelName}, {VideoName}, {VideoUrl}, {Summary}, {PdfLink}, {SrtLink}, {VideoId}, {LengthSeconds}, {ViewCount}, {PublishDate}, {Description}, {ChannelId}, {ChannelUrl}, {IsLive}, {IsPrivate}, {IsUnlisted}, and {VideoDetails.*} for any videoDetails field.",
             control: { type: "file", key: "coverNoteTemplate", placeholder: "Templates/Cover Note.md", filter: (file) => file.extension === "md" },
           },
           { name: "Cover note file name", desc: "Template for cover note file names. Supports {VideoName} and {ChannelName}. Default: {VideoName}", control: { type: "text", key: "defaultCoverNoteName", placeholder: "{VideoName}" } },

@@ -29,7 +29,7 @@ All settings are available in **Settings → YouTube Transcript Settings**.
 
 ## Frontmatter Settings
 
-- **Frontmatter fields**: For each field (title, URL, video ID, channel, channel ID, duration, views, published date, description, is live, is private, is unlisted), choose whether it is written to the note's frontmatter and which property key it uses. For example, write the channel as `author` instead of `channel`. Disabled fields are left out entirely. By default all fields are enabled with their standard key names.
+- **Frontmatter fields**: For each field (title, URL, video ID, channel, channel ID, channel URL, duration, views, published date, description, is live, is private, is unlisted), choose whether it is written to the note's frontmatter and which property key it uses. For example, write the channel as `author` instead of `channel`. Disabled fields are left out entirely. By default all fields are enabled with their standard key names.
 - **Note**: The duplicate check reads the property named in **Duplicate check property** (default: `url`). If you rename or disable the URL field, update that setting to match, or duplicates won't be detected.
 
 ## Cover Note Settings

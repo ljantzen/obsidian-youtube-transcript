@@ -26,6 +26,7 @@ export type FrontmatterFieldId =
   | "videoId"
   | "channel"
   | "channelId"
+  | "channelUrl"
   | "duration"
   | "views"
   | "published"

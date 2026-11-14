@@ -41,6 +41,7 @@ When "Create cover note" is enabled, PDF and SRT files are automatically nested 
 - `{PublishDate}` - Upload/publish date
 - `{Description}` - Video description
 - `{ChannelId}` - YouTube channel ID
+- `{ChannelUrl}` - YouTube channel URL (derived from the channel ID)
 - `{IsLive}` - Whether the video is a live stream (true/false)
 - `{IsPrivate}` - Whether the video is private (true/false)
 - `{IsUnlisted}` - Whether the video is unlisted (true/false)

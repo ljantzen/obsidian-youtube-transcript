@@ -157,6 +157,23 @@ describe("VideoDetails Template Variables", () => {
     expect(result).not.toContain("{ChannelId}");
   });
 
+  it("should derive {ChannelUrl} from channelId", () => {
+    const template = "Channel URL: {ChannelUrl}";
+    const videoDetails = {
+      channelId: "UCtest123",
+    };
+    const channelUrl = videoDetails.channelId
+      ? `https://www.youtube.com/channel/${videoDetails.channelId}`
+      : "";
+
+    const result = template.replace(/{ChannelUrl}/g, channelUrl);
+
+    expect(result).toBe(
+      "Channel URL: https://www.youtube.com/channel/UCtest123",
+    );
+    expect(result).not.toContain("{ChannelUrl}");
+  });
+
   it("should replace {IsLive} variable", () => {
     const template = "Is Live: {IsLive}";
     const videoDetails = {
