@@ -13,6 +13,7 @@
   - [Metadata and Tags](metadata-and-tags.md)
 - [Directories](directories.md)
 - [LLM Processing](llm-processing.md)
+  - [Saved Prompts](saved-prompts.md)
   - [Custom Providers](custom-providers.md)
   - [Long Videos](long-videos.md)
   - [Prompt Migration](prompt-migration.md)

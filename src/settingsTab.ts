@@ -11,6 +11,7 @@ import type {
   YouTubeTranscriptPluginSettings,
   CustomLLMProvider,
   FrontmatterFieldId,
+  SavedPrompt,
 } from "./types";
 import {
   DEFAULT_SETTINGS,
@@ -46,6 +47,10 @@ import {
   populateModelDropdown,
   createModelRefreshButton,
 } from "./settingsTabHelpers";
+import {
+  resolveSavedPromptDeletion,
+  generateSavedPromptId,
+} from "./prompts";
 
 export class YouTubeTranscriptSettingTab extends PluginSettingTab {
   plugin: Plugin;
@@ -320,10 +325,10 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
             render: (setting) => this.createClaudeModelSetting(setting),
           },
           {
-            name: "Processing prompt",
-            desc: "The prompt sent to the LLM for processing the transcript",
+            name: "Default prompt",
+            desc: "The built-in prompt sent to the LLM for processing the transcript. Cannot be edited or deleted — add a saved prompt below to customize it.",
             visible: () => this.settings.useLLMProcessing,
-            control: { type: "textarea", key: "prompt", placeholder: DEFAULT_PROMPT, rows: 10 },
+            render: (setting) => this.renderDefaultPromptSetting(setting),
           },
           {
             name: "LLM timeout",
@@ -372,7 +377,71 @@ export class YouTubeTranscriptSettingTab extends PluginSettingTab {
           })();
         },
       },
+      {
+        type: "list",
+        heading: "Saved prompts",
+        visible: () => this.settings.useLLMProcessing,
+        emptyState: "No saved prompts yet. Add one below, or save one from the URL-entry dialog.",
+        items: (this.settings.savedPrompts || []).map((prompt) => ({
+          name: prompt.name,
+          desc: prompt.body.length > 80 ? prompt.body.slice(0, 80) + "…" : prompt.body,
+          action: (el: HTMLElement, index: number) => {
+            const current = this.settings.savedPrompts[index];
+            if (current) this.showEditSavedPromptModal(el, current);
+          },
+        })),
+        addItem: {
+          name: "Add saved prompt",
+          action: (el: HTMLElement) => this.showAddSavedPromptModal(el),
+        },
+        onDelete: (index) => {
+          void (async () => {
+            const prompt = this.settings.savedPrompts[index];
+            if (!prompt) return;
+            const result = resolveSavedPromptDeletion(
+              this.settings.savedPrompts,
+              this.settings.lastSelectedPromptId,
+              prompt.id,
+            );
+            this.settings.savedPrompts = result.savedPrompts;
+            this.settings.lastSelectedPromptId = result.lastSelectedPromptId;
+            await this.saveSettings();
+            this.update();
+          })();
+        },
+      },
     ];
+  }
+
+  private renderDefaultPromptSetting(setting: Setting): void {
+    setting.addButton((button) =>
+      button.setButtonText("View").onClick(() => {
+        new ViewDefaultPromptModal(this.app).open();
+      }),
+    );
+  }
+
+  private showAddSavedPromptModal(_containerEl: HTMLElement): void {
+    const modal = new SavedPromptModal(this.app, null, (prompt) => {
+      prompt.id = generateSavedPromptId(this.settings.savedPrompts);
+      this.settings.savedPrompts.push(prompt);
+      void this.saveSettings().then(() => this.update());
+    });
+    modal.open();
+  }
+
+  private showEditSavedPromptModal(
+    _containerEl: HTMLElement,
+    prompt: SavedPrompt,
+  ): void {
+    const modal = new SavedPromptModal(this.app, prompt, (updatedPrompt) => {
+      const index = this.settings.savedPrompts.findIndex((p) => p.id === prompt.id);
+      if (index !== -1) {
+        this.settings.savedPrompts[index] = { ...updatedPrompt, id: prompt.id };
+        void this.saveSettings().then(() => this.update());
+      }
+    });
+    modal.open();
   }
 
   private configureFrontmatterFieldSetting(
@@ -956,6 +1025,121 @@ class CustomProviderModal extends Modal {
       }
 
       this.onSubmit(this.formData as CustomLLMProvider);
+      this.close();
+    };
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
+class ViewDefaultPromptModal extends Modal {
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+
+    contentEl.createEl("h2", { text: "Default prompt" });
+    contentEl.createEl("p", {
+      text: "This built-in prompt cannot be edited or deleted. Add a saved prompt in settings, or use the URL-entry dialog's \"save as new prompt\" option, to create a customized one.",
+      attr: { style: "color: var(--text-muted); margin-bottom: 1em;" },
+    });
+
+    const textarea = contentEl.createEl("textarea", {
+      attr: {
+        style: "width: 100%; resize: vertical;",
+        rows: "12",
+        readonly: "true",
+      },
+    });
+    textarea.value = DEFAULT_PROMPT;
+
+    const buttonContainer = contentEl.createDiv({
+      attr: { style: "display: flex; justify-content: flex-end; margin-top: 1em;" },
+    });
+    const closeButton = buttonContainer.createEl("button", { text: "Close", cls: "mod-cta" });
+    closeButton.onclick = () => this.close();
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
+class SavedPromptModal extends Modal {
+  prompt: SavedPrompt | null;
+  onSubmit: (prompt: SavedPrompt) => void;
+  formData: Partial<SavedPrompt>;
+
+  constructor(
+    app: App,
+    prompt: SavedPrompt | null,
+    onSubmit: (prompt: SavedPrompt) => void,
+  ) {
+    super(app);
+    this.prompt = prompt;
+    this.onSubmit = onSubmit;
+    this.formData = prompt ? { ...prompt } : { name: "", body: "" };
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+
+    contentEl.createEl("h2", {
+      text: this.prompt ? "Edit saved prompt" : "Add saved prompt",
+    });
+
+    new Setting(contentEl)
+      .setName("Name")
+      .setDesc("A short name to identify this prompt")
+      .addText((text) => {
+        text
+          .setPlaceholder("My prompt")
+          .setValue(this.formData.name || "")
+          .onChange((value) => {
+            this.formData.name = value;
+          });
+        text.inputEl.focus();
+      });
+
+    new Setting(contentEl)
+      .setName("Prompt text")
+      .setDesc("The prompt sent to the LLM for processing the transcript")
+      .addTextArea((textArea) => {
+        textArea
+          .setValue(this.formData.body || "")
+          .onChange((value) => {
+            this.formData.body = value;
+          });
+        textArea.inputEl.rows = 10;
+        textArea.inputEl.addClass("youtube-transcript-full-width");
+      });
+
+    const buttonContainer = contentEl.createDiv({
+      attr: {
+        style:
+          "display: flex; gap: 0.5em; justify-content: flex-end; margin-top: 1.5em;",
+      },
+    });
+
+    const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
+    cancelButton.onclick = () => {
+      this.close();
+    };
+
+    const saveButton = buttonContainer.createEl("button", {
+      text: "Save",
+      cls: "mod-cta",
+    });
+    saveButton.onclick = () => {
+      if (!this.formData.name?.trim() || !this.formData.body?.trim()) {
+        new Notice("Please enter both a name and prompt text");
+        return;
+      }
+      this.onSubmit(this.formData as SavedPrompt);
       this.close();
     };
   }

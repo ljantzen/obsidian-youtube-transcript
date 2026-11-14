@@ -18,12 +18,12 @@ For custom OpenAI-compatible providers (OpenRouter, Ollama, LM Studio, etc.), se
 2. Select your preferred LLM provider
 3. Enter your API key for the selected provider
 4. Choose a model (models are automatically fetched from the provider's API)
-5. Optionally customize the processing prompt
+5. Optionally add one or more saved prompts (see [Saved Prompts](saved-prompts.md)) to customize how transcripts are processed
 
 ## Processing Options
 
 - **Use LLM processing**: Toggle in the modal to enable/disable LLM processing for individual transcripts (even if a provider is configured)
-- **Custom prompt**: Modify the default prompt to change how transcripts are processed
+- **System prompt**: When more than one prompt is available (the built-in Default plus any saved prompts), the "Enter YouTube URL" dialog shows a dropdown to pick which one to use, and a text box to tweak it for just that one fetch — see [Saved Prompts](saved-prompts.md)
 - **Generate summary**: When enabled, the LLM will generate a 2-3 sentence summary of the video
 - **Include timestamps in LLM output**: Preserve timestamps when processing with LLM
 - **Force LLM output language**: When enabled, the LLM will be instructed to output in the same language as the selected transcript language, preventing unwanted translations
@@ -32,9 +32,9 @@ For custom OpenAI-compatible providers (OpenRouter, Ollama, LM Studio, etc.), se
 
 ## Default Processing
 
-The default prompt cleans up the transcript while keeping the speaker's own words: it adds punctuation, capitalization, and paragraph breaks, fixes obvious transcription errors, and removes filler words and promotional content. It tells the model not to paraphrase, summarize, or condense, so the result reads like an edited transcript rather than an article about the video.
+The built-in Default prompt cleans up the transcript while keeping the speaker's own words: it adds punctuation, capitalization, and paragraph breaks, fixes obvious transcription errors, and removes filler words and promotional content. It tells the model not to paraphrase, summarize, or condense, so the result reads like an edited transcript rather than an article about the video. The Default prompt cannot be edited or deleted — to customize processing, add a saved prompt instead (see [Saved Prompts](saved-prompts.md)).
 
-If you customize the prompt, avoid instructions such as "use complete sentences" or "ensure proper grammar and sentence structure". Models tend to take them as permission to rewrite, and the transcript drifts toward a summary. To get the current default back, clear the prompt field.
+If you customize a prompt, avoid instructions such as "use complete sentences" or "ensure proper grammar and sentence structure". Models tend to take them as permission to rewrite, and the transcript drifts toward a summary.
 
 See [Prompt Migration](prompt-migration.md) if you're upgrading from an older version of the plugin and want to know what changed.
 

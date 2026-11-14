@@ -54,6 +54,8 @@ export const DEFAULT_SETTINGS: YouTubeTranscriptPluginSettings = {
   claudeKey: "",
   claudeModel: "claude-sonnet-4-20250514",
   prompt: DEFAULT_PROMPT,
+  savedPrompts: [], // Empty array - users can add named prompts in settings
+  lastSelectedPromptId: "default", // "default" = the built-in, unmodifiable Default prompt
   openaiTimeout: 1, // Default 1 minute (60 seconds)
   includeVideoUrl: false,
   generateSummary: false,

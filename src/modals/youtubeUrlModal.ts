@@ -1,26 +1,32 @@
 import { App, Modal, TextComponent, MarkdownView, Notice } from "obsidian";
-import type { LLMProvider, YouTubeTranscriptPluginSettings, CaptionTrack } from "../types";
+import type { LLMProvider, YouTubeTranscriptPluginSettings, CaptionTrack, SavedPrompt } from "../types";
 import { extractVideoId, stripTrackingParams } from "../utils";
 import { getAvailableLanguages } from "../youtube";
+import { getPromptOptions, resolvePromptOption, isPromptDirty } from "../prompts";
 import { requestUrl } from "obsidian";
 
 export interface YouTubeUrlModalCallbacks {
   hasProviderKey: (provider: LLMProvider) => boolean;
+  saveNewPrompt: (name: string, body: string) => Promise<SavedPrompt>;
+}
+
+export interface YouTubeUrlModalSubmitResult {
+  url: string;
+  createNewFile: boolean;
+  includeVideoUrl: boolean;
+  generateSummary: boolean;
+  useLLM: boolean;
+  llmProvider: LLMProvider;
+  selectedDirectory: string | null;
+  tagWithChannelName: boolean;
+  fileFormats: ("markdown" | "pdf" | "srt")[];
+  languageCode: string | null;
+  promptText: string;
+  selectedPromptId: string;
 }
 
 export class YouTubeUrlModal extends Modal {
-  onSubmit: (
-    url: string,
-    createNewFile: boolean,
-    includeVideoUrl: boolean,
-    generateSummary: boolean,
-    useLLM: boolean,
-    llmProvider: LLMProvider,
-    selectedDirectory: string | null,
-    tagWithChannelName: boolean,
-    fileFormats: ("markdown" | "pdf" | "srt")[],
-    languageCode: string | null,
-  ) => void | Promise<void>;
+  onSubmit: (result: YouTubeUrlModalSubmitResult) => void | Promise<void>;
   settings: YouTubeTranscriptPluginSettings;
   callbacks: YouTubeUrlModalCallbacks;
 
@@ -28,18 +34,7 @@ export class YouTubeUrlModal extends Modal {
     app: App,
     settings: YouTubeTranscriptPluginSettings,
     callbacks: YouTubeUrlModalCallbacks,
-    onSubmit: (
-      url: string,
-      createNewFile: boolean,
-      includeVideoUrl: boolean,
-      generateSummary: boolean,
-      useLLM: boolean,
-      llmProvider: LLMProvider,
-      selectedDirectory: string | null,
-      tagWithChannelName: boolean,
-      fileFormats: ("markdown" | "pdf" | "srt")[],
-      languageCode: string | null,
-    ) => void | Promise<void>,
+    onSubmit: (result: YouTubeUrlModalSubmitResult) => void | Promise<void>,
   ) {
     super(app);
     this.settings = settings;
@@ -498,6 +493,11 @@ export class YouTubeUrlModal extends Modal {
     let useLLMCheckbox: HTMLInputElement | null = null;
     let providerDropdown: HTMLSelectElement | null = null;
     let generateSummaryCheckbox: HTMLInputElement | null = null;
+    let promptDropdown: HTMLSelectElement | null = null;
+    let promptTextarea: HTMLTextAreaElement | null = null;
+    let savePromptButton: HTMLButtonElement | null = null;
+    const promptOptions = getPromptOptions(this.settings);
+    let currentPromptOption = resolvePromptOption(this.settings, this.settings.lastSelectedPromptId);
 
     if (hasAnyProviderKey) {
       // Add checkbox for enabling LLM processing (placed before provider dropdown)
@@ -566,6 +566,96 @@ export class YouTubeUrlModal extends Modal {
         useLLMCheckbox.checked = true;
       }
 
+      // Prompt selection dropdown — only shown once more than Default exists
+      const promptSelectContainer = contentEl.createDiv({
+        attr: {
+          style:
+            "margin-bottom: 0.5em; display: flex; align-items: center; gap: 0.5em;",
+        },
+      });
+      promptSelectContainer.style.display = promptOptions.length > 1 ? "flex" : "none";
+      promptSelectContainer.createEl("label", {
+        text: "System prompt:",
+        attr: { style: "white-space: nowrap;" },
+      });
+      promptDropdown = promptSelectContainer.createEl("select", {
+        attr: { id: "prompt-dropdown", style: "flex: 1;" },
+      });
+      for (const option of promptOptions) {
+        promptDropdown.add(new Option(option.name, option.id));
+      }
+      promptDropdown.value = currentPromptOption.id;
+
+      // One-off prompt text, editable for this fetch only
+      const promptTextareaContainer = contentEl.createDiv({
+        attr: { style: "margin-bottom: 1em;" },
+      });
+      promptTextarea = promptTextareaContainer.createEl("textarea", {
+        attr: {
+          id: "prompt-textarea",
+          rows: "6",
+          style: "width: 100%; resize: vertical;",
+        },
+      });
+      promptTextarea.value = currentPromptOption.body;
+
+      const savePromptRow = promptTextareaContainer.createDiv({
+        attr: {
+          style:
+            "display: none; margin-top: 0.5em; gap: 0.5em; align-items: center;",
+        },
+      });
+      const savePromptNameInput = savePromptRow.createEl("input", {
+        type: "text",
+        placeholder: "Name for this prompt",
+        attr: { style: "flex: 1;" },
+      });
+      savePromptButton = savePromptRow.createEl("button", {
+        text: "Save as new prompt",
+      });
+
+      const updateSavePromptVisibility = () => {
+        const dirty = isPromptDirty(promptTextarea!.value, currentPromptOption);
+        savePromptRow.style.display = dirty ? "flex" : "none";
+      };
+      promptTextarea.addEventListener("input", updateSavePromptVisibility);
+
+      promptDropdown.addEventListener("change", () => {
+        currentPromptOption =
+          promptOptions.find((o) => o.id === promptDropdown!.value) ??
+          currentPromptOption;
+        promptTextarea!.value = currentPromptOption.body;
+        updateSavePromptVisibility();
+      });
+
+      savePromptButton.addEventListener("click", () => {
+        void (async () => {
+          const name = savePromptNameInput.value.trim();
+          const body = promptTextarea!.value;
+          if (!name) {
+            new Notice("Please enter a name for this prompt", 5000);
+            return;
+          }
+          if (!body.trim()) {
+            new Notice("Prompt text cannot be empty", 5000);
+            return;
+          }
+          savePromptButton!.disabled = true;
+          try {
+            const newPrompt = await this.callbacks.saveNewPrompt(name, body);
+            promptOptions.push(newPrompt);
+            promptDropdown!.add(new Option(newPrompt.name, newPrompt.id));
+            promptDropdown!.value = newPrompt.id;
+            currentPromptOption = newPrompt;
+            promptSelectContainer.style.display = promptOptions.length > 1 ? "flex" : "none";
+            savePromptNameInput.value = "";
+            updateSavePromptVisibility();
+          } finally {
+            savePromptButton!.disabled = false;
+          }
+        })();
+      });
+
       // Add checkbox for generating summary (must be defined before updateLLMDependentControls)
       const generateSummaryContainer = contentEl.createDiv({
         attr: { style: "margin-bottom: 1em;" },
@@ -593,6 +683,8 @@ export class YouTubeUrlModal extends Modal {
         const llmEnabled = useLLMCheckbox!.checked;
         providerDropdown!.disabled = !llmEnabled;
         generateSummaryCheckbox!.disabled = !llmEnabled;
+        promptDropdown!.disabled = !llmEnabled;
+        promptTextarea!.disabled = !llmEnabled;
         // Uncheck summary if LLM is disabled
         if (!llmEnabled) {
           generateSummaryCheckbox!.checked = false;
@@ -672,12 +764,18 @@ export class YouTubeUrlModal extends Modal {
         }
         // Get selected language (empty string = auto-select)
         const languageCode = languageDropdown.value === "" ? null : languageDropdown.value;
+        // Resolved prompt text/id for this fetch (irrelevant when LLM is off)
+        const promptText = useLLM && promptTextarea ? promptTextarea.value : "";
+        const selectedPromptId = promptDropdown
+          ? promptDropdown.value
+          : this.settings.lastSelectedPromptId;
 
         isSubmitting = true;
         submitButton.disabled = true;
         submitButton.setText("Fetching…");
+        if (savePromptButton) savePromptButton.disabled = true;
 
-        const result = this.onSubmit(
+        const result = this.onSubmit({
           url,
           createNewFile,
           includeVideoUrl,
@@ -686,9 +784,11 @@ export class YouTubeUrlModal extends Modal {
           llmProvider,
           selectedDirectory,
           tagWithChannelName,
-          selectedFormats,
+          fileFormats: selectedFormats,
           languageCode,
-        );
+          promptText,
+          selectedPromptId,
+        });
         if (result instanceof Promise) {
           result.then(() => {
             this.close();
@@ -698,6 +798,7 @@ export class YouTubeUrlModal extends Modal {
             isSubmitting = false;
             submitButton.disabled = false;
             submitButton.setText("Fetch transcript");
+            if (savePromptButton) savePromptButton.disabled = false;
           });
         } else {
           this.close();
@@ -707,6 +808,7 @@ export class YouTubeUrlModal extends Modal {
         isSubmitting = false;
         submitButton.disabled = false;
         submitButton.setText("Fetch transcript");
+        if (savePromptButton) savePromptButton.disabled = false;
       }
     };
 

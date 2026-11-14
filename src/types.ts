@@ -19,6 +19,12 @@ export interface CustomLLMProvider {
   customHeaders?: Record<string, string>; // Optional custom headers (e.g., HTTP-Referer, X-Title for OpenRouter)
 }
 
+export interface SavedPrompt {
+  id: string;
+  name: string;
+  body: string;
+}
+
 // Canonical identifiers for the fields the plugin can write into note frontmatter
 export type FrontmatterFieldId =
   | "title"
@@ -55,7 +61,9 @@ export interface YouTubeTranscriptPluginSettings {
   geminiModel: string;
   claudeKey: string;
   claudeModel: string;
-  prompt: string;
+  prompt: string; // Legacy global prompt; kept only for one-time migration to savedPrompts, no longer user-facing
+  savedPrompts: SavedPrompt[]; // User-managed named prompts (the built-in "Default" is not stored here)
+  lastSelectedPromptId: string; // Which prompt (DEFAULT_PROMPT_ID or a SavedPrompt.id) was last used/selected
   openaiTimeout: number; // Timeout in minutes
   includeVideoUrl: boolean;
   generateSummary: boolean;
@@ -139,6 +147,7 @@ export interface ProcessTranscriptOptions {
   tagWithChannelName: boolean;
   fileFormat: FileFormat;
   languageCode: string | null;
+  promptText: string;
   disableCoverNote?: boolean;
   fileFormats?: FileFormat[];
   skipDuplicateCheck?: boolean;

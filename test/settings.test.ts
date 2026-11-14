@@ -13,6 +13,8 @@ describe("Settings", () => {
       claudeKey: "",
       claudeModel: "claude-sonnet-4-20250514",
       prompt: "Test prompt",
+      savedPrompts: [] as { id: string; name: string; body: string }[],
+      lastSelectedPromptId: "default",
       openaiTimeout: 1,
       includeVideoUrl: false,
       generateSummary: false,
@@ -51,6 +53,8 @@ describe("Settings", () => {
     expect(defaultSettings.forceLLMLanguage).toBe(false);
     expect(typeof defaultSettings.prompt).toBe("string");
     expect(defaultSettings.prompt.length).toBeGreaterThan(0);
+    expect(defaultSettings.savedPrompts).toEqual([]);
+    expect(defaultSettings.lastSelectedPromptId).toBe("default");
   });
 
   it("should validate timeout is positive number", () => {

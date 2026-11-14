@@ -10,12 +10,8 @@ The default prompt changed in version 2.0.27. The earlier default asked for "com
 
 ## Checking which prompt you have
 
-Open Settings → YouTube Transcript Settings → Processing prompt. If it starts with "Please process the following YouTube video transcript", you still have the earlier default or a customized version of it. The new default starts with "Please clean up the following YouTube video transcript".
+Since the introduction of [Saved Prompts](saved-prompts.md), your prompt is no longer a single settings field — a customized prompt from before that change shows up as a saved prompt named "Migrated prompt" in Settings → YouTube Transcript Settings → Saved prompts. Open it to check its text: if it starts with "Please process the following YouTube video transcript", it's the earlier default or a customized version of it. The current Default prompt (viewable but not editable in the same section) starts with "Please clean up the following YouTube video transcript".
 
 ## Switching a customized prompt to the new default
 
-1. Copy any instructions of your own that you want to keep (for example, "Make sections where appropriate using markdown headings").
-2. Clear the prompt field. The new default is used right away and is shown as the field's placeholder; it is saved as your prompt the next time the plugin loads.
-3. To add your own instructions, paste the placeholder text into the field and add them as extra numbered items before the final paragraph.
-
-Alternatively, edit your prompt in place: remove "Create an accurate and complete transcription with complete sentences" and "Ensure proper grammar and sentence structure", and add an instruction to keep the speaker's own words without paraphrasing or condensing.
+Edit your "Migrated prompt" entry (or any other saved prompt based on the earlier default) directly: remove "Create an accurate and complete transcription with complete sentences" and "Ensure proper grammar and sentence structure", and add an instruction to keep the speaker's own words without paraphrasing or condensing. Or delete it and rely on the built-in Default, optionally copying over any instructions of your own first (for example, "Make sections where appropriate using markdown headings") into a new saved prompt.

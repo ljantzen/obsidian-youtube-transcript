@@ -13,8 +13,14 @@ import type {
   FileFormat,
   ProcessTranscriptOptions,
   TranscriptFileOptions,
+  SavedPrompt,
 } from "./types";
-import { DEFAULT_SETTINGS, normalizeSavedPrompt } from "./settings";
+import { DEFAULT_SETTINGS, DEFAULT_PROMPT } from "./settings";
+import {
+  migrateLegacyPrompt,
+  resolveEffectivePromptText,
+  generateSavedPromptId,
+} from "./prompts";
 import { extractVideoId, sanitizeFilename, validateClaudeModelName, sanitizeTagName, sanitizeExternalMarkdown } from "./utils";
 import { hasProviderKey as hasProviderKeyFn } from "./providerUtils";
 import { replaceTemplateVariables } from "./utils/templateVariables";
@@ -126,11 +132,18 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       changed = true;
     }
 
-    // prompt: repair empty saved value, upgrade an unmodified earlier default
-    const prompt = normalizeSavedPrompt(this.settings.prompt);
-    if (prompt !== this.settings.prompt) {
-      this.settings.prompt = prompt;
-      changed = true;
+    // prompt → savedPrompts/lastSelectedPromptId: one-time migration from the old
+    // single global prompt field to named saved prompts (Default is now fixed).
+    if (loadedData?.savedPrompts === undefined) {
+      const migrated = migrateLegacyPrompt({
+        legacyPrompt: this.settings.prompt,
+        savedPrompts: this.settings.savedPrompts ?? [],
+        lastSelectedPromptId: loadedData?.lastSelectedPromptId as string | undefined,
+      });
+      this.settings.savedPrompts = migrated.savedPrompts;
+      this.settings.lastSelectedPromptId = migrated.lastSelectedPromptId;
+      this.settings.prompt = DEFAULT_PROMPT; // legacy field, no longer meaningful on disk
+      if (migrated.changed) changed = true;
     }
 
     // openaiTimeout: repair zero/negative saved value
@@ -215,19 +228,34 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings,
       {
         hasProviderKey: (provider: LLMProvider) => this.hasProviderKey(provider),
+        saveNewPrompt: async (name: string, body: string) => {
+          const newPrompt: SavedPrompt = {
+            id: generateSavedPromptId(this.settings.savedPrompts),
+            name,
+            body,
+          };
+          this.settings.savedPrompts.push(newPrompt);
+          await this.saveSettings();
+          return newPrompt;
+        },
       },
-      async (
-        url: string,
-        createNewFile: boolean,
-        includeVideoUrl: boolean,
-        generateSummary: boolean,
-        useLLM: boolean,
-        llmProvider: LLMProvider,
-        selectedDirectory: string | null,
-        tagWithChannelName: boolean,
-        fileFormats: ("markdown" | "pdf" | "srt")[],
-        languageCode: string | null,
-      ) => {
+      async ({
+        url,
+        createNewFile,
+        includeVideoUrl,
+        generateSummary,
+        useLLM,
+        llmProvider,
+        selectedDirectory,
+        tagWithChannelName,
+        fileFormats,
+        languageCode,
+        promptText,
+        selectedPromptId,
+      }) => {
+        this.settings.lastSelectedPromptId = selectedPromptId;
+        await this.saveSettings();
+
         // Check for conflict: Markdown + (PDF or SRT) with cover notes enabled
         const hasMarkdown = fileFormats.includes("markdown");
         const hasPdfOrSrt = fileFormats.includes("pdf") || fileFormats.includes("srt");
@@ -255,7 +283,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           await this.processTranscript({
             url, createNewFile, includeVideoUrl, generateSummary, useLLM,
             llmProvider, selectedDirectory, tagWithChannelName,
-            fileFormat, languageCode, disableCoverNote, fileFormats,
+            fileFormat, languageCode, promptText, disableCoverNote, fileFormats,
             skipDuplicateCheck: true,
           });
         }
@@ -320,6 +348,9 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         ? this.settings.preferredLanguage
         : null;
 
+      // No modal to pick a prompt here — use whichever prompt was last selected/edited there
+      const promptText = resolveEffectivePromptText(this.settings, this.settings.lastSelectedPromptId);
+
       // Process each URL sequentially
       for (let i = 0; i < urls.length; i++) {
         // Show progress for multi-URL batch
@@ -350,7 +381,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
             createNewFile, includeVideoUrl, generateSummary, useLLM,
             llmProvider, selectedDirectory, tagWithChannelName,
             fileFormat: fileFormat as FileFormat,
-            languageCode, disableCoverNote,
+            languageCode, promptText, disableCoverNote,
             skipDuplicateCheck: true,
           });
         }
@@ -386,7 +417,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
     const {
       url, createNewFile, includeVideoUrl, generateSummary, useLLM,
       llmProvider, selectedDirectory, tagWithChannelName, fileFormat,
-      languageCode, disableCoverNote = false, fileFormats = [],
+      languageCode, promptText, disableCoverNote = false, fileFormats = [],
       skipDuplicateCheck = false,
     } = options;
     const videoId = extractVideoId(url);
@@ -430,13 +461,14 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       // SRT uses raw timing data — LLM processing would destroy cue boundaries
       // Only use LLM if explicitly enabled, provider has a key, and format is not SRT
       const effectiveLLMProvider = (useLLM && this.hasProviderKey(llmProvider) && fileFormat !== "srt") ? llmProvider : null;
+      const effectiveSettings = { ...this.settings, prompt: promptText };
 
       const result = await getYouTubeTranscript(
         this.app,
         url,
         generateSummary,
         effectiveLLMProvider,
-        this.settings,
+        effectiveSettings,
         (status: string | null) => {
           if (status === null) {
             fetchingNotice.hide();
