@@ -1,4 +1,5 @@
 import { App, Modal, TextComponent, MarkdownView, Notice } from "obsidian";
+import type { TFile } from "obsidian";
 import type { LLMProvider, YouTubeTranscriptPluginSettings, CaptionTrack, SavedPrompt } from "../types";
 import { extractVideoId, stripTrackingParams } from "../utils";
 import { getAvailableLanguages } from "../youtube";
@@ -8,6 +9,7 @@ import { requestUrl } from "obsidian";
 export interface YouTubeUrlModalCallbacks {
   hasProviderKey: (provider: LLMProvider) => boolean;
   saveNewPrompt: (name: string, body: string) => Promise<SavedPrompt>;
+  findDuplicateNote: (videoId: string) => TFile | null;
 }
 
 export interface YouTubeUrlModalSubmitResult {
@@ -52,6 +54,15 @@ export class YouTubeUrlModal extends Modal {
     textComponent.inputEl.addClass("youtube-transcript-full-width");
     textComponent.inputEl.addClass("youtube-transcript-url-input");
     const input = textComponent.inputEl;
+
+    // Warns about an existing note for this video before the user fills in the
+    // rest of the form, rather than letting them discover it only after pressing
+    // "Fetch transcript" (see DuplicateNoteErrorModal, which still guards createTranscriptFile
+    // itself as a safety net).
+    const duplicateWarningEl = contentEl.createDiv({
+      attr: { style: "margin-bottom: 1em; color: var(--text-warning);" },
+    });
+    duplicateWarningEl.hide();
 
     // Add language selector
     const languageContainer = contentEl.createDiv({
@@ -223,6 +234,39 @@ export class YouTubeUrlModal extends Modal {
       }
     };
 
+    // Local vault lookup is synchronous and cheap, so this runs immediately on every
+    // keystroke rather than sharing the network-bound language-fetch debounce.
+    let hasDuplicate = false;
+    let submitButtonEl: HTMLButtonElement | null = null;
+    let isSubmitting = false;
+    const updateDuplicateWarning = () => {
+      duplicateWarningEl.empty();
+      duplicateWarningEl.hide();
+      hasDuplicate = false;
+
+      if (this.settings.checkForDuplicates) {
+        const videoId = extractVideoId(input.value.trim());
+        const existingNote = videoId ? this.callbacks.findDuplicateNote(videoId) : null;
+        if (existingNote) {
+          hasDuplicate = true;
+          duplicateWarningEl.show();
+          duplicateWarningEl.createSpan({ text: "A transcript for this video already exists: " });
+          const link = duplicateWarningEl.createEl("a", {
+            text: existingNote.path.replace(/\.md$/, ""),
+            href: "#",
+          });
+          link.addEventListener("click", (event) => {
+            event.preventDefault();
+            void this.app.workspace.openLinkText(existingNote.path, "", false);
+          });
+        }
+      }
+
+      if (submitButtonEl && !isSubmitting) {
+        submitButtonEl.disabled = hasDuplicate;
+      }
+    };
+
     // Fetch languages when URL changes (debounced)
     let fetchTimeout: number | null = null;
     input.addEventListener("input", () => {
@@ -236,6 +280,7 @@ export class YouTubeUrlModal extends Modal {
           console.debug("Language fetch error (already handled):", error);
         });
       }, 500); // Wait 500ms after user stops typing
+      updateDuplicateWarning();
     });
 
     // Drop tracking parameters (si, feature, utm_*, ...) from pasted and prefilled YouTube URLs
@@ -302,6 +347,9 @@ export class YouTubeUrlModal extends Modal {
           console.debug("Language fetch error (already handled):", error);
         });
       }, 100);
+      // Prefilling sets input.value directly, which doesn't fire an "input" event,
+      // so the duplicate check needs an explicit call here too.
+      updateDuplicateWarning();
     }
 
     // Add checkbox for creating new file
@@ -712,13 +760,14 @@ export class YouTubeUrlModal extends Modal {
       text: "Fetch transcript",
     });
     submitButton.addClass("youtube-transcript-button-secondary");
+    submitButtonEl = submitButton;
+    submitButton.disabled = hasDuplicate;
 
-    // Guards against double-submission (e.g. clicking Fetch or pressing Enter
-    // again) while a fetch is already in progress and the modal is still open.
-    let isSubmitting = false;
-
+    // isSubmitting also guards against double-submission (e.g. clicking Fetch or
+    // pressing Enter again) while a fetch is already in progress and the modal is
+    // still open.
     const handleSubmit = () => {
-      if (isSubmitting) return;
+      if (isSubmitting || hasDuplicate) return;
       try {
         const url = input.value.trim();
         if (!url) {
@@ -796,7 +845,7 @@ export class YouTubeUrlModal extends Modal {
             console.error("Error in onSubmit callback:", error);
             // Don't close modal on error so user can retry
             isSubmitting = false;
-            submitButton.disabled = false;
+            submitButton.disabled = hasDuplicate;
             submitButton.setText("Fetch transcript");
             if (savePromptButton) savePromptButton.disabled = false;
           });
@@ -806,7 +855,7 @@ export class YouTubeUrlModal extends Modal {
       } catch (error) {
         console.error("Error in submit button handler:", error);
         isSubmitting = false;
-        submitButton.disabled = false;
+        submitButton.disabled = hasDuplicate;
         submitButton.setText("Fetch transcript");
         if (savePromptButton) savePromptButton.disabled = false;
       }

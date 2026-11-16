@@ -302,6 +302,91 @@ describe("hasProviderKey — custom provider support", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Early duplicate check in the "Enter YouTube URL" modal (youtubeUrlModal.ts)
+//
+// Mirrors updateDuplicateWarning()'s decision logic: the modal now checks for
+// an existing note as soon as a recognizable video ID is in the URL field —
+// on every keystroke/paste and for a prefilled URL — rather than only after
+// the user fills in the rest of the form and presses "Fetch transcript".
+// This lets the modal disable the submit button and show a warning before
+// the user does that work, while createTranscriptFile() still re-checks as
+// the authoritative guard.
+// ---------------------------------------------------------------------------
+
+function computeDuplicateWarningState(params: {
+  checkForDuplicates: boolean;
+  url: string;
+  findDuplicateNote: (videoId: string) => { path: string } | null;
+}): { hasDuplicate: boolean; existingNotePath: string | null } {
+  if (!params.checkForDuplicates) return { hasDuplicate: false, existingNotePath: null };
+  const videoId = extractVideoId(params.url.trim());
+  if (!videoId) return { hasDuplicate: false, existingNotePath: null };
+  const existingNote = params.findDuplicateNote(videoId);
+  if (!existingNote) return { hasDuplicate: false, existingNotePath: null };
+  return { hasDuplicate: true, existingNotePath: existingNote.path };
+}
+
+describe("Early duplicate check in YouTube URL modal", () => {
+  const existingNote = { path: "Sources/Rick Astley.md" };
+  const findDuplicateNote = vi.fn((videoId: string) =>
+    videoId === "dQw4w9WgXcQ" ? existingNote : null,
+  );
+
+  it("flags a duplicate as soon as a recognizable URL is typed", () => {
+    const result = computeDuplicateWarningState({
+      checkForDuplicates: true,
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      findDuplicateNote,
+    });
+    expect(result).toEqual({ hasDuplicate: true, existingNotePath: "Sources/Rick Astley.md" });
+  });
+
+  it("does not flag when the setting is disabled", () => {
+    const result = computeDuplicateWarningState({
+      checkForDuplicates: false,
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      findDuplicateNote,
+    });
+    expect(result).toEqual({ hasDuplicate: false, existingNotePath: null });
+    expect(findDuplicateNote).not.toHaveBeenCalled();
+  });
+
+  it("does not flag an incomplete or invalid URL", () => {
+    const result = computeDuplicateWarningState({
+      checkForDuplicates: true,
+      url: "https://www.youtube.com/watch?v=",
+      findDuplicateNote,
+    });
+    expect(result).toEqual({ hasDuplicate: false, existingNotePath: null });
+  });
+
+  it("does not flag a video with no existing note", () => {
+    const result = computeDuplicateWarningState({
+      checkForDuplicates: true,
+      url: "https://www.youtube.com/watch?v=aaaaaaaaaaA",
+      findDuplicateNote,
+    });
+    expect(result).toEqual({ hasDuplicate: false, existingNotePath: null });
+  });
+
+  it("clears once the URL is edited to a different, non-duplicate video", () => {
+    const first = computeDuplicateWarningState({
+      checkForDuplicates: true,
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      findDuplicateNote,
+    });
+    expect(first.hasDuplicate).toBe(true);
+
+    const afterEdit = computeDuplicateWarningState({
+      checkForDuplicates: true,
+      url: "https://www.youtube.com/watch?v=aaaaaaaaaaA",
+      findDuplicateNote,
+    });
+    expect(afterEdit.hasDuplicate).toBe(false);
+  });
+});
+
 describe("SRT segment typing", () => {
   it("TranscriptSegment duration field is optional", () => {
     const withDuration: TranscriptSegment = { startTime: 1, text: "Hi", duration: 2 };

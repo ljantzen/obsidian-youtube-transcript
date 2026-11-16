@@ -228,6 +228,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       this.settings,
       {
         hasProviderKey: (provider: LLMProvider) => this.hasProviderKey(provider),
+        findDuplicateNote: (videoId: string) => this.findDuplicateNote(videoId),
         saveNewPrompt: async (name: string, body: string) => {
           const newPrompt: SavedPrompt = {
             id: generateSavedPromptId(this.settings.savedPrompts),
