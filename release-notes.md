@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.2.1 (2026-11-17)
+
+### Features
+- **Early duplicate-note check**: The "Enter YouTube URL" dialog now checks for an existing note as soon as it recognizes a video ID in the URL field — typed, pasted, or prefilled from the clipboard or editor selection — instead of only after you fill in the rest of the form and press "Fetch transcript". If a match is found, a warning with a link to the existing note appears and "Fetch transcript" is disabled. The check only applies when "Create new file" is enabled, matching the existing behavior for inserting into the current note. The check at submit time still runs as a safety net.
+- **Prompt text field collapsed by default**: The one-off prompt textarea in the "Enter YouTube URL" dialog took up a lot of vertical space. It's now hidden behind a new **Edit prompt for this fetch** checkbox, unchecked by default; checking it reveals the textarea as before.
+
 ## 2.2.0 (2026-11-14)
 
 ### Features
