@@ -23,7 +23,7 @@ For custom OpenAI-compatible providers (OpenRouter, Ollama, LM Studio, etc.), se
 ## Processing Options
 
 - **Use LLM processing**: Toggle in the modal to enable/disable LLM processing for individual transcripts (even if a provider is configured)
-- **System prompt**: When more than one prompt is available (the built-in Default plus any saved prompts), the "Enter YouTube URL" dialog shows a dropdown to pick which one to use, and a text box to tweak it for just that one fetch — see [Saved Prompts](saved-prompts.md)
+- **System prompt**: When more than one prompt is available (the built-in Default plus any saved prompts), the "Enter YouTube URL" dialog shows a dropdown to pick which one to use. Check **Edit prompt for this fetch** to reveal a text box and tweak the prompt for just that one fetch — see [Saved Prompts](saved-prompts.md)
 - **Generate summary**: When enabled, the LLM will generate a 2-3 sentence summary of the video
 - **Include timestamps in LLM output**: Preserve timestamps when processing with LLM
 - **Force LLM output language**: When enabled, the LLM will be instructed to output in the same language as the selected transcript language, preventing unwanted translations

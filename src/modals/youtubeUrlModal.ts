@@ -239,12 +239,22 @@ export class YouTubeUrlModal extends Modal {
     let hasDuplicate = false;
     let submitButtonEl: HTMLButtonElement | null = null;
     let isSubmitting = false;
+    // Not yet created when this runs for a prefilled URL — falls back to the setting
+    // it will be initialized from, so behavior doesn't change once it exists.
+    let createNewFileCheckboxEl: HTMLInputElement | null = null;
     const updateDuplicateWarning = () => {
       duplicateWarningEl.empty();
       duplicateWarningEl.hide();
       hasDuplicate = false;
 
-      if (this.settings.checkForDuplicates) {
+      // Matches the main.ts guard: the duplicate check only matters when a new
+      // file would actually be created — inserting into the current note always
+      // proceeds regardless of existing notes for the same video.
+      const wouldCreateNewFile = createNewFileCheckboxEl
+        ? createNewFileCheckboxEl.checked
+        : this.settings.createNewFile;
+
+      if (wouldCreateNewFile && this.settings.checkForDuplicates) {
         const videoId = extractVideoId(input.value.trim());
         const existingNote = videoId ? this.callbacks.findDuplicateNote(videoId) : null;
         if (existingNote) {
@@ -366,6 +376,7 @@ export class YouTubeUrlModal extends Modal {
     if (this.settings.createNewFile) {
       createNewFileCheckbox.checked = true;
     }
+    createNewFileCheckboxEl = createNewFileCheckbox;
     createNewFileContainer.createEl("label", {
       text: "Create new file (based on video title)",
       attr: {
@@ -472,6 +483,7 @@ export class YouTubeUrlModal extends Modal {
           if (!createNewFileCheckbox.checked) {
             createNewFileCheckbox.checked = true;
             updateCreateNewFileVisibility();
+            updateDuplicateWarning();
           }
         }
       });
@@ -484,7 +496,9 @@ export class YouTubeUrlModal extends Modal {
       fileFormatContainer.style.display = show ? "block" : "none";
     };
     createNewFileCheckbox.addEventListener("change", updateCreateNewFileVisibility);
+    createNewFileCheckbox.addEventListener("change", updateDuplicateWarning);
     updateCreateNewFileVisibility();
+    updateDuplicateWarning();
 
     // Add checkbox for including video URL
     const includeUrlContainer = contentEl.createDiv({
@@ -634,10 +648,36 @@ export class YouTubeUrlModal extends Modal {
       }
       promptDropdown.value = currentPromptOption.id;
 
+      // Collapsed by default — the prompt textarea takes up a lot of vertical
+      // space and most fetches just use the selected prompt as-is.
+      const editPromptContainer = contentEl.createDiv({
+        attr: { style: "margin-bottom: 0.5em;" },
+      });
+      const editPromptCheckbox = editPromptContainer.createEl("input", {
+        type: "checkbox",
+        attr: { id: "edit-prompt-checkbox" },
+      });
+      editPromptContainer.createEl("label", {
+        text: "Edit prompt for this fetch",
+        attr: {
+          for: "edit-prompt-checkbox",
+          style: "margin-left: 0.5em; cursor: pointer;",
+        },
+      });
+
       // One-off prompt text, editable for this fetch only
       const promptTextareaContainer = contentEl.createDiv({
         attr: { style: "margin-bottom: 1em;" },
       });
+      promptTextareaContainer.hide();
+      editPromptCheckbox.addEventListener("change", () => {
+        if (editPromptCheckbox.checked) {
+          promptTextareaContainer.show();
+        } else {
+          promptTextareaContainer.hide();
+        }
+      });
+
       promptTextarea = promptTextareaContainer.createEl("textarea", {
         attr: {
           id: "prompt-textarea",
@@ -733,6 +773,7 @@ export class YouTubeUrlModal extends Modal {
         generateSummaryCheckbox!.disabled = !llmEnabled;
         promptDropdown!.disabled = !llmEnabled;
         promptTextarea!.disabled = !llmEnabled;
+        editPromptCheckbox.disabled = !llmEnabled;
         // Uncheck summary if LLM is disabled
         if (!llmEnabled) {
           generateSummaryCheckbox!.checked = false;

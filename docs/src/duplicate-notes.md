@@ -4,8 +4,9 @@ The plugin can check whether a transcript for the same video already exists in y
 
 1. Enable "Prevent duplicate notes" in Settings → YouTube Transcript Settings → File Creation
 2. Set "Duplicate check property" to the YAML frontmatter key that holds the video URL or ID (default: `url`)
-3. When you fetch a transcript with "Create new file" enabled, the plugin will search all markdown files in your vault for a note whose frontmatter property matches the video
-4. If a duplicate is found, a notice will show the existing note's name and the operation is cancelled — no network request is made
+3. As soon as the "Enter YouTube URL" dialog recognizes a video ID in the URL field — typed, pasted, or prefilled from the clipboard or editor selection — the plugin searches all markdown files in your vault for a note whose frontmatter property matches that video
+4. If a match is found, the dialog shows a warning with a link to the existing note and disables "Fetch transcript", so you find out before filling in the rest of the form
+5. The same check runs again when you submit, as a safety net, in case the match only appeared afterward (e.g. "Create new file" was off until just now) — if it fires there, a notice shows the existing note's name and the operation is cancelled with no network request made
 
 ## How matching works
 

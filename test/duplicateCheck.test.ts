@@ -316,10 +316,13 @@ describe("hasProviderKey — custom provider support", () => {
 
 function computeDuplicateWarningState(params: {
   checkForDuplicates: boolean;
+  createNewFile: boolean;
   url: string;
   findDuplicateNote: (videoId: string) => { path: string } | null;
 }): { hasDuplicate: boolean; existingNotePath: string | null } {
-  if (!params.checkForDuplicates) return { hasDuplicate: false, existingNotePath: null };
+  if (!params.createNewFile || !params.checkForDuplicates) {
+    return { hasDuplicate: false, existingNotePath: null };
+  }
   const videoId = extractVideoId(params.url.trim());
   if (!videoId) return { hasDuplicate: false, existingNotePath: null };
   const existingNote = params.findDuplicateNote(videoId);
@@ -336,6 +339,7 @@ describe("Early duplicate check in YouTube URL modal", () => {
   it("flags a duplicate as soon as a recognizable URL is typed", () => {
     const result = computeDuplicateWarningState({
       checkForDuplicates: true,
+      createNewFile: true,
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       findDuplicateNote,
     });
@@ -345,6 +349,20 @@ describe("Early duplicate check in YouTube URL modal", () => {
   it("does not flag when the setting is disabled", () => {
     const result = computeDuplicateWarningState({
       checkForDuplicates: false,
+      createNewFile: true,
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      findDuplicateNote,
+    });
+    expect(result).toEqual({ hasDuplicate: false, existingNotePath: null });
+    expect(findDuplicateNote).not.toHaveBeenCalled();
+  });
+
+  it("does not flag when 'Create new file' is unchecked, even for a duplicate video", () => {
+    // Inserting into the current note always proceeds, matching the main.ts guard
+    // (createNewFile && checkForDuplicates) that still runs at submit time.
+    const result = computeDuplicateWarningState({
+      checkForDuplicates: true,
+      createNewFile: false,
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       findDuplicateNote,
     });
@@ -355,6 +373,7 @@ describe("Early duplicate check in YouTube URL modal", () => {
   it("does not flag an incomplete or invalid URL", () => {
     const result = computeDuplicateWarningState({
       checkForDuplicates: true,
+      createNewFile: true,
       url: "https://www.youtube.com/watch?v=",
       findDuplicateNote,
     });
@@ -364,6 +383,7 @@ describe("Early duplicate check in YouTube URL modal", () => {
   it("does not flag a video with no existing note", () => {
     const result = computeDuplicateWarningState({
       checkForDuplicates: true,
+      createNewFile: true,
       url: "https://www.youtube.com/watch?v=aaaaaaaaaaA",
       findDuplicateNote,
     });
@@ -373,6 +393,7 @@ describe("Early duplicate check in YouTube URL modal", () => {
   it("clears once the URL is edited to a different, non-duplicate video", () => {
     const first = computeDuplicateWarningState({
       checkForDuplicates: true,
+      createNewFile: true,
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       findDuplicateNote,
     });
@@ -380,6 +401,7 @@ describe("Early duplicate check in YouTube URL modal", () => {
 
     const afterEdit = computeDuplicateWarningState({
       checkForDuplicates: true,
+      createNewFile: true,
       url: "https://www.youtube.com/watch?v=aaaaaaaaaaA",
       findDuplicateNote,
     });
