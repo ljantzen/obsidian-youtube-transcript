@@ -271,10 +271,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           const videoId = extractVideoId(url);
           const existingNote = videoId ? this.findDuplicateNote(videoId) : null;
           if (existingNote) {
-            new DuplicateNoteErrorModal(
-              this.app,
-              existingNote.path.replace(/\.md$/, ""),
-            ).open();
+            new DuplicateNoteErrorModal(this.app, existingNote).open();
             return;
           }
         }
@@ -366,10 +363,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
           if (videoId) {
             const existingNote = this.findDuplicateNote(videoId);
             if (existingNote) {
-              new DuplicateNoteErrorModal(
-                this.app,
-                existingNote.path.replace(/\.md$/, ""),
-              ).open();
+              new DuplicateNoteErrorModal(this.app, existingNote).open();
               continue;
             }
           }
@@ -426,10 +420,7 @@ export default class YouTubeTranscriptPlugin extends Plugin {
       if (videoId) {
         const existingNote = this.findDuplicateNote(videoId);
         if (existingNote) {
-          new DuplicateNoteErrorModal(
-            this.app,
-            existingNote.path.replace(/\.md$/, ""),
-          ).open();
+          new DuplicateNoteErrorModal(this.app, existingNote).open();
           return;
         }
       }
@@ -1037,13 +1028,13 @@ export default class YouTubeTranscriptPlugin extends Plugin {
         await this.app.vault.modify(existingCoverNote, coverNoteContent);
         new Notice(`Cover note updated: ${coverNotePath}`);
         // Open the updated cover note
-        await this.app.workspace.openLinkText(coverNotePath, "", false);
+        await this.app.workspace.getLeaf(false).openFile(existingCoverNote);
       } else {
         // Cover note doesn't exist - create it
-        await this.app.vault.create(finalCoverNotePath, coverNoteContent);
+        const createdCoverNote = await this.app.vault.create(finalCoverNotePath, coverNoteContent);
         new Notice(`Cover note created: ${finalCoverNotePath}`);
         // Open the cover note
-        await this.app.workspace.openLinkText(finalCoverNotePath, "", false);
+        await this.app.workspace.getLeaf(false).openFile(createdCoverNote);
       }
     } catch (error: unknown) {
       const errorMessage =

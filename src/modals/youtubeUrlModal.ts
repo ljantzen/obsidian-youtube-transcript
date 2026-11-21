@@ -267,7 +267,7 @@ export class YouTubeUrlModal extends Modal {
           });
           link.addEventListener("click", (event) => {
             event.preventDefault();
-            void this.app.workspace.openLinkText(existingNote.path, "", false);
+            void this.app.workspace.getLeaf(false).openFile(existingNote);
           });
         }
       }

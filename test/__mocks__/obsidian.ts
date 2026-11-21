@@ -12,6 +12,15 @@ export function requestUrl(): Promise<never> {
   return Promise.reject(new Error("requestUrl is not available in tests"));
 }
 
+// Minimal stand-in so `instanceof TFile` checks work in tests; real TFile has
+// many more members, but nothing in src/ reads them.
+export class TFile {
+  path: string;
+  constructor(path: string) {
+    this.path = path;
+  }
+}
+
 export const Platform = {
   isMobile: false,
   isDesktop: true,

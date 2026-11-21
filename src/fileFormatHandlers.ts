@@ -2,6 +2,7 @@ import { App, Notice } from "obsidian";
 import type { FileFormat, TranscriptSegment } from "./types";
 import { generatePdfFromMarkdown } from "./pdfGenerator";
 import { generateSrt, type SrtOptions } from "./srtFormatter";
+import { openVaultFile } from "./utils/vaultFileOpen";
 
 export interface FileFormatHandlerOptions {
   srt?: SrtOptions;
@@ -27,7 +28,7 @@ class MarkdownHandler implements FileFormatHandler {
   }
 
   async postCreate(app: App, filePath: string): Promise<void> {
-    await app.workspace.openLinkText(filePath, "", false);
+    await openVaultFile(app, filePath);
   }
 }
 

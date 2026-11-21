@@ -1,15 +1,16 @@
-import { App, Modal } from "obsidian";
+import { App, Modal, TFile } from "obsidian";
 
 export class DuplicateNoteErrorModal extends Modal {
-  noteName: string;
+  existingNote: TFile;
 
-  constructor(app: App, noteName: string) {
+  constructor(app: App, existingNote: TFile) {
     super(app);
-    this.noteName = noteName;
+    this.existingNote = existingNote;
   }
 
   onOpen() {
     const { contentEl } = this;
+    const noteName = this.existingNote.path.replace(/\.md$/, "");
 
     contentEl.createEl("h2", {
       text: "Duplicate note detected",
@@ -29,13 +30,13 @@ export class DuplicateNoteErrorModal extends Modal {
     });
     noteContainer.createEl("strong", { text: "Existing note: " });
     const link = noteContainer.createEl("a", {
-      text: this.noteName,
+      text: noteName,
       cls: "internal-link",
-      attr: { "data-href": this.noteName, href: this.noteName },
+      attr: { "data-href": noteName, href: noteName },
     });
     link.addEventListener("click", (e) => {
       e.preventDefault();
-      void this.app.workspace.openLinkText(this.noteName, "", false);
+      void this.app.workspace.getLeaf(false).openFile(this.existingNote);
       this.close();
     });
 
