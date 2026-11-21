@@ -1,5 +1,10 @@
 # Release Notes
 
+## 2.2.2 (2026-11-21)
+
+### Bug Fixes
+- **Video titles containing "#" opened the wrong, empty note**: The transcript note was created correctly, but opening it afterwards used Obsidian's link-text resolution, which treats `#` as a heading/block-reference separator (e.g. `My Video #1` was read as "open note `My Video`, jump to heading `1`"). Since no such note existed, Obsidian silently created and opened a new, empty note with the truncated name instead of the real transcript — same for reopening an existing cover note, and for the "existing note" links in the duplicate-note warnings. All of these now open the exact file directly instead of resolving it as a link.
+
 ## 2.2.1 (2026-11-17)
 
 ### Features
